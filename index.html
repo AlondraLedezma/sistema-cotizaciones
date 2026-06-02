@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DEMATIQ - Sistema de Cotizaciones | Login</title>
+  <meta name="description" content="Sistema de cotizaciones DEMATIQ Automatización">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/login.css">
+  <link href="https://fonts.googleapis.com/css2?family=Rozha+One&family=Questrial&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+  <div class="login-page">
+    <div class="login-card">
+      <div class="brand-badge">DEMATIQ</div>
+      <h1 class="brand-title">AUTOMATIZACIÓN</h1>
+      <p class="brand-subtitle">Integración de sistemas · PLC · HMI</p>
+      
+      <div id="login-error" class="login-error">
+        <i class="fas fa-exclamation-circle"></i>
+        <span id="login-error-text"></span>
+      </div>
+
+      <form id="login-form" autocomplete="off">
+        <h2 class="form-header">ACCESO AL SISTEMA</h2>
+        <div class="form-field">
+          <label for="login-email">Correo electrónico</label>
+          <input type="email" id="login-email" class="form-input" placeholder="correo@empresa.com" required autocomplete="new-password" value="">
+        </div>
+        <div class="form-field">
+          <label for="login-password">Contraseña</label>
+          <div class="password-input-wrapper">
+            <input type="password" id="login-password" class="form-input" placeholder="Contraseña" required autocomplete="new-password" value="">
+            <i class="fas fa-eye password-toggle" id="toggle-password"></i>
+          </div>
+        </div>
+        <button type="submit" class="brand-btn" id="login-btn">
+          <span id="login-btn-text">Iniciar sesión <i class="fas fa-chevron-right" style="margin-left:4px;"></i></span>
+          <span id="login-btn-spinner" style="display:none"><i class="fas fa-spinner fa-spin"></i> Ingresando...</span>
+        </button>
+        <div class="form-footer">
+          <a href="#" id="go-to-register">¿No tienes cuenta? Regístrate aquí</a>
+        </div>
+      </form>
+
+      <form id="register-form" autocomplete="off" style="display:none;">
+        <h2 class="form-header">CREAR UNA CUENTA</h2>
+        <div class="form-field">
+          <label for="register-name">Nombre completo</label>
+          <input type="text" id="register-name" class="form-input" placeholder="Nombre completo" required>
+        </div>
+        <div class="form-field">
+          <label for="register-email">Correo electrónico</label>
+          <input type="email" id="register-email" class="form-input" placeholder="correo@empresa.com" required autocomplete="email">
+        </div>
+        <div class="form-field">
+          <label for="register-password">Contraseña</label>
+          <div class="password-input-wrapper">
+            <input type="password" id="register-password" class="form-input" placeholder="Crear contraseña" required autocomplete="new-password">
+            <i class="fas fa-eye password-toggle" id="toggle-register-password"></i>
+          </div>
+        </div>
+        <button type="submit" class="brand-btn" id="register-btn">
+          <span id="register-btn-text">Registrarse <i class="fas fa-user-plus" style="margin-left:4px;"></i></span>
+          <span id="register-btn-spinner" style="display:none"><i class="fas fa-spinner fa-spin"></i> Registrando...</span>
+        </button>
+        <div class="form-footer">
+          <a href="#" id="go-to-login">¿Ya tienes cuenta? Inicia sesión</a>
+        </div>
+      </form>
+
+      <div class="notice-box">
+        Solo personal autorizado puede acceder al sistema.
+      </div>
+    </div>
+  </div>
+  
+  <script src="js/utils.js"></script>
+  <script src="js/auth.js"></script>
+</body>
+</html>
