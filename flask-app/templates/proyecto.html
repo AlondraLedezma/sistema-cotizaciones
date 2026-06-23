@@ -1,0 +1,645 @@
+{% extends "base.html" %}
+{% block title %}DEMATIQ — {{ proyecto.nombre_proyecto or 'Proyecto' }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-column min-vh-100" style="background:#f8fafc">
+
+  <div class="bg-white border-bottom sticky-top" style="z-index:100; box-shadow:0 1px 4px rgba(0,0,0,0.05)">
+    
+    <div class="px-4 d-flex align-items-center justify-content-between" style="height:56px">
+      <div class="d-flex align-items-center gap-2">
+        <a href="/dashboard" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1">
+          <i class="fa-solid fa-arrow-left" style="font-size:11px"></i>Dashboard
+        </a>
+        <span class="text-muted">/</span>
+        <span class="text-muted" style="font-size:13px">Proyectos</span>
+        <span class="text-muted">/</span>
+        <span class="fw-bold text-dark" style="font-size:13px" id="top-nombre">{{ proyecto.nombre_proyecto }}</span>
+        <span class="badge bg-primary ms-2" id="top-numero">No. {{ proyecto.numero_proyecto }}</span>
+      </div>
+      <div class="d-flex align-items-center gap-3">
+        <span id="autosave-indicator" class="text-muted" style="font-size:12px; display:flex; align-items:center; gap:6px">
+          <i class="fa-solid fa-circle-check text-success" style="font-size:11px"></i>Guardado
+        </span>
+        <button class="btn btn-sm btn-outline-primary px-3" id="btn-save" onclick="saveProject()">
+          <i class="fa-solid fa-floppy-disk me-1"></i>Guardar
+        </button>
+        <button class="btn btn-sm btn-primary px-3" onclick="downloadPDF()">
+          <i class="fa-solid fa-file-pdf me-1"></i>Exportar PDF
+        </button>
+      </div>
+    </div>
+
+    <div class="border-top px-4 py-2 bg-light row g-2 m-0" style="background:linear-gradient(135deg,#eff6ff,#f5f3ff)">
+      <div class="col-6 col-sm-4 col-md-2">
+        <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Empresa</label>
+        <input id="f-empresa" class="form-control form-control-sm bg-transparent border-0 fw-semibold p-0" placeholder="—" value="{{ proyecto.empresa_cliente or '' }}"/>
+      </div>
+      <div class="col-6 col-sm-4 col-md-2">
+        <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Atención</label>
+        <input id="f-atencion" class="form-control form-control-sm bg-transparent border-0 p-0" placeholder="—" value="{{ proyecto.atencion or '' }}"/>
+      </div>
+      <div class="col-6 col-sm-4 col-md-2">
+        <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Teléfono</label>
+        <input id="f-telefono" class="form-control form-control-sm bg-transparent border-0 p-0" placeholder="—" value="{{ proyecto.telefono_cliente or '' }}"/>
+      </div>
+      <div class="col-6 col-sm-4 col-md-2">
+        <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Email</label>
+        <input id="f-email" class="form-control form-control-sm bg-transparent border-0 p-0" placeholder="—" value="{{ proyecto.email_cliente or '' }}"/>
+      </div>
+      <div class="col-6 col-sm-4 col-md-2">
+        <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Fecha</label>
+        <input id="f-fecha" type="date" class="form-control form-control-sm bg-transparent border-0 p-0" value="{{ proyecto.fecha_creacion or '' }}"/>
+      </div>
+      <div class="col-6 col-sm-4 col-md-2">
+        <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">T/C USD</label>
+        <input id="f-tc" type="number" class="form-control form-control-sm bg-transparent border-0 fw-bold text-primary p-0" step="0.01" value="{{ proyecto.tipo_cambio_usd or '20.00' }}"/>
+      </div>
+    </div>
+
+    <div class="bg-dark px-4 d-flex gap-1 overflow-x-auto" id="tabs-bar" style="height:38px"></div>
+  </div>
+
+  <div class="flex-grow-1 p-4 overflow-auto" id="tab-content">
+    <div class="text-center py-5 text-muted">
+      <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+      <span>Cargando proyecto...</span>
+    </div>
+  </div>
+
+  <div class="bg-white border-top px-4 py-2 d-flex flex-wrap align-items-center gap-4 text-muted" style="font-size:12px">
+    <span>No. <strong class="text-primary" id="sb-num">{{ proyecto.numero_proyecto }}</strong></span>
+    <span>Total MN: <strong class="text-dark" id="sb-mn">$0.00</strong></span>
+    <span>Total USD: <strong class="text-primary" id="sb-usd">$0.00</strong></span>
+    <span>IVA (16%): <strong class="text-muted" id="sb-iva">$0.00</strong></span>
+    <span>TOTAL + IVA: <strong class="text-success fs-6" id="sb-total">$0.00</strong></span>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PID = {{ proyecto.id }};
+const TABS = [
+  {code:'PRESE',     label:'PRESE',        color:'#475569'},
+  {code:'REPORTE',   label:'REPORTE',      color:'#16a34a'},
+  {code:'ING_MO',    label:'ING. MO',      color:'#2563eb'},
+  {code:'E_CONTROL', label:'E. CONTROL',   color:'#1d4ed8'},
+  {code:'E_ELECTRICO',label:'E. ELÉCTRICO',color:'#0284c7'},
+  {code:'E_NEUMATICO',label:'E. NEUMÁTICO',color:'#0891b2'},
+  {code:'E_MECANICO',label:'E. MECÁNICO',  color:'#ea580c'},
+  {code:'INSUMOS',   label:'INSUMOS',      color:'#dc2626'},
+  {code:'LISTAS',    label:'LISTAS',       color:'#7c3aed'},
+  {code:'IO',        label:'I/O',          color:'#64748b'},
+  {code:'CONDICIONES',label:'CONDICIONES', color:'#475569'},
+];
+
+let projectData = null;
+let currentTab = 'REPORTE';
+let saveTimer = null;
+
+function getTC() { return parseFloat(document.getElementById('f-tc').value)||20; }
+
+function updateTabStyles() {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    const code = btn.dataset.code;
+    const t = TABS.find(x => x.code === code);
+    if (!t) return;
+    if (code === currentTab) {
+      btn.classList.add('active');
+      btn.style.opacity = '1';
+      btn.style.boxShadow = `0 4px 20px ${t.color}80, inset 0 -3px 0 rgba(255,255,255,0.5)`;
+      btn.style.transform = 'translateY(-2px)';
+    } else {
+      btn.classList.remove('active');
+      btn.style.opacity = '0.75';
+      btn.style.boxShadow = 'none';
+      btn.style.transform = 'none';
+    }
+  });
+}
+
+const tabsBar = document.getElementById('tabs-bar');
+TABS.forEach(t => {
+  const btn = document.createElement('button');
+  btn.className = 'tab-btn';
+  btn.dataset.code = t.code;
+  btn.textContent = t.label;
+  btn.style.background = t.color;
+  btn.style.marginBottom = '0';
+  btn.addEventListener('mouseenter', () => {
+    if (btn.dataset.code !== currentTab) {
+      btn.style.opacity = '1';
+      btn.style.boxShadow = `0 4px 15px ${t.color}50`;
+      btn.style.transform = 'translateY(-1px)';
+    }
+  });
+  btn.addEventListener('mouseleave', () => {
+    if (btn.dataset.code !== currentTab) {
+      btn.style.opacity = '0.75';
+      btn.style.boxShadow = 'none';
+      btn.style.transform = 'none';
+    }
+  });
+  btn.addEventListener('click', () => switchTab(t.code));
+  tabsBar.appendChild(btn);
+});
+
+async function loadProject() {
+  try {
+    const r = await api(`/api/proyecto/${PID}`);
+    projectData = r;
+    updateStatusBar();
+    switchTab(currentTab);
+  } catch(e) {
+    const r2 = await api(`/api/proyecto/${PID}`).catch(async()=> await api(`/api/proyecto/${PID}`).catch(async()=>{
+      const res = await fetch(`/api/proyecto/${PID}`);
+      return res.json();
+    }));
+  }
+}
+
+async function _load() {
+  const r = await fetch(`/api/proyecto/${PID}`);
+  if (!r.ok) {
+    const r2 = await fetch(`/api/proyecto/${PID}`);
+    projectData = await r2.json();
+  } else {
+    projectData = await r.json();
+  }
+  updateStatusBar();
+  switchTab(currentTab);
+}
+
+async function initProject() {
+  try {
+    const res = await fetch(`/api/proyecto/${PID}`);
+    if (!res.ok) throw new Error('Error al cargar');
+    projectData = await res.json();
+    updateStatusBar();
+    switchTab(currentTab);
+  } catch(e) {
+    document.getElementById('tab-content').innerHTML =
+      `<div class="text-center py-5 text-danger fw-bold"><i class="fa-solid fa-circle-exclamation fs-3 mb-2 d-block"></i>Error al cargar. Verifica MySQL en XAMPP.</div>`;
+  }
+}
+
+function switchTab(code) {
+  currentTab = code;
+  updateTabStyles();
+  const content = document.getElementById('tab-content');
+  content.innerHTML = '';
+  if (!projectData) return;
+  const sec = (projectData.secciones||[]).find(s=>s.codigo===code);
+  switch(code) {
+    case 'REPORTE':     renderReporte(content); break;
+    case 'CONDICIONES': renderCondiciones(content); break;
+    case 'PRESE':       renderPrese(content); break;
+    default:
+      if (sec) {
+        if (sec.tipo==='mano_obra') renderManoObra(content, sec);
+        else renderEquipo(content, sec);
+      } else {
+        content.innerHTML = '<div class="text-center py-5 text-muted"><i class="fa-solid fa-table fs-3 mb-2 d-block"></i>Sección no disponible.</div>';
+      }
+  }
+}
+
+function updateStatusBar() {
+  const secciones = (projectData?.secciones)||[];
+  let tmn=0,tusd=0;
+  secciones.forEach(s=>{ tmn+=parseFloat(s.subtotal_mn||0); tusd+=parseFloat(s.subtotal_usd||0); });
+  const iva=tmn*0.16;
+  document.getElementById('sb-mn').textContent=fmt(tmn);
+  document.getElementById('sb-usd').textContent=fmt(tusd);
+  document.getElementById('sb-iva').textContent=fmt(iva);
+  document.getElementById('sb-total').textContent=fmt(tmn+iva);
+}
+
+function renderReporte(c) {
+  const p = projectData.proyecto||{};
+  const secs = (projectData.secciones||[]).filter(s=>!['PRESE','REPORTE','CONDICIONES'].includes(s.codigo));
+  let tmn=0,tusd=0;
+  secs.forEach(s=>{ tmn+=parseFloat(s.subtotal_mn||0); tusd+=parseFloat(s.subtotal_usd||0); });
+  const iva=tmn*0.16;
+
+  c.innerHTML = `
+    <div class="row g-3 max-width-1100">
+      <div class="col-lg-8">
+        <div class="card shadow-sm border-0 overflow-hidden">
+          <div class="p-3 text-white" style="background:linear-gradient(135deg,#1e40af,#2563eb,#7c3aed)">
+            <div class="text-uppercase" style="font-size:10px; opacity:0.8; letter-spacing:0.5px">Resumen de Cotización</div>
+            <div class="fs-5 fw-bold">No. ${p.numero_proyecto||'---'}</div>
+          </div>
+          <div class="d-flex align-items-center gap-2 p-3 bg-light border-bottom" style="font-size:13px">
+            <span class="fw-semibold text-dark">Tipo de Cambio USD:</span>
+            <input type="number" id="tc-inline" value="${getTC().toFixed(2)}" step="0.01" class="form-control form-control-sm fw-bold text-primary" style="width:90px" oninput="document.getElementById('f-tc').value=this.value"/>
+            <span class="text-muted">MXN por USD</span>
+          </div>
+          <table class="excel-table">
+            <thead><tr>
+              <th>SECCIÓN</th>
+              <th class="text-end" style="width:130px">TOTAL MN</th>
+              <th class="text-end" style="width:130px">TOTAL USD</th>
+            </tr></thead>
+            <tbody>
+              ${secs.map((s,i)=>`
+                <tr style="${i%2===1?'background:#f8fafc':''}">
+                  <td class="fw-semibold">
+                    <span class="d-inline-block rounded-circle" style="width:8px;height:8px;background:${s.color||'#2563eb'};margin-right:10px;vertical-align:middle"></span>
+                    ${s.titulo||s.codigo}
+                  </td>
+                  <td class="text-end fw-bold text-dark">${fmt(s.subtotal_mn)}</td>
+                  <td class="text-end text-primary">${fmt(s.subtotal_usd)}</td>
+                </tr>`).join('')}
+              <tr class="total-row">
+                <td class="p-3">TOTAL GENERAL</td>
+                <td class="text-end p-3">${fmt(tmn)}</td>
+                <td class="text-end p-3">${fmt(tusd)}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="p-3 bg-light border-top">
+            <div class="d-flex flex-column align-items-end gap-1">
+              <div class="d-flex gap-4 text-muted" style="font-size:13px">
+                <span>Subtotal MN:</span><strong>${fmt(tmn)}</strong>
+              </div>
+              <div class="d-flex gap-4 text-muted" style="font-size:13px">
+                <span>IVA 16%:</span><strong>${fmt(iva)}</strong>
+              </div>
+              <div class="d-flex gap-4 text-dark fw-bold border-top pt-2 mt-2" style="font-size:15px">
+                <span>TOTAL CON IVA:</span><strong class="text-success">${fmt(tmn+iva)}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="card shadow-sm border-0 overflow-hidden mb-3">
+          <div class="p-3 border-bottom fw-bold text-dark" style="font-size:14px">
+            <i class="fa-solid fa-building text-primary me-2"></i>Datos del Cliente
+          </div>
+          ${[['Empresa',p.empresa_cliente],['Atención',p.atencion],['Proyecto',p.nombre_proyecto],['Cotización No.',p.numero_proyecto],['Fecha',str(p.fecha_creacion)],['Referencia',p.referencia]].map(([l,v])=>`
+            <div class="px-3 py-2 border-bottom d-flex flex-column">
+              <span class="text-uppercase fw-bold text-muted" style="font-size:9px;letter-spacing:0.5px">${l}</span>
+              <span class="text-dark fw-semibold" style="font-size:13px;margin-top:2px">${v||'—'}</span>
+            </div>`).join('')}
+        </div>
+        <div class="card shadow-sm border-0 p-3 bg-light" style="border:1.5px solid #dbeafe!important">
+          <div class="fw-bold text-primary mb-2" style="font-size:13px"><i class="fa-solid fa-circle-info me-2"></i>Referencia del proyecto</div>
+          <textarea id="r-referencia" class="form-control form-control-sm mb-2" style="resize:vertical;min-height:80px" placeholder="Descripción general / notas del proyecto...">${p.referencia||''}</textarea>
+          <button onclick="saveRef()" class="btn btn-sm btn-primary w-100 fw-semibold">Guardar referencia</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function str(v) { return v ? String(v).substring(0,10) : ''; }
+
+async function saveRef() {
+  const ref = document.getElementById('r-referencia')?.value||'';
+  await saveProjectField({referencia: ref});
+  showToast('Referencia guardada','success');
+}
+
+function renderManoObra(c, sec) {
+  const partidas = sec.partidas||[];
+  let tbody_rows = '';
+  partidas.forEach((p,i)=>{
+    const h=parseFloat(p.horas_mo||0), d=parseFloat(p.dias_trabajo||0),
+          co=parseFloat(p.costo_hora_usd||0), m=parseFloat(p.porcentaje_mgn||0);
+    const sub=h*d*co, tusd=sub*(1+m/100), tmn=tusd*getTC();
+    tbody_rows += `
+      <tr id="mo-row-${p.id}" class="table-row">
+        <td class="text-center text-muted" style="font-size:12px">${p.numero_partida||i+1}</td>
+        <td><input class="excel-input" value="${esc(p.descripcion||'')}" onchange="updateMO(${p.id},'descripcion',this.value)" style="min-width:180px"/></td>
+        <td><input class="excel-input" type="number" value="${h||''}" oninput="recalcMO(${p.id},this)" data-field="horas_mo" style="width:80px" step="0.5"/></td>
+        <td><input class="excel-input" type="number" value="${d||''}" oninput="recalcMO(${p.id},this)" data-field="dias_trabajo" style="width:70px" step="0.5"/></td>
+        <td><input class="excel-input" type="number" value="${co||''}" oninput="recalcMO(${p.id},this)" data-field="costo_hora_usd" style="width:90px" step="0.01"/></td>
+        <td class="text-muted text-end" style="font-size:12px" id="mo-sub-${p.id}">${fmt(sub)}</td>
+        <td><input class="excel-input" type="number" value="${m||''}" oninput="recalcMO(${p.id},this)" data-field="porcentaje_mgn" style="width:60px" step="1"/></td>
+        <td class="fw-bold text-primary text-end" id="mo-tusd-${p.id}">${fmt(tusd)}</td>
+        <td class="fw-bold text-dark text-end" id="mo-tmn-${p.id}">${fmt(tmn)}</td>
+        <td class="text-center"><button onclick="deletePartida(${p.id},'mano_obra','${sec.id}')" class="btn btn-sm btn-light text-danger border-0 py-1"><i class="fa-solid fa-times"></i></button></td>
+      </tr>`;
+  });
+
+  let totalMN=0, totalUSD=0;
+  partidas.forEach(p=>{ const h=parseFloat(p.horas_mo||0),d=parseFloat(p.dias_trabajo||0),c=parseFloat(p.costo_hora_usd||0),m=parseFloat(p.porcentaje_mgn||0); const sub=h*d*c,tusd=sub*(1+m/100); totalUSD+=tusd; totalMN+=tusd*getTC(); });
+
+  c.innerHTML = `
+    <div class="card shadow-sm border-0 overflow-hidden">
+      <div class="p-3 d-flex align-items-center justify-content-between text-white" style="background:${sec.color||'#2563eb'}">
+        <div>
+          <div class="text-uppercase" style="font-size:10px;opacity:0.8;letter-spacing:0.5px">Sección</div>
+          <div class="fs-5 fw-bold">${sec.titulo||sec.codigo}</div>
+        </div>
+        <div class="text-end text-white text-opacity-90" style="font-size:13px">
+          <div>Total USD: <strong>${fmt(totalUSD)}</strong></div>
+          <div>Total MN: <strong>${fmt(totalMN)}</strong></div>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="excel-table">
+          <thead><tr>
+            <th style="width:50px">PDA</th>
+            <th style="min-width:200px">INGENIERÍA Y DESARROLLO</th>
+            <th style="width:85px">HORAS/MO</th>
+            <th style="width:75px">DÍAS</th>
+            <th style="width:100px">C/HORA USD</th>
+            <th class="text-end" style="width:110px">SUB TOTAL</th>
+            <th style="width:65px">% MGN</th>
+            <th class="text-end" style="width:120px">TOTAL USD</th>
+            <th class="text-end" style="width:120px">TOTAL MN</th>
+            <th style="width:40px"></th>
+          </tr></thead>
+          <tbody id="mo-tbody">${tbody_rows}</tbody>
+          <tfoot><tr class="total-row">
+            <td colspan="7" class="text-end p-3">TOTAL</td>
+            <td class="text-end p-3">${fmt(totalUSD)}</td>
+            <td class="text-end p-3">${fmt(totalMN)}</td>
+            <td></td>
+          </tr></tfoot>
+        </table>
+      </div>
+      <div class="p-3 border-top bg-light">
+        <button onclick="addPartida('${sec.id}','mano_obra')" class="btn btn-sm btn-primary d-flex align-items-center gap-2 fw-semibold" style="background:${sec.color||'#2563eb'}">
+          <i class="fa-solid fa-plus"></i>Agregar Partida
+        </button>
+      </div>
+    </div>`;
+}
+
+function recalcMO(pid, input) {
+  const row = document.getElementById(`mo-row-${pid}`);
+  if (!row) return;
+  const h=parseFloat(row.querySelector('[data-field="horas_mo"]')?.value||0);
+  const d=parseFloat(row.querySelector('[data-field="dias_trabajo"]')?.value||0);
+  const c=parseFloat(row.querySelector('[data-field="costo_hora_usd"]')?.value||0);
+  const m=parseFloat(row.querySelector('[data-field="porcentaje_mgn"]')?.value||0);
+  const tc=getTC();
+  const sub=h*d*c, tusd=sub*(1+m/100), tmn=tusd*tc;
+  document.getElementById(`mo-sub-${pid}`).textContent=fmt(sub);
+  document.getElementById(`mo-tusd-${pid}`).textContent=fmt(tusd);
+  document.getElementById(`mo-tmn-${pid}`).textContent=fmt(tmn);
+  const f = input.dataset.field;
+  scheduleSave(()=> api('/api/partidas/update','POST',{
+    id:pid, tipo:'mano_obra', tipo_cambio:tc,
+    descripcion: row.querySelector('[data-field!="horas_mo"]')?.value||'',
+    horas_mo:h, dias_trabajo:d, costo_hora_usd:c, porcentaje_mgn:m
+  }));
+}
+
+function updateMO(pid, field, val) {
+  const row = document.getElementById(`mo-row-${pid}`);
+  if (!row) return;
+  const h=parseFloat(row.querySelector('[data-field="horas_mo"]')?.value||0);
+  const d=parseFloat(row.querySelector('[data-field="dias_trabajo"]')?.value||0);
+  const c=parseFloat(row.querySelector('[data-field="costo_hora_usd"]')?.value||0);
+  const m=parseFloat(row.querySelector('[data-field="porcentaje_mgn"]')?.value||0);
+  api('/api/partidas/update','POST',{id:pid,tipo:'mano_obra',tipo_cambio:getTC(),descripcion:val,horas_mo:h,dias_trabajo:d,costo_hora_usd:c,porcentaje_mgn:m});
+}
+
+function renderEquipo(c, sec) {
+  const partidas = sec.partidas||[];
+  let totalMN=0,totalUSD=0;
+  let rows='';
+  partidas.forEach((p,i)=>{
+    const qty=parseFloat(p.cantidad||0),pr=parseFloat(p.precio_lista||0),m=parseFloat(p.porcentaje_mgn||0),mon=p.moneda||'MN';
+    const sub=qty*pr; let tmn,tusd;
+    if(mon==='USD'){tusd=sub*(1+m/100);tmn=tusd*getTC();}
+    else{tmn=sub*(1+m/100);tusd=getTC()?tmn/getTC():0;}
+    totalMN+=tmn; totalUSD+=tusd;
+    rows+=`
+      <tr id="eq-row-${p.id}" class="table-row">
+        <td class="text-center text-muted" style="font-size:12px">${p.numero_partida||i+1}</td>
+        <td><input class="excel-input" value="${esc(p.descripcion||'')}" data-field="descripcion" onchange="saveEQ(${p.id})" style="min-width:160px"/></td>
+        <td><input class="excel-input" value="${esc(p.marca||'')}" data-field="marca" onchange="saveEQ(${p.id})" style="width:80px"/></td>
+        <td><input class="excel-input" value="${esc(p.modelo||'')}" data-field="modelo" onchange="saveEQ(${p.id})" style="width:80px"/></td>
+        <td><input class="excel-input" type="number" value="${qty||''}" data-field="cantidad" oninput="recalcEQ(${p.id},this)" style="width:55px" step="1"/></td>
+        <td><input class="excel-input" type="number" value="${pr||''}" data-field="precio_lista" oninput="recalcEQ(${p.id},this)" style="width:100px" step="0.01"/></td>
+        <td>
+          <select class="excel-select" data-field="moneda" onchange="recalcEQ(${p.id},this)" style="width:65px">
+            <option value="MN" ${mon==='MN'?'selected':''}>MN</option>
+            <option value="USD" ${mon==='USD'?'selected':''}>USD</option>
+          </select>
+        </td>
+        <td class="text-muted text-end" style="font-size:12px" id="eq-sub-${p.id}">${fmt(sub)}</td>
+        <td><input class="excel-input" type="number" value="${m||''}" data-field="porcentaje_mgn" oninput="recalcEQ(${p.id},this)" style="width:55px" step="1"/></td>
+        <td class="fw-bold text-dark text-end" id="eq-tmn-${p.id}">${fmt(tmn)}</td>
+        <td class="fw-bold text-primary text-end" id="eq-tusd-${p.id}">${fmt(tusd)}</td>
+        <td class="text-center"><button onclick="deletePartida(${p.id},'equipo','${sec.id}')" class="btn btn-sm btn-light text-danger border-0 py-1"><i class="fa-solid fa-times"></i></button></td>
+      </tr>`;
+  });
+
+  c.innerHTML = `
+    <div class="card shadow-sm border-0 overflow-hidden">
+      <div class="p-3 d-flex align-items-center justify-content-between text-white" style="background:${sec.color||'#0284c7'}">
+        <div><div class="text-uppercase" style="font-size:10px;opacity:0.8;letter-spacing:0.5px">Sección</div><div class="fs-5 fw-bold">${sec.titulo||sec.codigo}</div></div>
+        <div class="text-end text-white text-opacity-90" style="font-size:13px"><div>Total USD: <strong>${fmt(totalUSD)}</strong></div><div>Total MN: <strong>${fmt(totalMN)}</strong></div></div>
+      </div>
+      <div class="table-responsive">
+        <table class="excel-table">
+          <thead><tr>
+            <th style="width:45px">PDA</th><th style="min-width:160px">DESCRIPCIÓN</th><th style="width:80px">MARCA</th><th style="width:80px">MODELO</th>
+            <th style="width:55px">QTY</th><th style="width:110px">PRECIO LISTA</th><th style="width:65px">MONEDA</th>
+            <th class="text-end" style="width:110px">SUB TOTAL</th><th style="width:60px">% MGN</th>
+            <th class="text-end" style="width:115px">TOTAL MN</th><th class="text-end" style="width:115px">TOTAL USD</th><th style="width:36px"></th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot><tr class="total-row">
+            <td colspan="9" class="text-end p-3">TOTAL</td>
+            <td class="text-end p-3">${fmt(totalMN)}</td>
+            <td class="text-end p-3">${fmt(totalUSD)}</td><td></td>
+          </tr></tfoot>
+        </table>
+      </div>
+      <div class="p-3 border-top bg-light">
+        <button onclick="addPartida('${sec.id}','equipo')" class="btn btn-sm btn-primary d-flex align-items-center gap-2 fw-semibold" style="background:${sec.color||'#0284c7'}">
+          <i class="fa-solid fa-plus"></i>Agregar Partida
+        </button>
+      </div>
+    </div>`;
+}
+
+function recalcEQ(pid, input) {
+  const row = document.getElementById(`eq-row-${pid}`);
+  if (!row) return;
+  const qty=parseFloat(row.querySelector('[data-field="cantidad"]')?.value||0);
+  const pr=parseFloat(row.querySelector('[data-field="precio_lista"]')?.value||0);
+  const m=parseFloat(row.querySelector('[data-field="porcentaje_mgn"]')?.value||0);
+  const mon=row.querySelector('[data-field="moneda"]')?.value||'MN';
+  const tc=getTC();
+  const sub=qty*pr; let tmn,tusd;
+  if(mon==='USD'){tusd=sub*(1+m/100);tmn=tusd*tc;}
+  else{tmn=sub*(1+m/100);tusd=tc?tmn/tc:0;}
+  document.getElementById(`eq-sub-${pid}`).textContent=fmt(sub);
+  document.getElementById(`eq-tmn-${pid}`).textContent=fmt(tmn);
+  document.getElementById(`eq-tusd-${pid}`).textContent=fmt(tusd);
+  scheduleSave(()=> saveEQ(pid));
+}
+
+async function saveEQ(pid) {
+  const row = document.getElementById(`eq-row-${pid}`);
+  if (!row) return;
+  await api('/api/partidas/update','POST',{
+    id:pid, tipo:'equipo', tipo_cambio:getTC(),
+    descripcion: row.querySelector('[data-field="descripcion"]')?.value||'',
+    marca:       row.querySelector('[data-field="marca"]')?.value||'',
+    modelo:      row.querySelector('[data-field="modelo"]')?.value||'',
+    cantidad:    parseFloat(row.querySelector('[data-field="cantidad"]')?.value||0),
+    precio_lista:parseFloat(row.querySelector('[data-field="precio_lista"]')?.value||0),
+    moneda:      row.querySelector('[data-field="moneda"]')?.value||'MN',
+    porcentaje_mgn: parseFloat(row.querySelector('[data-field="porcentaje_mgn"]')?.value||0),
+  });
+  await reloadSections();
+}
+
+function renderCondiciones(c) {
+  const conds = projectData.condiciones||[];
+  c.innerHTML = `
+    <div class="row max-width-800">
+      <div class="col-12">
+        <div class="card shadow-sm border-0 overflow-hidden">
+          <div class="p-3 border-bottom d-flex align-items-center justify-content-between bg-white">
+            <div class="fw-bold text-dark" style="font-size:14px"><i class="fa-solid fa-handshake text-primary me-2"></i>Condiciones Comerciales</div>
+            <button onclick="addCondicion()" class="btn btn-sm btn-primary"><i class="fa-solid fa-plus me-1"></i>Agregar</button>
+          </div>
+          <div class="p-4" id="cond-list">
+            ${conds.length===0?`<div class="text-center py-4 text-muted">Sin condiciones. Agrega la primera.</div>`:''}
+            ${conds.map((c,i)=>`
+              <div class="row g-2 align-items-start py-2 border-bottom" id="cond-${c.id}">
+                <div class="col-sm-2">
+                  <input value="${esc(c.codigo||'')}" class="form-control form-control-sm text-center fw-bold text-primary" style="background:#eff6ff; border-color:#dbeafe" onchange="updateCond(${c.id},'codigo',this.value)" placeholder="C${i+1}"/>
+                </div>
+                <div class="col-sm-9">
+                  <textarea class="form-control form-control-sm" style="resize:vertical;min-height:50px" onblur="updateCond(${c.id},'contenido',this.value)">${esc(c.contenido||'')}</textarea>
+                </div>
+                <div class="col-sm-1 text-end">
+                  <button onclick="deleteCondicion(${c.id})" class="btn btn-sm btn-light text-danger border-0"><i class="fa-solid fa-times"></i></button>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function addCondicion() {
+  try {
+    await api('/api/condiciones/create','POST',{proyecto_id:PID});
+    await reloadSections();
+    switchTab('CONDICIONES');
+    showToast('Condición agregada','success');
+  } catch(e){showToast(e.message,'error');}
+}
+async function updateCond(id, field, val) {
+  const cond = (projectData.condiciones||[]).find(c=>c.id===id)||{};
+  await api('/api/condiciones/update','POST',{id, codigo:field==='codigo'?val:cond.codigo, contenido:field==='contenido'?val:cond.contenido});
+}
+async function deleteCondicion(id) {
+  if(!confirm('¿Eliminar esta condición?')) return;
+  await api('/api/condiciones/delete','POST',{id});
+  await reloadSections();
+  switchTab('CONDICIONES');
+  showToast('Condición eliminada','success');
+}
+
+function renderPrese(c) {
+  const p = projectData.proyecto||{};
+  c.innerHTML = `
+    <div class="card shadow-sm border-0 overflow-hidden max-width-800">
+      <div class="p-3 text-white" style="background:linear-gradient(135deg,#475569,#334155)">
+        <div class="text-uppercase" style="font-size:10px;opacity:0.8;letter-spacing:0.5px">Sección</div>
+        <div class="fs-5 fw-bold">Presentación / Alcance del Proyecto</div>
+      </div>
+      <div class="p-4">
+        <label class="form-label fw-bold text-muted text-uppercase mb-2" style="font-size:10px;letter-spacing:0.5px">DESCRIPCIÓN DE LA SOLUCIÓN</label>
+        <textarea id="prese-desc" class="form-control" style="resize:vertical;min-height:120px;line-height:1.6" onblur="saveDesc(this.value)" placeholder="Describe aquí la solución propuesta, alcance técnico, objetivos del proyecto...">${esc(p.descripcion_solucion||'')}</textarea>
+        <div class="alert alert-info py-2 px-3 mt-3 d-flex align-items-center gap-2 mb-0" style="font-size:13px">
+          <i class="fa-solid fa-circle-info"></i>
+          <span>Los puntos de alcance adicionales (A1.x, A2.x) se gestionan desde la versión web del sistema.</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function saveDesc(val) {
+  await saveProjectField({descripcion_solucion:val});
+}
+
+async function addPartida(seccionId, tipo) {
+  try {
+    await api('/api/partidas/create','POST',{seccion_id:seccionId,tipo});
+    await reloadSections();
+    switchTab(currentTab);
+    showToast('Partida agregada','success');
+  } catch(e){showToast(e.message,'error');}
+}
+
+async function deletePartida(pid, tipo, seccionId) {
+  if(!confirm('¿Eliminar esta partida?')) return;
+  try {
+    await api('/api/partidas/delete','POST',{id:pid,tipo,tipo_cambio:getTC()});
+    await reloadSections();
+    switchTab(currentTab);
+    showToast('Partida eliminada','success');
+  } catch(e){showToast(e.message,'error');}
+}
+
+async function reloadSections() {
+  const r = await api(`/api/proyecto/${PID}`);
+  projectData = r;
+  updateStatusBar();
+}
+
+async function saveProject() {
+  const btn = document.getElementById('btn-save');
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Guardando...';
+  btn.disabled = true;
+  await saveProjectField({});
+  btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i>Guardar';
+  btn.disabled = false;
+  showToast('Proyecto guardado','success');
+}
+
+async function saveProjectField(extra={}) {
+  await api('/api/proyectos/update','POST',{
+    id: PID,
+    nombre_proyecto: document.getElementById('top-nombre')?.textContent||'',
+    empresa_cliente: document.getElementById('f-empresa')?.value||'',
+    atencion:        document.getElementById('f-atencion')?.value||'',
+    telefono_cliente:document.getElementById('f-telefono')?.value||'',
+    email_cliente:   document.getElementById('f-email')?.value||'',
+    fecha_creacion:  document.getElementById('f-fecha')?.value||'',
+    tipo_cambio_usd: document.getElementById('f-tc')?.value||20,
+    ...extra,
+  });
+  setAutosave();
+}
+
+function setAutosave() {
+  const el = document.getElementById('autosave-indicator');
+  el.innerHTML = '<i class="fa-solid fa-circle-check text-success" style="font-size:11px"></i>Guardado';
+}
+
+let _saveTimer=null;
+function scheduleSave(fn) {
+  clearTimeout(_saveTimer);
+  document.getElementById('autosave-indicator').innerHTML='<span class="spinner-border spinner-border-sm text-primary" style="width:12px;height:12px;border-width:1.5px" role="status"></span>Guardando...';
+  _saveTimer = setTimeout(async()=>{ await fn(); setAutosave(); },900);
+}
+
+function downloadPDF() {
+  showToast('Generando PDF...','success');
+  window.open(`/api/proyecto/${PID}/pdf`,'_blank');
+}
+
+function esc(s) { return String(s).replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+['f-empresa','f-atencion','f-telefono','f-email','f-fecha','f-tc'].forEach(id => {
+  document.getElementById(id)?.addEventListener('change', ()=> scheduleSave(()=>saveProjectField({})));
+});
+
+initProject();
+</script>
+{% endblock %}

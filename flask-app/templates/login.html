@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}DEMATIQ — Sistema de Cotizaciones{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-center min-vh-100 bg-light">
+  <div class="w-100" style="max-width:420px; padding:20px">
+    
+    <div class="card shadow border-0 rounded-4 overflow-hidden">
+      
+      <div class="card-body p-4 p-sm-5 bg-white text-center">
+        <img src="/static/img/logo.png" style="width:180px;height:auto;object-fit:contain;margin:0 auto 16px" alt="DEMATIQ"/>
+        <div class="fw-bold text-primary-dark fs-6">Sistema de Cotizaciones</div>
+      </div>
+
+      <div class="card-body px-4 px-sm-5 py-4 bg-white border-top">
+        {% if error %}
+        <div class="alert alert-danger py-2 px-3 d-flex align-items-center gap-2 mb-3" style="font-size:13px">
+          <i class="fa-solid fa-circle-exclamation"></i>
+          <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        <p class="text-muted text-center" style="font-size:13px; font-weight:500">Ingresa tus credenciales para continuar</p>
+
+        <form method="POST" action="/login" id="login-form" autocomplete="off">
+          <input type="text" name="username_fake" style="display:none" tabindex="-1" autocomplete="off"/>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing:0.5px">Correo electrónico</label>
+            <div class="position-relative">
+              <i class="fa-solid fa-user position-absolute text-muted" style="left:14px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none"></i>
+              <input type="email" name="email" id="inp-email" class="form-control" placeholder="usuario@correo.com" style="padding-left:42px" autocomplete="new-password" required/>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing:0.5px">Contraseña</label>
+            <div class="position-relative">
+              <i class="fa-solid fa-lock position-absolute text-muted" style="left:14px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none"></i>
+              <input type="password" name="password" id="inp-pass" class="form-control" placeholder="Ingresa tu contraseña" style="padding-left:42px; padding-right:44px" autocomplete="new-password" required/>
+              <button type="button" onclick="togglePass()" class="position-absolute bg-transparent border-0 text-muted p-1" style="right:12px; top:50%; transform:translateY(-50%)">
+                <i class="fa-solid fa-eye" id="eye-ico" style="font-size:14px"></i>
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" id="login-btn" class="btn btn-primary w-100 py-2.5 fw-semibold d-flex align-items-center justify-content-center gap-2" style="font-size:15px">
+            <i class="fa-solid fa-right-to-bracket"></i>Iniciar Sesión
+          </button>
+        </form>
+
+        <div class="text-center mt-4 pt-3 border-top" style="font-size:13px">
+          <span class="text-muted">¿No tienes cuenta?</span>
+          <a href="/registro" class="text-primary fw-bold text-decoration-none hover-underline">Crear cuenta →</a>
+        </div>
+
+        <div class="text-center mt-3 text-muted" style="font-size:11px">
+          DEMATIQ Cotizaciones © 2026
+        </div>
+      </div>
+    </div>
+
+    <div class="text-center mt-3">
+      <span class="bg-white border rounded-pill px-3 py-1.5 text-muted shadow-sm" style="font-size:11px">
+        <i class="fa-solid fa-circle text-success me-1" style="font-size:8px"></i>Sistema activo · v2026.1
+      </span>
+    </div>
+  </div>
+</div>
+
+<script>
+  function togglePass() {
+    const inp = document.getElementById('inp-pass');
+    const ico = document.getElementById('eye-ico');
+    if (inp.type==='password') { inp.type='text'; ico.className='fa-solid fa-eye-slash'; }
+    else { inp.type='password'; ico.className='fa-solid fa-eye'; }
+  }
+  document.getElementById('login-form').addEventListener('submit', function() {
+    const btn = document.getElementById('login-btn');
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Verificando...';
+    btn.disabled = true;
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}DEMATIQ — Crear Cuenta{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-center min-vh-100 bg-light">
+  <div class="w-100" style="max-width:440px; padding:20px">
+    
+    <div class="card shadow border-0 rounded-4 overflow-hidden">
+      
+      <div class="card-body p-4 text-center bg-white">
+        <img src="/static/img/logo.png" style="width:160px;height:auto;object-fit:contain;margin:0 auto 12px" alt="DEMATIQ"/>
+        <div class="fw-bold text-primary-dark fs-5">Crear Cuenta Nueva</div>
+        <div class="text-muted" style="font-size:12px">Sistema de Cotizaciones DEMATIQ</div>
+      </div>
+
+      <div class="card-body px-4 px-sm-5 py-4 bg-white border-top">
+        {% if success %}
+        <div class="alert alert-success py-2 px-3 mb-3 d-flex flex-column gap-1" style="font-size:13px">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fa-solid fa-circle-check fs-5"></i>
+            <span>{{ success }}</span>
+          </div>
+          <a href="/login" class="text-primary fw-bold text-decoration-none mt-1 d-block">→ Ir al inicio de sesión</a>
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="alert alert-danger py-2 px-3 d-flex align-items-center gap-2 mb-3" style="font-size:13px">
+          <i class="fa-solid fa-circle-exclamation"></i>
+          <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        {% if not success %}
+        <form method="POST" action="/registro" id="reg-form">
+          <div class="mb-3">
+            <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing:0.5px">Nombre completo</label>
+            <div class="position-relative">
+              <i class="fa-solid fa-user-tie position-absolute text-muted" style="left:14px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none"></i>
+              <input type="text" name="nombre" class="form-control" placeholder="Ingresa tu nombre completo" style="padding-left:42px" required autocomplete="off"/>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing:0.5px">Correo electrónico</label>
+            <div class="position-relative">
+              <i class="fa-solid fa-envelope position-absolute text-muted" style="left:14px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none"></i>
+              <input type="email" name="email" class="form-control" placeholder="usuario@correo.com" style="padding-left:42px" required autocomplete="off"/>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing:0.5px">Contraseña</label>
+            <div class="position-relative">
+              <i class="fa-solid fa-lock position-absolute text-muted" style="left:14px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none"></i>
+              <input type="password" name="password" id="pw1" class="form-control" placeholder="Mínimo 6 caracteres" style="padding-left:42px" required autocomplete="new-password"/>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing:0.5px">Confirmar contraseña</label>
+            <div class="position-relative">
+              <i class="fa-solid fa-shield-halved position-absolute text-muted" style="left:14px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none"></i>
+              <input type="password" name="password2" id="pw2" class="form-control" placeholder="Repite tu contraseña" style="padding-left:42px" required autocomplete="new-password" oninput="checkPw()"/>
+            </div>
+            <div id="pw-match" class="mt-2" style="font-size:12px; display:none"></div>
+          </div>
+
+          <button type="submit" id="reg-btn" class="btn btn-primary w-100 py-2.5 fw-semibold d-flex align-items-center justify-content-center gap-2" style="font-size:15px">
+            <i class="fa-solid fa-user-plus"></i>Crear Cuenta
+          </button>
+        </form>
+        {% endif %}
+
+        <div class="text-center mt-4 pt-3 border-top" style="font-size:13px">
+          <span class="text-muted">¿Ya tienes cuenta?</span>
+          <a href="/login" class="text-primary fw-bold text-decoration-none hover-underline">Iniciar Sesión →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function checkPw() {
+    const p1 = document.getElementById('pw1').value;
+    const p2 = document.getElementById('pw2').value;
+    const el = document.getElementById('pw-match');
+    if (!p2) { el.style.display='none'; return; }
+    el.style.display = 'block';
+    if (p1 === p2) {
+      el.innerHTML = '<i class="fa-solid fa-check text-success me-1"></i><span class="text-success">Las contraseñas coinciden</span>';
+    } else {
+      el.innerHTML = '<i class="fa-solid fa-times text-danger me-1"></i><span class="text-danger">Las contraseñas no coinciden</span>';
+    }
+  }
+  document.getElementById('reg-form')?.addEventListener('submit', function() {
+    const btn = document.getElementById('reg-btn');
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Creando cuenta...';
+    btn.disabled = true;
+  });
+</script>
+{% endblock %}
