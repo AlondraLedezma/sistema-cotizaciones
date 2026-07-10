@@ -216,7 +216,88 @@ CREATE TABLE `usuarios` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`)
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 LOCK TABLES `usuarios` WRITE;
 INSERT INTO `usuarios` VALUES (1,'admin@dematiq.com','$2y$10$8PTeSUxma61.VgTUNGrG2.CcZ2W3vBTshPyXScboMKqO8ruRxugKa','Administrador DEMATIQ','2026-05-27 18:55:01'),(2,'monse@dematiq.com','2e217432b4ef3fafa9511a29b893ddab658651ffff7ecf36f931cf8d22fcd17f','Alondra Monserrat','2026-06-19 15:44:56');
 UNLOCK TABLES;
+
+DROP TABLE IF EXISTS `listas_predefinidas`;
+CREATE TABLE `listas_predefinidas` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `seccion_codigo` varchar(50) NOT NULL,
+  `valor` varchar(255) NOT NULL,
+  `orden` int(11) DEFAULT 0,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=42 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+LOCK TABLES `listas_predefinidas` WRITE;
+INSERT INTO `listas_predefinidas` VALUES 
+(1, 'E_CONTROL', 'ALLEN BRADLEY', 1),
+(2, 'E_CONTROL', 'SIEMENS', 2),
+(3, 'E_CONTROL', 'MOELLER', 3),
+(4, 'E_CONTROL', 'AUTONICS', 4),
+(5, 'E_CONTROL', 'IFM', 5),
+(6, 'E_CONTROL', 'WENGLOR', 6),
+(7, 'E_CONTROL', 'SICK', 7),
+(8, 'E_CONTROL', 'FESTO', 8),
+(9, 'E_CONTROL', 'SMC', 9),
+(10, 'E_CONTROL', 'OMRON', 10),
+(11, 'E_CONTROL', 'PEPPERL+FUCHS', 11),
+(12, 'E_CONTROL', 'KEYENCE', 12),
+(13, 'E_CONTROL', 'PILZ', 13),
+(14, 'E_ELECTRICO', 'RITTAL', 1),
+(15, 'E_ELECTRICO', 'MOELLER', 2),
+(16, 'E_ELECTRICO', 'SIEMENS', 3),
+(17, 'E_ELECTRICO', 'ALLEN BRADLEY', 4),
+(18, 'E_ELECTRICO', 'OMRON', 5),
+(19, 'E_ELECTRICO', 'SCHNEIDER ELECTRIC', 6),
+(20, 'E_ELECTRICO', 'WEIMULLER', 7),
+(21, 'E_ELECTRICO', 'FINDER', 8),
+(22, 'E_ELECTRICO', 'PILZ', 9),
+(23, 'E_ELECTRICO', 'KEYENCE', 10),
+(24, 'ING_MO', 'PROGRAMADOR PLC', 1),
+(25, 'ING_MO', 'PROGRAMADOR DE HMI', 2),
+(26, 'ING_MO', 'PROGRAMADOR DE SERVOS', 3),
+(27, 'ING_MO', 'DISEÑO ELECTRICO', 4),
+(28, 'ING_MO', 'DISEÑO MECANICO', 5),
+(29, 'ING_MO', 'INSTALADOR ELECTRICO', 6),
+(30, 'ING_MO', 'ARMADO DE TABLEROS ELEC', 7),
+(31, 'ING_MO', 'MONTAJE MECANICO', 8),
+(32, 'ING_MO', 'INGENIERO DE SERVICIO', 9),
+(33, 'ING_MO', 'LEVANTAMIENTO PLANTA', 10),
+(34, 'ING_MO', 'PUESTA EN MARCHA PLANTA', 11),
+(35, 'ING_MO', 'PROGRAMACION DE S. VISION', 12),
+(36, 'E_NEUMATICO', 'SMC', 1),
+(37, 'E_NEUMATICO', 'FESTO', 2),
+(38, 'E_NEUMATICO', 'ASCO NEUMATICS', 3),
+(39, 'E_NEUMATICO', 'PARKER', 4),
+(40, 'E_NEUMATICO', 'NORGREN', 5),
+(41, 'E_NEUMATICO', 'BOSCH REXROTH', 6);
+UNLOCK TABLES;
+
+DROP TABLE IF EXISTS `subtemas_prese`;
+CREATE TABLE `subtemas_prese` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `proyecto_id` int(11) NOT NULL,
+  `titulo` varchar(500) NOT NULL,
+  `contenido` text DEFAULT NULL,
+  `indice` varchar(20) NOT NULL,
+  `orden` int(11) DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `proyecto_id` (`proyecto_id`),
+  CONSTRAINT `subtemas_prese_ibfk_1` FOREIGN KEY (`proyecto_id`) REFERENCES `proyectos` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `cotizaciones_mecanico`;
+CREATE TABLE `cotizaciones_mecanico` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `proyecto_id` int(11) NOT NULL,
+  `partida` int(11) NOT NULL,
+  `descripcion` varchar(500) DEFAULT '',
+  `precio` decimal(15,2) DEFAULT 0.00,
+  `cantidad` int(11) DEFAULT 1,
+  `subtotal` decimal(15,2) DEFAULT 0.00,
+  `orden` int(11) DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `proyecto_id` (`proyecto_id`),
+  CONSTRAINT `cotizaciones_mecanico_ibfk_1` FOREIGN KEY (`proyecto_id`) REFERENCES `proyectos` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
