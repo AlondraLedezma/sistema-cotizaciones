@@ -169,7 +169,12 @@ def api_crear_proyecto():
     nombre = (d.get("nombre_proyecto") or "").strip()
     if not nombre:
         return jsonify(error="Nombre requerido"), 400
-    num = f"DM-{date.today().year}-{random.randint(1000,9999)}"
+    num = (d.get("numero_proyecto") or "").strip()
+    if not num:
+        return jsonify(error="Número de proyecto requerido"), 400
+    existing = q("SELECT id FROM proyectos WHERE numero_proyecto=%s", (num,), fetch="one")
+    if existing:
+        return jsonify(error="El número de proyecto ya existe"), 400
     pid = ex("""INSERT INTO proyectos
                (numero_proyecto,nombre_proyecto,empresa_cliente,contacto_cliente,
                 telefono_cliente,email_cliente,atencion,referencia,carpeta_link,
@@ -188,9 +193,9 @@ def api_crear_proyecto():
         ("E_ELECTRICO","EQUIPO ELÉCTRICO","equipo",5,"#0284c7"),
         ("E_NEUMATICO","EQUIPO NEUMÁTICO","equipo",6,"#0891b2"),
         ("E_MECANICO","EQUIPO MECÁNICO","equipo",7,"#ea580c"),
-        ("INSUMOS","INSUMOS","equipo",8,"#dc2626"),
-        ("LISTAS","LISTAS","equipo",9,"#7c3aed"),
-        ("IO","I/O","equipo",10,"#475569"),
+        ("T_ELECTRICO","TABLERO ELÉCTRICO","equipo",8,"#6366f1"),
+        ("INSUMOS","INSUMOS","equipo",9,"#dc2626"),
+        ("LISTAS","LISTAS","equipo",10,"#7c3aed"),
         ("CONDICIONES","CONDICIONES COMERCIALES","mano_obra",11,"#475569"),
     ]
     for code,title,tipo,orden,color in secciones:
@@ -240,6 +245,18 @@ def api_update_proyecto():
     _recalc_totals(pid)
     return jsonify(ok=True)
 
+@app.route("/api/proyectos/seleccionar_carpeta", methods=["POST"])
+@login_required
+def api_seleccionar_carpeta():
+    import tkinter as tk
+    from tkinter import filedialog
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    folder = filedialog.askdirectory(parent=root, title="Seleccionar Carpeta")
+    root.destroy()
+    return jsonify(path=folder)
+
 @app.route("/api/proyecto/<int:pid>")
 @login_required
 def api_get_proyecto(pid):
@@ -253,10 +270,14 @@ def api_get_proyecto(pid):
         else:
             s["partidas"] = list(q("SELECT * FROM partidas_equipo WHERE seccion_id=%s ORDER BY orden", (s["id"],)))
     condiciones = q("SELECT * FROM condiciones_comerciales WHERE proyecto_id=%s ORDER BY orden", (pid,))
+    subtemas = q("SELECT * FROM subtemas_prese WHERE proyecto_id=%s ORDER BY orden", (pid,))
+    listas = q("SELECT * FROM listas_predefinidas ORDER BY seccion_codigo, orden")
     return jsonify(
         proyecto=_serialize(proyecto),
         secciones=[_serialize(s) for s in secciones],
-        condiciones=list(condiciones)
+        condiciones=list(condiciones),
+        subtemas=list(subtemas),
+        listas=list(listas)
     )
 
 @app.route("/api/partidas/create", methods=["POST"])
@@ -389,9 +410,10 @@ def api_pdf(pid):
     proyecto   = q("SELECT * FROM proyectos WHERE id=%s", (pid,), fetch="one")
     secciones  = q("SELECT * FROM secciones WHERE proyecto_id=%s ORDER BY orden", (pid,))
     condiciones= q("SELECT * FROM condiciones_comerciales WHERE proyecto_id=%s ORDER BY orden", (pid,))
+    moneda = request.args.get("moneda", "MN")
     try:
         from fpdf import FPDF
-        pdf = _build_pdf(proyecto, secciones, condiciones)
+        pdf = _build_pdf(proyecto, secciones, condiciones, moneda)
         buf = io.BytesIO()
         pdf.output(buf)
         buf.seek(0)
@@ -399,6 +421,289 @@ def api_pdf(pid):
         return send_file(buf, as_attachment=True, download_name=filename, mimetype="application/pdf")
     except Exception as e:
         return jsonify(error=str(e)), 500
+
+@app.route("/api/proyecto/<int:pid>/pdf/save", methods=["POST"])
+@login_required
+def api_pdf_save(pid):
+    d = request.json or {}
+    moneda = d.get("moneda", "MN")
+    proyecto   = q("SELECT * FROM proyectos WHERE id=%s", (pid,), fetch="one")
+    secciones  = q("SELECT * FROM secciones WHERE proyecto_id=%s ORDER BY orden", (pid,))
+    condiciones= q("SELECT * FROM condiciones_comerciales WHERE proyecto_id=%s ORDER BY orden", (pid,))
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        filename = f"COT_{proyecto.get('numero_proyecto','')}.pdf"
+        filepath = filedialog.asksaveasfilename(
+            parent=root,
+            title="Guardar PDF de Cotización",
+            initialfile=filename,
+            defaultextension=".pdf",
+            filetypes=[("Archivos PDF", "*.pdf")]
+        )
+        root.destroy()
+        if not filepath:
+            return jsonify(ok=False, canceled=True)
+        pdf = _build_pdf(proyecto, secciones, condiciones, moneda)
+        pdf.output(filepath)
+        return jsonify(ok=True, path=filepath)
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
+@app.route("/api/listas_predefinidas")
+@login_required
+def api_listas():
+    seccion = request.args.get("seccion", "")
+    if seccion:
+        rows = q("SELECT * FROM listas_predefinidas WHERE seccion_codigo=%s ORDER BY orden", (seccion,))
+    else:
+        rows = q("SELECT * FROM listas_predefinidas ORDER BY seccion_codigo, orden")
+    return jsonify(data=list(rows))
+
+@app.route("/api/listas_predefinidas/create", methods=["POST"])
+@login_required
+def api_create_lista():
+    d = request.json or {}
+    n = q("SELECT COALESCE(MAX(orden),0)+1 as n FROM listas_predefinidas WHERE seccion_codigo=%s",
+          (d.get("seccion_codigo"),), fetch="one")["n"]
+    new_id = ex("INSERT INTO listas_predefinidas (seccion_codigo,valor,orden) VALUES (%s,%s,%s)",
+                (d.get("seccion_codigo"), d.get("valor",""), n))
+    return jsonify(id=new_id)
+
+@app.route("/api/listas_predefinidas/update", methods=["POST"])
+@login_required
+def api_update_lista():
+    d = request.json or {}
+    ex("UPDATE listas_predefinidas SET valor=%s WHERE id=%s", (d.get("valor"), d.get("id")))
+    return jsonify(ok=True)
+
+@app.route("/api/listas_predefinidas/delete", methods=["POST"])
+@login_required
+def api_delete_lista():
+    ex("DELETE FROM listas_predefinidas WHERE id=%s", (request.json.get("id"),))
+    return jsonify(ok=True)
+
+@app.route("/api/subtemas_prese")
+@login_required
+def api_subtemas():
+    pid = request.args.get("proyecto_id")
+    rows = q("SELECT * FROM subtemas_prese WHERE proyecto_id=%s ORDER BY orden", (pid,))
+    return jsonify(data=list(rows))
+
+@app.route("/api/subtemas_prese/create", methods=["POST"])
+@login_required
+def api_create_subtema():
+    d = request.json or {}
+    pid = d.get("proyecto_id")
+    n = q("SELECT COALESCE(MAX(orden),0)+1 as n FROM subtemas_prese WHERE proyecto_id=%s", (pid,), fetch="one")["n"]
+    indice = d.get("indice", f"A{n}")
+    new_id = ex("INSERT INTO subtemas_prese (proyecto_id,titulo,contenido,indice,orden) VALUES (%s,%s,%s,%s,%s)",
+                (pid, d.get("titulo","Nuevo subtema"), d.get("contenido",""), indice, n))
+    return jsonify(id=new_id, indice=indice)
+
+@app.route("/api/subtemas_prese/update", methods=["POST"])
+@login_required
+def api_update_subtema():
+    d = request.json or {}
+    ex("UPDATE subtemas_prese SET titulo=%s,contenido=%s,indice=%s WHERE id=%s",
+       (d.get("titulo"), d.get("contenido"), d.get("indice"), d.get("id")))
+    return jsonify(ok=True)
+
+@app.route("/api/subtemas_prese/delete", methods=["POST"])
+@login_required
+def api_delete_subtema():
+    ex("DELETE FROM subtemas_prese WHERE id=%s", (request.json.get("id"),))
+    return jsonify(ok=True)
+
+@app.route("/api/listas/clave", methods=["GET","POST"])
+@login_required
+def api_listas_clave():
+    if request.method == "GET":
+        row = q("SELECT valor FROM configuracion WHERE clave='clave_listas'", fetch="one")
+        return jsonify(existe=bool(row and row["valor"]))
+    d = request.json or {}
+    action = d.get("action", "verificar")
+    if action == "crear":
+        ex("INSERT INTO configuracion (clave,valor) VALUES ('clave_listas',%s) ON DUPLICATE KEY UPDATE valor=%s",
+           (d.get("nueva_clave"), d.get("nueva_clave")))
+        return jsonify(ok=True)
+    elif action == "modificar":
+        row = q("SELECT valor FROM configuracion WHERE clave='clave_listas'", fetch="one")
+        if not row or row["valor"] != d.get("clave_actual"):
+            return jsonify(error="Contraseña actual incorrecta"), 400
+        ex("UPDATE configuracion SET valor=%s WHERE clave='clave_listas'", (d.get("nueva_clave"),))
+        return jsonify(ok=True)
+    else:
+        row = q("SELECT valor FROM configuracion WHERE clave='clave_listas'", fetch="one")
+        if not row or row["valor"] != d.get("clave"):
+            return jsonify(error="Contraseña incorrecta"), 400
+        return jsonify(ok=True)
+
+@app.route("/api/proyectos/duplicar", methods=["POST"])
+@login_required
+def api_duplicar_proyecto():
+    d = request.json or {}
+    orig_id = d.get("id")
+    orig = q("SELECT * FROM proyectos WHERE id=%s", (orig_id,), fetch="one")
+    if not orig:
+        return jsonify(error="Proyecto no encontrado"), 404
+    num = f"DM-{date.today().year}-{random.randint(1000,9999)}"
+    new_pid = ex("""INSERT INTO proyectos
+        (numero_proyecto,nombre_proyecto,empresa_cliente,contacto_cliente,
+         telefono_cliente,email_cliente,atencion,referencia,carpeta_link,
+         fecha_creacion,usuario_id,tipo_cambio_usd,tipo_proyecto,tiempo_entrega,
+         condiciones_pago,descripcion_solucion)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+        (num, f"COPIA - {orig.get('nombre_proyecto','')}", orig.get("empresa_cliente",""),
+         orig.get("contacto_cliente",""), orig.get("telefono_cliente",""),
+         orig.get("email_cliente",""), orig.get("atencion",""), orig.get("referencia",""),
+         orig.get("carpeta_link",""), date.today().isoformat(), session["user_id"],
+         orig.get("tipo_cambio_usd",20), orig.get("tipo_proyecto","completo"),
+         orig.get("tiempo_entrega","8 DIAS HABILES"), orig.get("condiciones_pago","90 DIAS"),
+         orig.get("descripcion_solucion","")))
+    secciones = q("SELECT * FROM secciones WHERE proyecto_id=%s ORDER BY orden", (orig_id,))
+    for s in secciones:
+        new_sid = ex("INSERT INTO secciones (proyecto_id,codigo,titulo,tipo,orden,color,subtotal_mn,subtotal_usd) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+                     (new_pid, s["codigo"], s["titulo"], s["tipo"], s["orden"], s["color"],
+                      s.get("subtotal_mn",0), s.get("subtotal_usd",0)))
+        if s["tipo"] == "mano_obra":
+            partidas = q("SELECT * FROM partidas_mano_obra WHERE seccion_id=%s ORDER BY orden", (s["id"],))
+            for p in partidas:
+                ex("""INSERT INTO partidas_mano_obra (seccion_id,numero_partida,descripcion,horas_mo,
+                      dias_trabajo,costo_hora_usd,porcentaje_mgn,subtotal,total_usd,total_mn,orden)
+                      VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                   (new_sid, p["numero_partida"], p.get("descripcion",""),
+                    p.get("horas_mo",0), p.get("dias_trabajo",0), p.get("costo_hora_usd",0),
+                    p.get("porcentaje_mgn",0), p.get("subtotal",0), p.get("total_usd",0),
+                    p.get("total_mn",0), p.get("orden",0)))
+        else:
+            partidas = q("SELECT * FROM partidas_equipo WHERE seccion_id=%s ORDER BY orden", (s["id"],))
+            for p in partidas:
+                ex("""INSERT INTO partidas_equipo (seccion_id,numero_partida,descripcion,marca,modelo,
+                      cantidad,precio_lista,moneda,porcentaje_mgn,subtotal,total_mn,total_usd,orden)
+                      VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                   (new_sid, p["numero_partida"], p.get("descripcion",""), p.get("marca",""),
+                    p.get("modelo",""), p.get("cantidad",1), p.get("precio_lista",0),
+                    p.get("moneda","MN"), p.get("porcentaje_mgn",0), p.get("subtotal",0),
+                    p.get("total_mn",0), p.get("total_usd",0), p.get("orden",0)))
+    conds = q("SELECT * FROM condiciones_comerciales WHERE proyecto_id=%s ORDER BY orden", (orig_id,))
+    for c in conds:
+        ex("INSERT INTO condiciones_comerciales (proyecto_id,codigo,contenido,orden) VALUES (%s,%s,%s,%s)",
+           (new_pid, c["codigo"], c["contenido"], c["orden"]))
+    subtemas = q("SELECT * FROM subtemas_prese WHERE proyecto_id=%s ORDER BY orden", (orig_id,))
+    for st in subtemas:
+        ex("INSERT INTO subtemas_prese (proyecto_id,titulo,contenido,indice,orden) VALUES (%s,%s,%s,%s,%s)",
+           (new_pid, st["titulo"], st.get("contenido",""), st["indice"], st["orden"]))
+    _recalc_totals(new_pid)
+    return jsonify(id=new_pid, numero=num)
+
+@app.route("/api/stats/anual")
+@login_required
+def api_stats_anual():
+    year = request.args.get("year", date.today().year)
+    mensual = q("""SELECT MONTH(fecha_creacion) mes, COUNT(*) total,
+                   COALESCE(SUM(total_mn),0) monto_mn, COALESCE(SUM(total_usd),0) monto_usd
+                   FROM proyectos WHERE YEAR(fecha_creacion)=%s
+                   GROUP BY MONTH(fecha_creacion) ORDER BY mes""", (year,))
+    anios = q("SELECT DISTINCT YEAR(fecha_creacion) anio FROM proyectos ORDER BY anio DESC")
+    return jsonify(mensual=list(mensual), anios=[r["anio"] for r in anios])
+
+@app.route("/api/proyectos/create_mecanico", methods=["POST"])
+@login_required
+def api_crear_mecanico():
+    d = request.json or {}
+    nombre = (d.get("nombre_proyecto") or "").strip()
+    if not nombre:
+        return jsonify(error="Nombre requerido"), 400
+    num = (d.get("numero_proyecto") or "").strip()
+    if not num:
+        return jsonify(error="Número de proyecto requerido"), 400
+    existing = q("SELECT id FROM proyectos WHERE numero_proyecto=%s", (num,), fetch="one")
+    if existing:
+        return jsonify(error="El número de proyecto ya existe"), 400
+    pid = ex("""INSERT INTO proyectos
+        (numero_proyecto,nombre_proyecto,empresa_cliente,contacto_cliente,
+         telefono_cliente,email_cliente,atencion,referencia,carpeta_link,
+         fecha_creacion,usuario_id,tipo_proyecto,tiempo_entrega,condiciones_pago)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'mecanico',%s,%s)""",
+        (num, nombre, d.get("empresa_cliente",""), d.get("contacto_cliente",""),
+         d.get("telefono_cliente",""), d.get("email_cliente",""),
+         d.get("atencion",""), d.get("referencia",""), d.get("carpeta_link",""),
+         date.today().isoformat(), session["user_id"],
+         d.get("tiempo_entrega","8 DIAS HABILES"), d.get("condiciones_pago","90 DIAS")))
+    secciones_mec = [
+        ("PRESE","PRESENTACIÓN","mano_obra",1,"#64748b"),
+        ("REPORTE","REPORTE GENERAL","mano_obra",2,"#16a34a"),
+        ("E_MECANICO","EQUIPO MECÁNICO","equipo",3,"#ea580c"),
+        ("T_ELECTRICO","TABLERO ELÉCTRICO","equipo",4,"#6366f1"),
+        ("INSUMOS","INSUMOS","equipo",5,"#dc2626"),
+        ("LISTAS","LISTAS","equipo",6,"#7c3aed"),
+        ("CONDICIONES","CONDICIONES COMERCIALES","mano_obra",7,"#475569"),
+    ]
+    for code,title,tipo,orden,color in secciones_mec:
+        ex("INSERT INTO secciones (proyecto_id,codigo,titulo,tipo,orden,color) VALUES (%s,%s,%s,%s,%s,%s)",
+           (pid,code,title,tipo,orden,color))
+    conds = [
+        ("C1","Precios expresados en Moneda Nacional con IVA incluido.",1),
+        ("C2","Tiempo de entrega según especificaciones del proyecto.",2),
+        ("C3","Anticipo del 50% para iniciar trabajos.",3),
+        ("C4","Garantía de 12 meses en equipos instalados.",4),
+        ("C5","Cotización válida por 30 días naturales.",5),
+    ]
+    for code,cont,orden in conds:
+        ex("INSERT INTO condiciones_comerciales (proyecto_id,codigo,contenido,orden) VALUES (%s,%s,%s,%s)",
+           (pid,code,cont,orden))
+    return jsonify(id=pid, numero=num)
+
+@app.route("/api/proyectos/create_cotizacion", methods=["POST"])
+@login_required
+def api_crear_cotizacion():
+    d = request.json or {}
+    nombre = (d.get("nombre_proyecto") or "").strip()
+    if not nombre:
+        return jsonify(error="Nombre requerido"), 400
+    num = (d.get("numero_proyecto") or "").strip()
+    if not num:
+        return jsonify(error="Número de proyecto requerido"), 400
+    existing = q("SELECT id FROM proyectos WHERE numero_proyecto=%s", (num,), fetch="one")
+    if existing:
+        return jsonify(error="El número de proyecto ya existe"), 400
+    pid = ex("""INSERT INTO proyectos
+        (numero_proyecto,nombre_proyecto,empresa_cliente,contacto_cliente,
+         telefono_cliente,email_cliente,atencion,referencia,carpeta_link,
+         fecha_creacion,usuario_id,tipo_proyecto,tiempo_entrega,condiciones_pago)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'cotizacion',%s,%s)""",
+        (num, nombre, d.get("empresa_cliente",""), d.get("contacto_cliente",""),
+         d.get("telefono_cliente",""), d.get("email_cliente",""),
+         d.get("atencion",""), d.get("referencia",""), d.get("carpeta_link",""),
+         date.today().isoformat(), session["user_id"],
+         d.get("tiempo_entrega","8 DIAS HABILES"), d.get("condiciones_pago","90 DIAS")))
+    secciones_cot = [
+        ("PRESE","PRESENTACIÓN","mano_obra",1,"#64748b"),
+        ("REPORTE","REPORTE GENERAL","mano_obra",2,"#16a34a"),
+        ("ING_MO","ING. MANO DE OBRA","mano_obra",3,"#2563eb"),
+        ("E_CONTROL","EQUIPO DE CONTROL","equipo",4,"#0d47a1"),
+        ("E_ELECTRICO","EQUIPO ELÉCTRICO","equipo",5,"#0284c7"),
+        ("INSUMOS","INSUMOS","equipo",6,"#dc2626"),
+        ("CONDICIONES","CONDICIONES COMERCIALES","mano_obra",7,"#475569"),
+    ]
+    for code,title,tipo,orden,color in secciones_cot:
+        ex("INSERT INTO secciones (proyecto_id,codigo,titulo,tipo,orden,color) VALUES (%s,%s,%s,%s,%s,%s)",
+           (pid,code,title,tipo,orden,color))
+    conds = [
+        ("C1","Precios expresados en Moneda Nacional con IVA incluido.",1),
+        ("C2","Tiempo de entrega según especificaciones del proyecto.",2),
+        ("C3","Anticipo del 50% para iniciar trabajos.",3),
+        ("C4","Garantía de 12 meses en equipos instalados.",4),
+        ("C5","Cotización válida por 30 días naturales.",5),
+    ]
+    for code,cont,orden in conds:
+        ex("INSERT INTO condiciones_comerciales (proyecto_id,codigo,contenido,orden) VALUES (%s,%s,%s,%s)",
+           (pid,code,cont,orden))
+    return jsonify(id=pid, numero=num)
 
 def _serialize(row):
     if not row:
@@ -426,7 +731,7 @@ def _recalc_totals(pid):
     tusd = sum(float(r.get("subtotal_usd") or 0) for r in rows)
     ex("UPDATE proyectos SET total_mn=%s,total_usd=%s WHERE id=%s",(tmn,tusd,pid))
 
-def _build_pdf(proyecto, secciones, condiciones):
+def _build_pdf(proyecto, secciones, condiciones, moneda="MN"):
     from fpdf import FPDF
     from utils.numero_a_letras import numero_a_letras
     pdf = FPDF()
@@ -435,22 +740,27 @@ def _build_pdf(proyecto, secciones, condiciones):
     BLUE = (37, 99, 235)
     DARK = (15, 23, 42)
     GRAY = (100, 116, 139)
-    pdf.set_fill_color(*BLUE)
-    pdf.rect(0, 0, 210, 38, "F")
-    pdf.set_text_color(255,255,255)
-    pdf.set_font("Helvetica","B",20)
-    pdf.set_xy(12,8)
-    pdf.cell(0,8,"DEMATIQ AUTOMATIZACIÓN")
-    pdf.set_font("Helvetica","",9)
-    pdf.set_xy(12,20)
-    pdf.cell(0,5,"Sistema de Cotizaciones Profesional")
-    pdf.set_font("Helvetica","B",11)
-    pdf.set_xy(130,10)
-    pdf.cell(0,6,f"COT. No. {proyecto.get('numero_proyecto','---')}")
-    pdf.set_font("Helvetica","",9)
-    pdf.set_xy(130,18)
-    pdf.cell(0,5,f"Fecha: {str(proyecto.get('fecha_creacion',''))[:10]}")
+    import os
+    logo_path = os.path.join("static", "img", "logo.png")
+    if os.path.exists(logo_path):
+        pdf.image(logo_path, x=12, y=8, h=16)
+    else:
+        pdf.set_text_color(*BLUE)
+        pdf.set_font("Helvetica","B",20)
+        pdf.set_xy(12,8)
+        pdf.cell(0,8,"DEMATIQ AUTOMATIZACIÓN")
+        pdf.set_font("Helvetica","",9)
+        pdf.set_xy(12,20)
+        pdf.cell(0,5,"Sistema de Cotizaciones Profesional")
     pdf.set_text_color(*DARK)
+    pdf.set_font("Helvetica","B",12)
+    pdf.set_xy(130,8)
+    pdf.cell(0,6,f"COT. No. {proyecto.get('numero_proyecto','---')}", align="R")
+    pdf.set_font("Helvetica","",9)
+    pdf.set_xy(130,15)
+    pdf.cell(0,5,f"Fecha: {str(proyecto.get('fecha_creacion',''))[:10]}", align="R")
+    pdf.set_fill_color(*BLUE)
+    pdf.rect(0, 28, 210, 2, "F")
     pdf.set_xy(0,45)
     def sec_title(t):
         pdf.set_fill_color(*BLUE)
@@ -460,6 +770,7 @@ def _build_pdf(proyecto, secciones, condiciones):
         pdf.set_text_color(*DARK)
         pdf.ln(2)
     def info(lbl,val):
+        pdf.set_x(12)
         pdf.set_font("Helvetica","B",9)
         pdf.set_text_color(*GRAY)
         pdf.cell(45,6,lbl.upper()+":",ln=False)
@@ -501,18 +812,30 @@ def _build_pdf(proyecto, secciones, condiciones):
     pdf.cell(cw[1],7,f"$ {tmn_total:,.2f}",border=1,fill=True,align="R")
     pdf.cell(cw[2],7,f"$ {tusd_total:,.2f}",border=1,fill=True,align="R")
     pdf.ln(); pdf.set_text_color(*DARK); pdf.ln(4)
-    iva=tmn_total*0.16; total_final=tmn_total+iva
+    if moneda == "USD":
+        sub_val = Re_val = tusd_total
+        label_cur = "USD"
+        suffix = "USD"
+    else:
+        sub_val = Re_val = tmn_total
+        label_cur = "MN"
+        suffix = "M.N."
+    iva = sub_val * 0.16
+    total_final = sub_val + iva
     pdf.set_font("Helvetica","",9)
-    pdf.cell(80,6,"Subtotal MN:",border=1); pdf.cell(0,6,f"$ {tmn_total:,.2f}",border=1,align="R",ln=True)
+    pdf.cell(80,6,f"Subtotal {label_cur}:",border=1); pdf.cell(0,6,f"$ {sub_val:,.2f}",border=1,align="R",ln=True)
     pdf.cell(80,6,"IVA (16%):",border=1);   pdf.cell(0,6,f"$ {iva:,.2f}",border=1,align="R",ln=True)
     pdf.set_fill_color(*BLUE); pdf.set_text_color(255,255,255)
     pdf.set_font("Helvetica","B",10)
     pdf.cell(80,8,"TOTAL CON IVA:",border=1,fill=True)
-    pdf.cell(0,8,f"$ {total_final:,.2f} M.N.",border=1,fill=True,align="R",ln=True)
+    pdf.cell(0,8,f"$ {total_final:,.2f} {suffix}",border=1,fill=True,align="R",ln=True)
     pdf.set_text_color(*GRAY); pdf.set_font("Helvetica","I",8)
     try:
         from utils.numero_a_letras import numero_a_letras
-        pdf.ln(3); pdf.multi_cell(0,4,f"SON: {numero_a_letras(total_final)}")
+        letras = numero_a_letras(total_final)
+        if moneda == "USD":
+            letras = letras.replace("PESOS", "DÓLARES").replace("M.N.", "USD")
+        pdf.ln(3); pdf.multi_cell(0,4,f"SON: {letras}")
     except Exception:
         pass
     pdf.set_text_color(*DARK); pdf.ln(6)

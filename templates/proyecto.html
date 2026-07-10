@@ -14,7 +14,7 @@
         <span class="text-muted" style="font-size:13px">Proyectos</span>
         <span class="text-muted">/</span>
         <span class="fw-bold text-dark" style="font-size:13px" id="top-nombre">{{ proyecto.nombre_proyecto }}</span>
-        <span class="badge bg-primary ms-2" id="top-numero">No. {{ proyecto.numero_proyecto }}</span>
+        <input class="badge bg-primary ms-2 border-0 text-white fw-bold text-center" id="top-numero" value="{{ proyecto.numero_proyecto }}" style="width:140px;font-size:12px" onblur="saveProjectField({numero_proyecto:this.value})" />
       </div>
       <div class="d-flex align-items-center gap-3">
         <span id="autosave-indicator" class="text-muted" style="font-size:12px; display:flex; align-items:center; gap:6px">
@@ -32,27 +32,34 @@
     <div class="border-top px-4 py-2 bg-light row g-2 m-0" style="background:linear-gradient(135deg,#eff6ff,#f5f3ff)">
       <div class="col-6 col-sm-4 col-md-2">
         <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Empresa</label>
-        <input id="f-empresa" class="form-control form-control-sm bg-transparent border-0 fw-semibold p-0" placeholder="—" value="{{ proyecto.empresa_cliente or '' }}"/>
+        <input id="f-empresa" class="form-control form-control-sm fw-semibold" placeholder="—" value="{{ proyecto.empresa_cliente or '' }}"/>
       </div>
       <div class="col-6 col-sm-4 col-md-2">
         <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Atención</label>
-        <input id="f-atencion" class="form-control form-control-sm bg-transparent border-0 p-0" placeholder="—" value="{{ proyecto.atencion or '' }}"/>
+        <input id="f-atencion" class="form-control form-control-sm" placeholder="—" value="{{ proyecto.atencion or '' }}"/>
       </div>
       <div class="col-6 col-sm-4 col-md-2">
         <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Teléfono</label>
-        <input id="f-telefono" class="form-control form-control-sm bg-transparent border-0 p-0" placeholder="—" value="{{ proyecto.telefono_cliente or '' }}"/>
+        <input id="f-telefono" class="form-control form-control-sm" placeholder="—" value="{{ proyecto.telefono_cliente or '' }}"/>
       </div>
       <div class="col-6 col-sm-4 col-md-2">
         <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Email</label>
-        <input id="f-email" class="form-control form-control-sm bg-transparent border-0 p-0" placeholder="—" value="{{ proyecto.email_cliente or '' }}"/>
+        <input id="f-email" class="form-control form-control-sm" placeholder="—" value="{{ proyecto.email_cliente or '' }}"/>
       </div>
       <div class="col-6 col-sm-4 col-md-2">
         <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Fecha</label>
-        <input id="f-fecha" type="date" class="form-control form-control-sm bg-transparent border-0 p-0" value="{{ proyecto.fecha_creacion or '' }}"/>
+        <input id="f-fecha" type="date" class="form-control form-control-sm" value="{{ proyecto.fecha_creacion or '' }}"/>
       </div>
-      <div class="col-6 col-sm-4 col-md-2">
+      <div class="col-6 col-sm-4 col-md-1">
         <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">T/C USD</label>
-        <input id="f-tc" type="number" class="form-control form-control-sm bg-transparent border-0 fw-bold text-primary p-0" step="0.01" value="{{ proyecto.tipo_cambio_usd or '20.00' }}"/>
+        <input id="f-tc" type="number" class="form-control form-control-sm fw-bold text-primary" step="0.01" value="{{ proyecto.tipo_cambio_usd or '20.00' }}"/>
+      </div>
+      <div class="col-6 col-sm-4 col-md-1">
+        <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Carpeta</label>
+        <div class="input-group input-group-sm">
+          <input id="f-carpeta" class="form-control text-truncate" placeholder="Ruta..." value="{{ proyecto.carpeta_link or '' }}"/>
+          <button onclick="seleccionarCarpeta()" class="btn btn-outline-secondary text-primary" type="button"><i class="fa-solid fa-folder-open"></i></button>
+        </div>
       </div>
     </div>
 
@@ -87,9 +94,9 @@ const TABS = [
   {code:'E_ELECTRICO',label:'E. ELÉCTRICO',color:'#0284c7'},
   {code:'E_NEUMATICO',label:'E. NEUMÁTICO',color:'#0891b2'},
   {code:'E_MECANICO',label:'E. MECÁNICO',  color:'#ea580c'},
+  {code:'T_ELECTRICO',label:'T. ELÉCTRICO',color:'#6366f1'},
   {code:'INSUMOS',   label:'INSUMOS',      color:'#dc2626'},
   {code:'LISTAS',    label:'LISTAS',       color:'#7c3aed'},
-  {code:'IO',        label:'I/O',          color:'#64748b'},
   {code:'CONDICIONES',label:'CONDICIONES', color:'#475569'},
 ];
 
@@ -194,6 +201,7 @@ function switchTab(code) {
     case 'REPORTE':     renderReporte(content); break;
     case 'CONDICIONES': renderCondiciones(content); break;
     case 'PRESE':       renderPrese(content); break;
+    case 'LISTAS':      handleListasAccess(content); break;
     default:
       if (sec) {
         if (sec.tipo==='mano_obra') renderManoObra(content, sec);
@@ -217,7 +225,7 @@ function updateStatusBar() {
 
 function renderReporte(c) {
   const p = projectData.proyecto||{};
-  const secs = (projectData.secciones||[]).filter(s=>!['PRESE','REPORTE','CONDICIONES'].includes(s.codigo));
+  const secs = (projectData.secciones||[]).filter(s=>!['PRESE','REPORTE','CONDICIONES','LISTAS'].includes(s.codigo));
   let tmn=0,tusd=0;
   secs.forEach(s=>{ tmn+=parseFloat(s.subtotal_mn||0); tusd+=parseFloat(s.subtotal_usd||0); });
   const iva=tmn*0.16;
@@ -301,6 +309,19 @@ async function saveRef() {
   showToast('Referencia guardada','success');
 }
 
+function getDescField(p, sec) {
+  if (sec.codigo !== 'ING_MO') {
+    return `<input class="excel-input" value="${esc(p.descripcion||'')}" onchange="updateMO(${p.id},'descripcion',this.value)" style="min-width:180px"/>`;
+  }
+  const listas = projectData.listas||[];
+  const opts = listas.filter(l => l.seccion_codigo === 'ING_MO');
+  const selected = p.descripcion||'';
+  return `<select class="excel-select" onchange="updateMO(${p.id},'descripcion',this.value)" style="min-width:180px">
+    <option value="">— Seleccionar —</option>
+    ${opts.map(o => `<option value="${esc(o.valor)}" ${o.valor===selected?'selected':''}>${esc(o.valor)}</option>`).join('')}
+  </select>`;
+}
+
 function renderManoObra(c, sec) {
   const partidas = sec.partidas||[];
   let tbody_rows = '';
@@ -311,7 +332,7 @@ function renderManoObra(c, sec) {
     tbody_rows += `
       <tr id="mo-row-${p.id}" class="table-row">
         <td class="text-center text-muted" style="font-size:12px">${p.numero_partida||i+1}</td>
-        <td><input class="excel-input" value="${esc(p.descripcion||'')}" onchange="updateMO(${p.id},'descripcion',this.value)" style="min-width:180px"/></td>
+        <td>${getDescField(p, sec)}</td>
         <td><input class="excel-input" type="number" value="${h||''}" oninput="recalcMO(${p.id},this)" data-field="horas_mo" style="width:80px" step="0.5"/></td>
         <td><input class="excel-input" type="number" value="${d||''}" oninput="recalcMO(${p.id},this)" data-field="dias_trabajo" style="width:70px" step="0.5"/></td>
         <td><input class="excel-input" type="number" value="${co||''}" oninput="recalcMO(${p.id},this)" data-field="costo_hora_usd" style="width:90px" step="0.01"/></td>
@@ -334,8 +355,8 @@ function renderManoObra(c, sec) {
           <div class="fs-5 fw-bold">${sec.titulo||sec.codigo}</div>
         </div>
         <div class="text-end text-white text-opacity-90" style="font-size:13px">
-          <div>Total USD: <strong>${fmt(totalUSD)}</strong></div>
-          <div>Total MN: <strong>${fmt(totalMN)}</strong></div>
+          <div>Total USD: <strong id="sec-header-usd-${sec.id}">${fmt(totalUSD)}</strong></div>
+          <div>Total MN: <strong id="sec-header-mn-${sec.id}">${fmt(totalMN)}</strong></div>
         </div>
       </div>
       <div class="table-responsive">
@@ -355,8 +376,8 @@ function renderManoObra(c, sec) {
           <tbody id="mo-tbody">${tbody_rows}</tbody>
           <tfoot><tr class="total-row">
             <td colspan="7" class="text-end p-3">TOTAL</td>
-            <td class="text-end p-3">${fmt(totalUSD)}</td>
-            <td class="text-end p-3">${fmt(totalMN)}</td>
+            <td class="text-end p-3" id="sec-footer-usd-${sec.id}">${fmt(totalUSD)}</td>
+            <td class="text-end p-3" id="sec-footer-mn-${sec.id}">${fmt(totalMN)}</td>
             <td></td>
           </tr></tfoot>
         </table>
@@ -381,6 +402,29 @@ function recalcMO(pid, input) {
   document.getElementById(`mo-sub-${pid}`).textContent=fmt(sub);
   document.getElementById(`mo-tusd-${pid}`).textContent=fmt(tusd);
   document.getElementById(`mo-tmn-${pid}`).textContent=fmt(tmn);
+
+  const tbody = row.closest('tbody');
+  const card = row.closest('.card');
+  let totalMN = 0;
+  let totalUSD = 0;
+  tbody.querySelectorAll('tr[id^="mo-row-"]').forEach(r => {
+    const rId = r.id.split('-')[2];
+    const txtMN = document.getElementById(`mo-tmn-${rId}`).textContent;
+    const txtUSD = document.getElementById(`mo-tusd-${rId}`).textContent;
+    totalMN += parseFloat(txtMN.replace(/[^0-9.-]/g, ''))||0;
+    totalUSD += parseFloat(txtUSD.replace(/[^0-9.-]/g, ''))||0;
+  });
+
+  const headerMNStr = card.querySelector('[id^="sec-header-mn-"]');
+  const headerUSDStr = card.querySelector('[id^="sec-header-usd-"]');
+  if (headerMNStr) headerMNStr.textContent = fmt(totalMN);
+  if (headerUSDStr) headerUSDStr.textContent = fmt(totalUSD);
+
+  const footerMNStr = card.querySelector('[id^="sec-footer-mn-"]');
+  const footerUSDStr = card.querySelector('[id^="sec-footer-usd-"]');
+  if (footerMNStr) footerMNStr.textContent = fmt(totalMN);
+  if (footerUSDStr) footerUSDStr.textContent = fmt(totalUSD);
+
   const f = input.dataset.field;
   scheduleSave(()=> api('/api/partidas/update','POST',{
     id:pid, tipo:'mano_obra', tipo_cambio:tc,
@@ -399,6 +443,19 @@ function updateMO(pid, field, val) {
   api('/api/partidas/update','POST',{id:pid,tipo:'mano_obra',tipo_cambio:getTC(),descripcion:val,horas_mo:h,dias_trabajo:d,costo_hora_usd:c,porcentaje_mgn:m});
 }
 
+function getMarcaField(p, sec) {
+  const listas = projectData.listas||[];
+  const opts = listas.filter(l => l.seccion_codigo === sec.codigo);
+  if (opts.length > 0) {
+    const selected = p.marca||'';
+    return `<select class="excel-select" data-field="marca" onchange="saveEQ(${p.id})" style="width:120px">
+      <option value="">—</option>
+      ${opts.map(o => `<option value="${esc(o.valor)}" ${o.valor===selected?'selected':''}>${esc(o.valor)}</option>`).join('')}
+    </select>`;
+  }
+  return `<input class="excel-input" value="${esc(p.marca||'')}" data-field="marca" onchange="saveEQ(${p.id})" style="width:80px"/>`;
+}
+
 function renderEquipo(c, sec) {
   const partidas = sec.partidas||[];
   let totalMN=0,totalUSD=0;
@@ -413,7 +470,7 @@ function renderEquipo(c, sec) {
       <tr id="eq-row-${p.id}" class="table-row">
         <td class="text-center text-muted" style="font-size:12px">${p.numero_partida||i+1}</td>
         <td><input class="excel-input" value="${esc(p.descripcion||'')}" data-field="descripcion" onchange="saveEQ(${p.id})" style="min-width:160px"/></td>
-        <td><input class="excel-input" value="${esc(p.marca||'')}" data-field="marca" onchange="saveEQ(${p.id})" style="width:80px"/></td>
+        <td>${getMarcaField(p, sec)}</td>
         <td><input class="excel-input" value="${esc(p.modelo||'')}" data-field="modelo" onchange="saveEQ(${p.id})" style="width:80px"/></td>
         <td><input class="excel-input" type="number" value="${qty||''}" data-field="cantidad" oninput="recalcEQ(${p.id},this)" style="width:55px" step="1"/></td>
         <td><input class="excel-input" type="number" value="${pr||''}" data-field="precio_lista" oninput="recalcEQ(${p.id},this)" style="width:100px" step="0.01"/></td>
@@ -434,13 +491,22 @@ function renderEquipo(c, sec) {
   c.innerHTML = `
     <div class="card shadow-sm border-0 overflow-hidden">
       <div class="p-3 d-flex align-items-center justify-content-between text-white" style="background:${sec.color||'#0284c7'}">
-        <div><div class="text-uppercase" style="font-size:10px;opacity:0.8;letter-spacing:0.5px">Sección</div><div class="fs-5 fw-bold">${sec.titulo||sec.codigo}</div></div>
-        <div class="text-end text-white text-opacity-90" style="font-size:13px"><div>Total USD: <strong>${fmt(totalUSD)}</strong></div><div>Total MN: <strong>${fmt(totalMN)}</strong></div></div>
+        <div>
+          <div class="text-uppercase" style="font-size:10px;opacity:0.8;letter-spacing:0.5px">Sección</div>
+          <div class="fs-5 fw-bold">${sec.titulo||sec.codigo}</div>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+          ${sec.codigo==='E_MECANICO'?'<button onclick="switchTab(\'LISTAS\')" class="btn btn-sm btn-light fw-semibold" style="font-size:11px"><i class="fa-solid fa-link me-1"></i>Ir a Listas</button>':''}
+          <div class="text-end text-white text-opacity-90" style="font-size:13px">
+            <div>Total USD: <strong id="sec-header-usd-${sec.id}">${fmt(totalUSD)}</strong></div>
+            <div>Total MN: <strong id="sec-header-mn-${sec.id}">${fmt(totalMN)}</strong></div>
+          </div>
+        </div>
       </div>
       <div class="table-responsive">
         <table class="excel-table">
           <thead><tr>
-            <th style="width:45px">PDA</th><th style="min-width:160px">DESCRIPCIÓN</th><th style="width:80px">MARCA</th><th style="width:80px">MODELO</th>
+            <th style="width:45px">PDA</th><th style="min-width:160px">DESCRIPCIÓN</th><th style="width:120px">MARCA</th><th style="width:80px">MODELO</th>
             <th style="width:55px">QTY</th><th style="width:110px">PRECIO LISTA</th><th style="width:65px">MONEDA</th>
             <th class="text-end" style="width:110px">SUB TOTAL</th><th style="width:60px">% MGN</th>
             <th class="text-end" style="width:115px">TOTAL MN</th><th class="text-end" style="width:115px">TOTAL USD</th><th style="width:36px"></th>
@@ -448,8 +514,8 @@ function renderEquipo(c, sec) {
           <tbody>${rows}</tbody>
           <tfoot><tr class="total-row">
             <td colspan="9" class="text-end p-3">TOTAL</td>
-            <td class="text-end p-3">${fmt(totalMN)}</td>
-            <td class="text-end p-3">${fmt(totalUSD)}</td><td></td>
+            <td class="text-end p-3" id="sec-footer-mn-${sec.id}">${fmt(totalMN)}</td>
+            <td class="text-end p-3" id="sec-footer-usd-${sec.id}">${fmt(totalUSD)}</td><td></td>
           </tr></tfoot>
         </table>
       </div>
@@ -475,6 +541,29 @@ function recalcEQ(pid, input) {
   document.getElementById(`eq-sub-${pid}`).textContent=fmt(sub);
   document.getElementById(`eq-tmn-${pid}`).textContent=fmt(tmn);
   document.getElementById(`eq-tusd-${pid}`).textContent=fmt(tusd);
+
+  const tbody = row.closest('tbody');
+  const card = row.closest('.card');
+  let totalMN = 0;
+  let totalUSD = 0;
+  tbody.querySelectorAll('tr[id^="eq-row-"]').forEach(r => {
+    const rId = r.id.split('-')[2];
+    const txtMN = document.getElementById(`eq-tmn-${rId}`).textContent;
+    const txtUSD = document.getElementById(`eq-tusd-${rId}`).textContent;
+    totalMN += parseFloat(txtMN.replace(/[^0-9.-]/g, ''))||0;
+    totalUSD += parseFloat(txtUSD.replace(/[^0-9.-]/g, ''))||0;
+  });
+
+  const headerMNStr = card.querySelector('[id^="sec-header-mn-"]');
+  const headerUSDStr = card.querySelector('[id^="sec-header-usd-"]');
+  if (headerMNStr) headerMNStr.textContent = fmt(totalMN);
+  if (headerUSDStr) headerUSDStr.textContent = fmt(totalUSD);
+
+  const footerMNStr = card.querySelector('[id^="sec-footer-mn-"]');
+  const footerUSDStr = card.querySelector('[id^="sec-footer-usd-"]');
+  if (footerMNStr) footerMNStr.textContent = fmt(totalMN);
+  if (footerUSDStr) footerUSDStr.textContent = fmt(totalUSD);
+
   scheduleSave(()=> saveEQ(pid));
 }
 
@@ -546,25 +635,204 @@ async function deleteCondicion(id) {
 
 function renderPrese(c) {
   const p = projectData.proyecto||{};
+  const subtemas = projectData.subtemas||[];
+  let subtemasHTML = subtemas.map((st,i) => `
+    <div class="mb-2">
+      <div class="d-flex align-items-center gap-2 p-2 rounded cursor-pointer" style="background:#e2e8f0;cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+        <i class="fa-solid fa-chevron-right" style="font-size:10px;transition:0.2s"></i>
+        <input class="form-control form-control-sm fw-bold text-uppercase border-0 bg-transparent" value="${esc(st.titulo||'')}" style="font-size:13px" onblur="updateSubtema(${st.id},'titulo',this.value)" onclick="event.stopPropagation()"/>
+        <span class="badge bg-primary bg-opacity-10 text-primary" style="font-size:10px">${esc(st.indice)}</span>
+        <button onclick="event.stopPropagation();deleteSubtema(${st.id})" class="btn btn-sm btn-light text-danger border-0 ms-auto py-0"><i class="fa-solid fa-times"></i></button>
+      </div>
+      <div style="display:none" class="ps-4 pt-2 pb-2">
+        <textarea class="form-control form-control-sm" style="resize:vertical;min-height:80px;line-height:1.6;font-size:13px" onblur="updateSubtema(${st.id},'contenido',this.value)" placeholder="${st.indice}.1 Primer punto...&#10;${st.indice}.2 Segundo punto...">${esc(st.contenido||'')}</textarea>
+      </div>
+    </div>`).join('');
+
   c.innerHTML = `
-    <div class="card shadow-sm border-0 overflow-hidden max-width-800">
+    <div class="card shadow-sm border-0 overflow-hidden max-width-900">
       <div class="p-3 text-white" style="background:linear-gradient(135deg,#475569,#334155)">
         <div class="text-uppercase" style="font-size:10px;opacity:0.8;letter-spacing:0.5px">Sección</div>
         <div class="fs-5 fw-bold">Presentación / Alcance del Proyecto</div>
       </div>
+      <div class="p-4 bg-light border-bottom">
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Su Referencia</label>
+            <input class="form-control form-control-sm" value="${esc(p.referencia||'')}" onblur="saveProjectField({referencia:this.value})" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Fecha</label>
+            <input type="date" class="form-control form-control-sm" value="${p.fecha_creacion||''}" onblur="saveProjectField({fecha_creacion:this.value})" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Vencimiento</label>
+            <input type="date" class="form-control form-control-sm" value="${p.fecha_vencimiento||''}" onblur="saveProjectField({fecha_vencimiento:this.value})" />
+          </div>
+        </div>
+      </div>
       <div class="p-4">
         <label class="form-label fw-bold text-muted text-uppercase mb-2" style="font-size:10px;letter-spacing:0.5px">DESCRIPCIÓN DE LA SOLUCIÓN</label>
-        <textarea id="prese-desc" class="form-control" style="resize:vertical;min-height:120px;line-height:1.6" onblur="saveDesc(this.value)" placeholder="Describe aquí la solución propuesta, alcance técnico, objetivos del proyecto...">${esc(p.descripcion_solucion||'')}</textarea>
-        <div class="alert alert-info py-2 px-3 mt-3 d-flex align-items-center gap-2 mb-0" style="font-size:13px">
-          <i class="fa-solid fa-circle-info"></i>
-          <span>Los puntos de alcance adicionales (A1.x, A2.x) se gestionan desde la versión web del sistema.</span>
+        <textarea id="prese-desc" class="form-control mb-3" style="resize:vertical;min-height:80px;line-height:1.6" onblur="saveDesc(this.value)" placeholder="Descripción general de la solución propuesta...">${esc(p.descripcion_solucion||'')}</textarea>
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <div class="fw-bold text-dark" style="font-size:14px"><i class="fa-solid fa-list-ol text-primary me-2"></i>Subtemas de Alcance</div>
+          <button onclick="addSubtema()" class="btn btn-sm btn-primary"><i class="fa-solid fa-plus me-1"></i>Agregar Subtema</button>
         </div>
+        <div id="subtemas-container">${subtemasHTML || '<div class="text-center py-3 text-muted" style="font-size:13px">Sin subtemas. Agrega el primero.</div>'}</div>
       </div>
     </div>`;
 }
 
 async function saveDesc(val) {
   await saveProjectField({descripcion_solucion:val});
+}
+
+async function addSubtema() {
+  const subtemas = projectData.subtemas||[];
+  const n = subtemas.length + 1;
+  try {
+    await api('/api/subtemas_prese/create','POST',{proyecto_id:PID, titulo:`A${n} NUEVO SUBTEMA`, indice:`A${n}`});
+    await reloadSections();
+    switchTab('PRESE');
+    showToast('Subtema agregado','success');
+  } catch(e){showToast(e.message,'error');}
+}
+
+async function updateSubtema(id, field, val) {
+  const st = (projectData.subtemas||[]).find(s=>s.id===id)||{};
+  await api('/api/subtemas_prese/update','POST',{
+    id, titulo:field==='titulo'?val:st.titulo,
+    contenido:field==='contenido'?val:st.contenido,
+    indice:st.indice
+  });
+}
+
+async function deleteSubtema(id) {
+  if(!confirm('¿Eliminar este subtema?')) return;
+  await api('/api/subtemas_prese/delete','POST',{id});
+  await reloadSections();
+  switchTab('PRESE');
+  showToast('Subtema eliminado','success');
+}
+
+let listasUnlocked = false;
+
+async function handleListasAccess(content) {
+  if (listasUnlocked) { renderListas(content); return; }
+  const check = await api('/api/listas/clave');
+  if (!check.existe) {
+    content.innerHTML = `
+      <div class="card shadow-sm border-0 max-width-500 mx-auto mt-4">
+        <div class="p-3 text-white" style="background:#7c3aed">
+          <div class="fs-5 fw-bold"><i class="fa-solid fa-lock me-2"></i>Crear Contraseña de Listas</div>
+        </div>
+        <div class="p-4">
+          <p class="text-muted" style="font-size:13px">Esta es la primera vez. Crea una contraseña para proteger las listas.</p>
+          <input id="listas-new-pw" type="password" class="form-control mb-3" placeholder="Nueva contraseña" />
+          <input id="listas-new-pw2" type="password" class="form-control mb-3" placeholder="Confirmar contraseña" />
+          <button onclick="crearClaveListas()" class="btn btn-primary w-100 fw-semibold"><i class="fa-solid fa-shield-halved me-1"></i>Crear Contraseña</button>
+        </div>
+      </div>`;
+  } else {
+    content.innerHTML = `
+      <div class="card shadow-sm border-0 max-width-400 mx-auto mt-4">
+        <div class="p-3 text-white" style="background:#7c3aed">
+          <div class="fs-5 fw-bold"><i class="fa-solid fa-lock me-2"></i>Acceso a Listas</div>
+        </div>
+        <div class="p-4 text-center">
+          <p class="text-muted" style="font-size:13px">Ingresa la contraseña para acceder a las listas.</p>
+          <input id="listas-pw" type="password" class="form-control mb-3 text-center" placeholder="Contraseña" onkeydown="if(event.key==='Enter')verificarClaveListas()" />
+          <button onclick="verificarClaveListas()" class="btn btn-primary w-100 fw-semibold"><i class="fa-solid fa-unlock me-1"></i>Acceder</button>
+        </div>
+      </div>`;
+  }
+}
+
+async function crearClaveListas() {
+  const p1 = document.getElementById('listas-new-pw').value;
+  const p2 = document.getElementById('listas-new-pw2').value;
+  if (!p1 || p1.length < 4) { showToast('La contraseña debe tener al menos 4 caracteres','warning'); return; }
+  if (p1 !== p2) { showToast('Las contraseñas no coinciden','warning'); return; }
+  try {
+    await api('/api/listas/clave','POST',{action:'crear',nueva_clave:p1});
+    listasUnlocked = true;
+    showToast('Contraseña creada','success');
+    switchTab('LISTAS');
+  } catch(e){showToast(e.message,'error');}
+}
+
+async function verificarClaveListas() {
+  const pw = document.getElementById('listas-pw').value;
+  try {
+    await api('/api/listas/clave','POST',{action:'verificar',clave:pw});
+    listasUnlocked = true;
+    switchTab('LISTAS');
+  } catch(e){showToast('Contraseña incorrecta','error');}
+}
+
+async function renderListas(c) {
+  const listas = projectData.listas||[];
+  const categorias = ['E_CONTROL','E_ELECTRICO','ING_MO','E_NEUMATICO','E_MECANICO','T_ELECTRICO'];
+  const nombres = {E_CONTROL:'MARCAS E. CONTROL',E_ELECTRICO:'MARCAS E. ELÉCTRICO',ING_MO:'INGENIERÍA MO',E_NEUMATICO:'E. NEUMÁTICO HIDRÁULICO',E_MECANICO:'E. MECÁNICO',T_ELECTRICO:'TABLERO ELÉCTRICO'};
+  let html = `
+    <div class="card shadow-sm border-0 overflow-hidden">
+      <div class="p-3 d-flex align-items-center justify-content-between text-white" style="background:#7c3aed">
+        <div><div class="fs-5 fw-bold">Administrador de Listas</div></div>
+        <button onclick="cambiarClaveListas()" class="btn btn-sm btn-light fw-semibold" style="font-size:11px"><i class="fa-solid fa-key me-1"></i>Cambiar Contraseña</button>
+      </div>
+      <div class="p-4">
+        <div class="row g-3">`;
+  categorias.forEach(cat => {
+    const items = listas.filter(l => l.seccion_codigo === cat);
+    html += `
+      <div class="col-md-4 col-lg-3">
+        <div class="card h-100 border">
+          <div class="card-header py-2 fw-bold text-uppercase" style="font-size:11px;background:#f8fafc">${nombres[cat]||cat}</div>
+          <div class="card-body p-2" style="max-height:250px;overflow-y:auto" id="lista-${cat}">
+            ${items.map(it => `
+              <div class="d-flex align-items-center gap-1 py-1 px-2 border-bottom" style="font-size:12px">
+                <input class="form-control form-control-sm border-0 p-0 bg-transparent" value="${esc(it.valor)}" onblur="updateListaItem(${it.id},this.value)" style="font-size:12px" />
+                <button onclick="deleteListaItem(${it.id},'${cat}')" class="btn btn-sm p-0 text-danger border-0" style="font-size:10px"><i class="fa-solid fa-times"></i></button>
+              </div>`).join('')}
+          </div>
+          <div class="card-footer p-2">
+            <button onclick="addListaItem('${cat}')" class="btn btn-sm btn-outline-primary w-100" style="font-size:11px"><i class="fa-solid fa-plus me-1"></i>Agregar</button>
+          </div>
+        </div>
+      </div>`;
+  });
+  html += `</div></div></div>`;
+  c.innerHTML = html;
+}
+
+async function addListaItem(cat) {
+  const val = prompt('Nuevo valor para la lista:');
+  if (!val || !val.trim()) return;
+  await api('/api/listas_predefinidas/create','POST',{seccion_codigo:cat,valor:val.trim()});
+  await reloadSections();
+  switchTab('LISTAS');
+}
+
+async function updateListaItem(id, val) {
+  await api('/api/listas_predefinidas/update','POST',{id, valor:val});
+}
+
+async function deleteListaItem(id, cat) {
+  if(!confirm('¿Eliminar este elemento?')) return;
+  await api('/api/listas_predefinidas/delete','POST',{id});
+  await reloadSections();
+  switchTab('LISTAS');
+}
+
+async function cambiarClaveListas() {
+  const actual = prompt('Contraseña actual:');
+  if (!actual) return;
+  const nueva = prompt('Nueva contraseña (mín. 4 caracteres):');
+  if (!nueva || nueva.length < 4) { showToast('Mínimo 4 caracteres','warning'); return; }
+  try {
+    await api('/api/listas/clave','POST',{action:'modificar',clave_actual:actual,nueva_clave:nueva});
+    showToast('Contraseña actualizada','success');
+  } catch(e){showToast(e.message,'error');}
 }
 
 async function addPartida(seccionId, tipo) {
@@ -606,12 +874,14 @@ async function saveProjectField(extra={}) {
   await api('/api/proyectos/update','POST',{
     id: PID,
     nombre_proyecto: document.getElementById('top-nombre')?.textContent||'',
+    numero_proyecto: document.getElementById('top-numero')?.value||'',
     empresa_cliente: document.getElementById('f-empresa')?.value||'',
     atencion:        document.getElementById('f-atencion')?.value||'',
     telefono_cliente:document.getElementById('f-telefono')?.value||'',
     email_cliente:   document.getElementById('f-email')?.value||'',
     fecha_creacion:  document.getElementById('f-fecha')?.value||'',
     tipo_cambio_usd: document.getElementById('f-tc')?.value||20,
+    carpeta_link:    document.getElementById('f-carpeta')?.value||'',
     ...extra,
   });
   setAutosave();
@@ -630,13 +900,75 @@ function scheduleSave(fn) {
 }
 
 function downloadPDF() {
+  const p = projectData.proyecto||{};
+  let missing = [];
+  if (!p.empresa_cliente) missing.push('Empresa/Cliente');
+  if (!p.atencion) missing.push('Atención/Contacto');
+  if (!p.telefono_cliente) missing.push('Teléfono');
+  if (!p.email_cliente) missing.push('Email');
+  const secs = (projectData.secciones||[]).filter(s=>!['PRESE','REPORTE','CONDICIONES','LISTAS'].includes(s.codigo));
+  const empty = secs.filter(s => !(s.partidas||[]).length);
+  if (empty.length) missing.push(`Secciones sin partidas: ${empty.map(s=>s.titulo).join(', ')}`);
+
+  let alertHTML = '';
+  if (missing.length) {
+    alertHTML = `<div class="alert alert-warning py-2 px-3 mb-3" style="font-size:12px">
+      <div class="fw-bold mb-1"><i class="fa-solid fa-triangle-exclamation me-1"></i>Campos faltantes:</div>
+      <ul class="mb-0 ps-3">${missing.map(m=>'<li>'+m+'</li>').join('')}</ul>
+    </div>`;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'modal-pdf';
+  overlay.innerHTML = `
+    <div class="modal-card" style="max-width:400px">
+      <div class="p-3 border-bottom bg-light fw-bold text-dark fs-6"><i class="fa-solid fa-file-pdf text-danger me-2"></i>Exportar PDF</div>
+      <div class="p-4">
+        ${alertHTML}
+        <p class="text-muted mb-3" style="font-size:13px">Selecciona la moneda para el reporte:</p>
+        <div class="d-grid gap-2">
+          <button onclick="doPDF('MN')" class="btn btn-primary d-flex align-items-center justify-content-center gap-2 fw-semibold"><i class="fa-solid fa-peso-sign"></i>Pesos Mexicanos (MN)</button>
+          <button onclick="doPDF('USD')" class="btn btn-success d-flex align-items-center justify-content-center gap-2 fw-semibold"><i class="fa-solid fa-dollar-sign"></i>Dólares (USD)</button>
+        </div>
+        <button onclick="this.closest('.modal-overlay').remove()" class="btn btn-secondary btn-sm w-100 mt-3">Cancelar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function doPDF(moneda) {
+  document.getElementById('modal-pdf')?.remove();
   showToast('Generando PDF...','success');
-  window.open(`/api/proyecto/${PID}/pdf`,'_blank');
+  try {
+    const r = await api(`/api/proyecto/${PID}/pdf/save`, 'POST', {moneda});
+    if (r.ok) {
+      showToast('PDF guardado exitosamente','success');
+    } else if (r.canceled) {
+      showToast('Guardado cancelado','warning');
+    } else {
+      throw new Error(r.error || 'Error al guardar');
+    }
+  } catch(e) {
+    showToast('Error al generar PDF: ' + e.message, 'error');
+  }
+}
+
+async function seleccionarCarpeta() {
+  try {
+    const r = await api('/api/proyectos/seleccionar_carpeta', 'POST');
+    if (r && r.path) {
+      document.getElementById('f-carpeta').value = r.path;
+      await saveProjectField({carpeta_link: r.path});
+    }
+  } catch(e) {
+    showToast('No se pudo abrir el selector de carpetas', 'error');
+  }
 }
 
 function esc(s) { return String(s).replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-['f-empresa','f-atencion','f-telefono','f-email','f-fecha','f-tc'].forEach(id => {
+['f-empresa','f-atencion','f-telefono','f-email','f-fecha','f-tc','f-carpeta'].forEach(id => {
   document.getElementById(id)?.addEventListener('change', ()=> scheduleSave(()=>saveProjectField({})));
 });
 
