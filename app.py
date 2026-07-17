@@ -808,7 +808,7 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
             
         # Draw Slogans next to logo
         pdf.set_text_color(*GRAY)
-        pdf.set_font("Helvetica", "I", 7.5)
+        pdf.set_font("Helvetica", "", 7.5)
         slogans = [
             "Integracion de sistemas Automatizados",
             "Programacion de PLC, HMI",

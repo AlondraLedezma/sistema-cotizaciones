@@ -529,7 +529,7 @@ function renderReporte(c) {
           <div class="col-5 text-end" style="font-size: 13px;">
             <div class="mb-1 text-muted fw-semibold d-flex align-items-center justify-content-end">
               Ventas: &nbsp;
-              <input id="f-vendedor-top" class="quote-header-input fw-semibold text-end border-0 bg-transparent" style="width:140px; border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(window.currentVendedor || vendedor_config || 'Jose Moreno Rangel')}" onchange="saveVendedorConfig('vendedor', this.value)"/>
+              <input id="f-vendedor-top" class="quote-header-input fw-semibold text-end border-0 bg-transparent" style="width:200px; border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(window.currentVendedor || vendedor_config || 'Jose Moreno Rangel')}" onchange="saveVendedorConfig('vendedor', this.value)"/>
             </div>
             <div class="text-center py-1 text-white fw-bold text-uppercase rounded-1 mb-2" style="background:#1e3a8a; font-size:14px; letter-spacing:1px;">
               COTIZACION
@@ -629,7 +629,7 @@ function renderReporte(c) {
         <!-- Sheet Footer -->
         <div class="border-top mt-5 pt-3 text-center text-muted" style="font-size: 11px;">
           Atención:
-          <input id="f-vendedor" class="quote-header-input fw-bold text-center" style="width: 140px; border: none; border-bottom: 1px dashed #ccc; outline: none; background: transparent; font-size: 11px;" value="${esc(window.currentVendedor || vendedor_config || 'Jose Moreno Rangel')}" onchange="saveVendedorConfig('vendedor', this.value)"/>
+          <input id="f-vendedor" class="quote-header-input fw-bold text-center" style="width: 200px; border: none; border-bottom: 1px dashed #ccc; outline: none; background: transparent; font-size: 11px;" value="${esc(window.currentVendedor || vendedor_config || 'Jose Moreno Rangel')}" onchange="saveVendedorConfig('vendedor', this.value)"/>
           &nbsp;&nbsp;&nbsp;&nbsp;
           Tel:
           <input id="f-vendedor-telefono" class="quote-header-input fw-bold text-center" style="width: 100px; border: none; border-bottom: 1px dashed #ccc; outline: none; background: transparent; font-size: 11px;" value="${esc(window.currentVendedorTel || vendedor_telefono || '442 7214891')}" onchange="saveVendedorConfig('vendedor_telefono', this.value)"/>
@@ -1034,7 +1034,7 @@ function renderPrese(c) {
         <div class="col-7">
           <div class="d-flex align-items-center gap-3">
             <img src="/static/img/logo.png" style="height:70px; width:auto; object-fit:contain;" alt="DEMATIQ"/>
-            <div style="font-size:10px; color:#64748b; line-height:1.4; font-style:italic;">
+            <div style="font-size:10.5px; color:#475569; line-height:1.45;">
               Integracion de sistemas Automatizados<br/>
               Programacion de PLC, HMI<br/>
               Servicio de Diseño y Armado Tableros<br/>
@@ -1046,7 +1046,7 @@ function renderPrese(c) {
         <div class="col-5 text-end" style="font-size:12px;">
           <div class="mb-1 text-muted fw-semibold d-flex align-items-center justify-content-end">
             Ventas: &nbsp;
-            <input id="f-vendedor-prese" class="quote-header-input fw-semibold text-end border-0 bg-transparent" style="width:140px; border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(window.currentVendedor || vendedor_config || 'Jose Moreno Rangel')}" onchange="saveVendedorConfig('vendedor', this.value)"/>
+            <input id="f-vendedor-prese" class="quote-header-input fw-semibold text-end border-0 bg-transparent" style="width:200px; border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(window.currentVendedor || vendedor_config || 'Jose Moreno Rangel')}" onchange="saveVendedorConfig('vendedor', this.value)"/>
           </div>
           <div class="text-center py-1 text-white fw-bold text-uppercase rounded-1 mb-2" style="background:#1e3a8a; font-size:14px; letter-spacing:1px;">
             COTIZACION
