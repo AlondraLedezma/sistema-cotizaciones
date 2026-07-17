@@ -974,6 +974,22 @@ function renderPrese(c) {
   const p = projectData.proyecto||{};
   const subtemas = projectData.subtemas||[];
 
+  const secs = (projectData.secciones||[]).filter(s=>!['PRESE','REPORTE','CONDICIONES','LISTAS'].includes(s.codigo));
+  let subtotal_mn = 0, subtotal_usd = 0;
+  secs.forEach(sec => {
+    const partidas = sec.partidas||[];
+    partidas.forEach(pt => {
+      subtotal_mn += parseFloat(pt.total_mn||0);
+      subtotal_usd += parseFloat(pt.total_usd||0);
+    });
+  });
+  const currency = prevCurrency || 'MN';
+  const subtotal_val = currency === 'USD' ? subtotal_usd : subtotal_mn;
+  const pct_iva = p.porcentaje_iva !== undefined ? parseFloat(p.porcentaje_iva) : 16.00;
+  const iva_val = subtotal_val * (pct_iva / 100.0);
+  const total_val = subtotal_val + iva_val;
+  const total_letras = numeroALetras(total_val, currency);
+
   // Premium WYSIWYG Cover Page layout for all projects/quotations
   let subtemasHTML = subtemas.map((st,i) => {
     const points = parseSubtemaPoints(st);
@@ -1016,8 +1032,8 @@ function renderPrese(c) {
       <div class="row align-items-start mb-4">
         <!-- Logo & Slogans -->
         <div class="col-7">
-          <div class="d-flex align-items-start gap-3">
-            <img src="/static/img/logo.png" style="height:48px;" alt="DEMATIQ"/>
+          <div class="d-flex align-items-center gap-3">
+            <img src="/static/img/logo.png" style="height:70px; width:auto; object-fit:contain;" alt="DEMATIQ"/>
             <div style="font-size:10px; color:#64748b; line-height:1.4; font-style:italic;">
               Integracion de sistemas Automatizados<br/>
               Programacion de PLC, HMI<br/>
@@ -1100,6 +1116,25 @@ function renderPrese(c) {
           <button onclick="addSubtema()" class="btn btn-sm btn-primary py-1 px-3"><i class="fa-solid fa-plus me-1"></i>Agregar Subtema</button>
         </div>
         <div id="subtemas-container">${subtemasHTML || '<div class="text-center py-3 text-muted" style="font-size:13px">Sin subtemas. Agrega el primero.</div>'}</div>
+      </div>
+
+      <!-- Economical Totals (matching Image 3) -->
+      <div class="mt-4 pt-3 border-top">
+        <div class="row align-items-end">
+          <div class="col-7">
+            <!-- Left side empty -->
+          </div>
+          <div class="col-5">
+            <div class="text-end fw-bold text-muted mb-1" style="font-size:12px;">Precio Total más IVA.</div>
+            <div class="d-flex align-items-center justify-content-between p-2 rounded text-white fw-bold" style="background:#00bcd4; font-size:16px;">
+              <span class="ps-2">TOTAL</span>
+              <span class="pe-2">$ ${fmtCurrency(total_val)} ${currency === 'USD' ? 'USD' : 'M.N.'}</span>
+            </div>
+            <div class="text-end mt-2 fw-bold text-dark text-uppercase" style="font-size:11px; line-height: 1.4;">
+              (${total_letras.toUpperCase()})
+            </div>
+          </div>
+        </div>
       </div>
     </div>`;
 }

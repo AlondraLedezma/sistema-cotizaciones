@@ -804,7 +804,7 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
         # Draw Logo
         logo_path = os.path.join("static", "img", "logo.png")
         if os.path.exists(logo_path):
-            pdf.image(logo_path, x=12, y=8, h=16)
+            pdf.image(logo_path, x=12, y=8, h=25)
             
         # Draw Slogans next to logo
         pdf.set_text_color(*GRAY)
@@ -817,7 +817,7 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
         ]
         y_slog = 8
         for sl in slogans:
-            pdf.set_xy(65, y_slog)
+            pdf.set_xy(70, y_slog)
             pdf.cell(0, 4, sl)
             y_slog += 4
 
@@ -832,37 +832,37 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
         
         # COTIZACION Banner
         pdf.set_fill_color(*BLUE)
-        pdf.rect(130, 14, 68, 7, "F")
+        pdf.rect(130, 14, 68, 8, "F")
         pdf.set_xy(130, 14)
         pdf.set_text_color(255, 255, 255)
         pdf.set_font("Helvetica", "B", 10)
-        pdf.cell(68, 7, "COTIZACION", align="C")
+        pdf.cell(68, 8, "COTIZACION", align="C")
         
         # Quote Details
         pdf.set_text_color(*DARK)
         pdf.set_font("Helvetica", "", 9)
         
-        pdf.set_xy(130, 23)
+        pdf.set_xy(130, 24)
         pdf.cell(30, 7, "COTIZACION No.")
         pdf.set_font("Helvetica", "B", 10)
         pdf.cell(38, 7, str(proyecto.get("numero_proyecto") or "---"), align="R")
         
         # Customer Info on Left, Dates on Right (aligned side-by-side)
         # Row 1: Atencion & FECHA
-        pdf.set_xy(12, 45)
+        pdf.set_xy(12, 43)
         pdf.set_font("Helvetica", "B", 9)
         pdf.cell(20, 5, "Atencion:")
         pdf.set_font("Helvetica", "", 9)
         pdf.cell(100, 5, str(proyecto.get("atencion") or "---"))
         
-        pdf.set_xy(140, 45)
+        pdf.set_xy(140, 43)
         pdf.set_font("Helvetica", "B", 9)
         pdf.cell(25, 5, "FECHA")
         pdf.set_font("Helvetica", "", 9)
         pdf.cell(33, 5, str(proyecto.get("fecha_creacion") or "")[:10], align="R")
         
         # Row 2: TEL / Empresa & VENCIMIENTO
-        pdf.set_xy(12, 51)
+        pdf.set_xy(12, 49)
         pdf.set_font("Helvetica", "B", 9)
         pdf.cell(10, 5, "TEL:")
         pdf.set_font("Helvetica", "", 9)
@@ -873,14 +873,14 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
         pdf.set_font("Helvetica", "", 9)
         pdf.cell(62, 5, str(proyecto.get("empresa_cliente") or "---"))
         
-        pdf.set_xy(140, 51)
+        pdf.set_xy(140, 49)
         pdf.set_font("Helvetica", "B", 9)
         pdf.cell(25, 5, "VENCIMIENTO")
         pdf.set_font("Helvetica", "", 9)
         pdf.cell(33, 5, str(proyecto.get("fecha_vencimiento") or "")[:10], align="R")
         
         # Row 3: E-mail
-        pdf.set_xy(12, 57)
+        pdf.set_xy(12, 55)
         pdf.set_font("Helvetica", "B", 9)
         pdf.cell(15, 5, "E-mail:")
         pdf.set_font("Helvetica", "", 9)
@@ -889,10 +889,10 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
         # Separator line
         pdf.set_draw_color(*BLUE)
         pdf.set_line_width(0.5)
-        pdf.line(12, 65, 198, 65)
+        pdf.line(12, 63, 198, 63)
         
         # Su Referencia
-        pdf.set_xy(12, 68)
+        pdf.set_xy(12, 66)
         pdf.set_font("Helvetica", "B", 10)
         pdf.cell(28, 6, "Su Referencia:")
         pdf.set_font("Helvetica", "", 10)
@@ -1024,27 +1024,34 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
         pdf.cell(cw[0] + cw[1] + cw[2] + cw[3], 6, f"IVA ({pct_iva:g}%)", border=1, align="R")
         pdf.cell(cw[4], 6, f"$ {iva_val:,.2f}", border=1, align="R", ln=True)
         
+        # Price Total plus IVA label
+        pdf.ln(1)
+        pdf.set_font("Helvetica", "B", 9.5)
+        pdf.set_text_color(*DARK)
+        pdf.cell(0, 5, "Precio Total más IVA.", align="R", ln=True)
+        pdf.ln(1)
+        
         # TOTAL Banner
         pdf.set_fill_color(0, 188, 212)  # Cyan #00bcd4
         pdf.set_text_color(255, 255, 255)
         pdf.set_font("Helvetica", "B", 10)
-        pdf.cell(cw[0] + cw[1] + cw[2] + cw[3], 8, "TOTAL CON IVA", border=1, fill=True, align="R")
+        pdf.cell(cw[0] + cw[1] + cw[2] + cw[3], 8, "  TOTAL", border=1, fill=True, align="L")
         pdf.cell(cw[4], 8, f"$ {total_val:,.2f} {suffix}", border=1, fill=True, align="R", ln=True)
         
         # Words total
         pdf.ln(2)
-        pdf.set_text_color(*GRAY)
-        pdf.set_font("Helvetica", "I", 8.5)
+        pdf.set_text_color(*DARK)
+        pdf.set_font("Helvetica", "B", 10)
         try:
             letras = numero_a_letras(total_val)
             if moneda == "USD":
                 letras = letras.replace("PESOS", "DÓLARES").replace("M.N.", "USD")
-            pdf.multi_cell(0, 4, f"SON: {letras}")
+            pdf.multi_cell(0, 5, f"({letras.upper()})", align="L")
         except Exception:
             pass
             
         pdf.set_text_color(*DARK)
-        pdf.ln(6)
+        pdf.ln(4)
         
         # Commercial Conditions
         if condiciones:
