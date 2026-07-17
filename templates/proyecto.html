@@ -763,10 +763,11 @@ function recalcMO(pid, input) {
   if (footerMNStr) footerMNStr.textContent = fmt(totalMN);
   if (footerUSDStr) footerUSDStr.textContent = fmt(totalUSD);
 
-  const f = input.dataset.field;
+  const descEl = row.querySelector('select.excel-select, input.excel-input[data-field="descripcion"]') || row.querySelector('td:nth-child(2) select, td:nth-child(2) input');
+  const descVal = descEl ? descEl.value : '';
   scheduleSave(()=> api('/api/partidas/update','POST',{
     id:pid, tipo:'mano_obra', tipo_cambio:tc,
-    descripcion: row.querySelector('[data-field!="horas_mo"]')?.value||'',
+    descripcion: descVal,
     horas_mo:h, dias_trabajo:d, costo_hora_usd:c, porcentaje_mgn:m
   }));
 }
@@ -964,7 +965,7 @@ async function updateCond(id, field, val) {
   await api('/api/condiciones/update','POST',{id, codigo:field==='codigo'?val:cond.codigo, contenido:field==='contenido'?val:cond.contenido});
 }
 async function deleteCondicion(id) {
-  if(!confirm('¿Eliminar esta condición?')) return;
+  if(!await askConfirm('¿Eliminar esta condición?')) return;
   await api('/api/condiciones/delete','POST',{id});
   await reloadSections();
   switchTab('CONDICIONES');
@@ -1194,7 +1195,7 @@ async function updateSubtema(id, field, val) {
 }
 
 async function deleteSubtema(id) {
-  if(!confirm('¿Eliminar este subtema?')) return;
+  if(!await askConfirm('¿Eliminar este subtema?')) return;
   await api('/api/subtemas_prese/delete','POST',{id});
   await reloadSections();
   switchTab('PRESE');
@@ -1304,7 +1305,7 @@ async function updateListaItem(id, val) {
 }
 
 async function deleteListaItem(id, cat) {
-  if(!confirm('¿Eliminar este elemento?')) return;
+  if(!await askConfirm('¿Eliminar este elemento?')) return;
   await api('/api/listas_predefinidas/delete','POST',{id});
   await reloadSections();
   switchTab('LISTAS');
@@ -1323,7 +1324,42 @@ async function cambiarClaveListas() {
 
 async function addPartida(seccionId, tipo) {
   try {
-    await flushPendingSave();
+    // Save all pending inputs in MO rows before reload
+    if (tipo === 'mano_obra') {
+      const rows = document.querySelectorAll('tr[id^="mo-row-"]');
+      const savePromises = [];
+      rows.forEach(row => {
+        const pid = parseInt(row.id.replace('mo-row-',''));
+        if (!pid) return;
+        const h = parseFloat(row.querySelector('[data-field="horas_mo"]')?.value||0);
+        const d = parseFloat(row.querySelector('[data-field="dias_trabajo"]')?.value||0);
+        const c = parseFloat(row.querySelector('[data-field="costo_hora_usd"]')?.value||0);
+        const m = parseFloat(row.querySelector('[data-field="porcentaje_mgn"]')?.value||0);
+        const descEl = row.querySelector('td:nth-child(2) select, td:nth-child(2) input');
+        const desc = descEl ? descEl.value : '';
+        savePromises.push(api('/api/partidas/update','POST',{id:pid,tipo:'mano_obra',tipo_cambio:getTC(),descripcion:desc,horas_mo:h,dias_trabajo:d,costo_hora_usd:c,porcentaje_mgn:m}));
+      });
+      if (savePromises.length) await Promise.all(savePromises);
+    } else {
+      // For equipo rows, save all visible inputs
+      const rows = document.querySelectorAll('tr[id^="eq-row-"]');
+      const savePromises = [];
+      rows.forEach(row => {
+        const pid = parseInt(row.id.replace('eq-row-',''));
+        if (!pid) return;
+        const desc = row.querySelector('[data-field="descripcion"]')?.value||'';
+        const marca = row.querySelector('[data-field="marca"]')?.value||'';
+        const modelo = row.querySelector('[data-field="modelo"]')?.value||'';
+        const qty = parseFloat(row.querySelector('[data-field="cantidad"]')?.value||0);
+        const pr = parseFloat(row.querySelector('[data-field="precio_lista"]')?.value||0);
+        const mon = row.querySelector('[data-field="moneda"]')?.value||'MN';
+        const m = parseFloat(row.querySelector('[data-field="porcentaje_mgn"]')?.value||0);
+        savePromises.push(api('/api/partidas/update','POST',{id:pid,tipo:'equipo',tipo_cambio:getTC(),descripcion:desc,marca,modelo,cantidad:qty,precio_lista:pr,moneda:mon,porcentaje_mgn:m}));
+      });
+      if (savePromises.length) await Promise.all(savePromises);
+    }
+    clearTimeout(_saveTimer);
+    pendingSaveFn = null;
     await api('/api/partidas/create','POST',{seccion_id:seccionId,tipo});
     await reloadSections();
     switchTab(currentTab);
@@ -1332,7 +1368,7 @@ async function addPartida(seccionId, tipo) {
 }
 
 async function deletePartida(pid, tipo, seccionId) {
-  if(!confirm('¿Eliminar esta partida?')) return;
+  if(!await askConfirm('¿Eliminar esta partida?')) return;
   try {
     await flushPendingSave();
     await api('/api/partidas/delete','POST',{id:pid,tipo,tipo_cambio:getTC()});
@@ -1575,7 +1611,7 @@ async function saveReporteItem(id, tipo, field, val) {
 }
 
 async function deleteReporteItem(id, tipo) {
-  if (!confirm('¿Estás seguro de que deseas eliminar esta partida?')) return;
+  if (!await askConfirm('¿Estás seguro de que deseas eliminar esta partida?')) return;
   
   let sid = null;
   for (const s of projectData.secciones) {
@@ -1650,7 +1686,7 @@ async function saveReporteCondicion(id, valor) {
 }
 
 async function deleteReporteCondicion(id) {
-  if (!confirm('¿Estás seguro de que deseas eliminar esta nota?')) return;
+  if (!await askConfirm('¿Estás seguro de que deseas eliminar esta nota?')) return;
   try {
     await api('/api/condiciones/delete', 'POST', { id });
     await loadProject();
@@ -1706,7 +1742,7 @@ async function updatePreseCond(id, valor) {
 }
 
 async function deletePreseCondicion(id) {
-  if (!confirm('¿Estás seguro de que deseas eliminar esta condición comercial?')) return;
+  if (!await askConfirm('¿Estás seguro de que deseas eliminar esta condición comercial?')) return;
   try {
     await api('/api/condiciones/delete', 'POST', { id });
     await loadProject();
