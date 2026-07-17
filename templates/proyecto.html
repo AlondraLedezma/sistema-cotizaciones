@@ -1547,11 +1547,16 @@ async function addReporteCondicion() {
 }
 
 function parseSubtemaPoints(st) {
-  const rawLines = st.contenido ? st.contenido.split('\n') : [];
-  return rawLines.map(line => {
+  if (!st.contenido) return [];
+  const rawLines = st.contenido.split('\n');
+  const parsed = rawLines.map(line => {
     const regex = new RegExp('^' + st.indice + '\\.\\d+\\s*');
     return line.replace(regex, '').trim();
-  }).filter(x => x);
+  });
+  if (parsed.length > 0 && parsed[parsed.length - 1] === '' && !rawLines[rawLines.length - 1].trim()) {
+    parsed.pop();
+  }
+  return parsed;
 }
 
 function serializeSubtemaPoints(st, points) {
