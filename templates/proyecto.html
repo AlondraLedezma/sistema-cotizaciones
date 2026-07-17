@@ -252,6 +252,7 @@ function switchTab(code) {
     case 'CONDICIONES': renderCondiciones(content); break;
     case 'PRESE':       renderPrese(content); break;
     case 'LISTAS':      handleListasAccess(content); break;
+    case 'INSUMOS':     renderInsumos(content, sec); break;
     default:
       if (sec) {
         if (sec.tipo==='mano_obra') renderManoObra(content, sec);
@@ -261,6 +262,7 @@ function switchTab(code) {
       }
   }
 }
+
 
 function updateStatusBar() {
   const p = projectData?.proyecto || {};
@@ -660,7 +662,348 @@ function getDescField(p, sec) {
   </select>`;
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  INSUMOS RENDERER
+// ═══════════════════════════════════════════════════════════════
+function fmtN(n) { return (parseFloat(n)||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+async function saveInsumosCd(id, field, val) {
+  const row = document.getElementById(`icd-row-${id}`);
+  if (!row) return;
+  const getData = f => parseFloat(row.querySelector(`[data-f="${f}"]`)?.value||0);
+  const p = getData('personas'), v = getData('viajes_cd'), a = getData('autobus'), t = getData('taxis');
+  const ac = getData('autocasetas'), g = getData('gasolina');
+  const persona = row.querySelector('[data-f="persona"]')?.value||'';
+  const sub1 = p * v * (a + t);
+  const sub2 = p * v * (ac + g);
+  // Update display
+  const s1El = document.getElementById(`icd-sub1-${id}`);
+  const s2El = document.getElementById(`icd-sub2-${id}`);
+  if (s1El) s1El.textContent = '$ ' + fmtN(sub1);
+  if (s2El) s2El.textContent = '$ ' + fmtN(sub2);
+  updateInsumosTotals();
+  scheduleSave(() => api('/api/insumos/update_cd','POST',{id,proyecto_id:PID,persona,personas:p,viajes_cd:v,autobus:a,taxis:t,autocasetas:ac,gasolina:g}));
+}
+
+async function saveInsumosEnCd(id, field, val) {
+  const row = document.getElementById(`iec-row-${id}`);
+  if (!row) return;
+  const getData = f => parseFloat(row.querySelector(`[data-f="${f}"]`)?.value||0);
+  const p = getData('personas'), di = getData('dias'), al = getData('alimentos'), h = getData('hotel'), tr = getData('transporte');
+  const rc = getData('renta_coche'), m = getData('meses'), ca = getData('renta_casa');
+  const persona = row.querySelector('[data-f="persona"]')?.value||'';
+  const sub1 = p * di * (al + h + tr);
+  const sub2 = (rc * m) + (ca * m);
+  const s1El = document.getElementById(`iec-sub1-${id}`);
+  const s2El = document.getElementById(`iec-sub2-${id}`);
+  if (s1El) s1El.textContent = '$ ' + fmtN(sub1);
+  if (s2El) s2El.textContent = '$ ' + fmtN(sub2);
+  updateInsumosTotals();
+  scheduleSave(() => api('/api/insumos/update_en_cd','POST',{id,proyecto_id:PID,persona,personas:p,dias:di,alimentos:al,hotel:h,transporte:tr,renta_coche:rc,meses:m,renta_casa:ca}));
+}
+
+async function saveInsumosTransporte(id) {
+  const row = document.getElementById(`itr-row-${id}`);
+  if (!row) return;
+  const desc = row.querySelector('[data-f="descripcion"]')?.value||'';
+  const c = parseFloat(row.querySelector('[data-f="costo"]')?.value||0);
+  const n = parseFloat(row.querySelector('[data-f="no_veces"]')?.value||0);
+  const sub = c * n;
+  const sEl = document.getElementById(`itr-sub-${id}`);
+  if (sEl) sEl.textContent = fmtN(sub);
+  updateInsumosTotals();
+  scheduleSave(() => api('/api/insumos/update_transporte','POST',{id,proyecto_id:PID,descripcion:desc,costo:c,no_veces:n}));
+}
+
+function updateInsumosTotals() {
+  const FACTOR = 1.2;
+  // CD totals
+  let cd1Sum = 0, cd2Sum = 0;
+  document.querySelectorAll('[id^="icd-sub1-"]').forEach(el => { cd1Sum += parseFloat(el.textContent.replace(/[^0-9.-]/g,''))||0; });
+  document.querySelectorAll('[id^="icd-sub2-"]').forEach(el => { cd2Sum += parseFloat(el.textContent.replace(/[^0-9.-]/g,''))||0; });
+  const cdTot1 = cd1Sum, cdTot2 = cd2Sum;
+  const elCdTot1 = document.getElementById('icd-total1'); if(elCdTot1) elCdTot1.textContent = '$ ' + fmtN(cdTot1 * FACTOR);
+  const elCdTot2 = document.getElementById('icd-total2'); if(elCdTot2) elCdTot2.textContent = '$ ' + fmtN(cdTot2 * FACTOR);
+  const elCdSum1 = document.getElementById('icd-sum1'); if(elCdSum1) elCdSum1.textContent = '$ ' + fmtN(cdTot1);
+  const elCdSum2 = document.getElementById('icd-sum2'); if(elCdSum2) elCdSum2.textContent = '$ ' + fmtN(cdTot2);
+  // EN CD totals
+  let en1Sum = 0, en2Sum = 0;
+  document.querySelectorAll('[id^="iec-sub1-"]').forEach(el => { en1Sum += parseFloat(el.textContent.replace(/[^0-9.-]/g,''))||0; });
+  document.querySelectorAll('[id^="iec-sub2-"]').forEach(el => { en2Sum += parseFloat(el.textContent.replace(/[^0-9.-]/g,''))||0; });
+  const elEnSum1 = document.getElementById('iec-sum1'); if(elEnSum1) elEnSum1.textContent = '$ ' + fmtN(en1Sum);
+  const elEnSum2 = document.getElementById('iec-sum2'); if(elEnSum2) elEnSum2.textContent = '$ ' + fmtN(en2Sum);
+  const elEnTot1 = document.getElementById('iec-total1'); if(elEnTot1) elEnTot1.textContent = '$ ' + fmtN(en1Sum * FACTOR);
+  const elEnTot2 = document.getElementById('iec-total2'); if(elEnTot2) elEnTot2.textContent = '$ ' + fmtN(en2Sum * FACTOR);
+  // Transporte totals
+  let trSum = 0;
+  document.querySelectorAll('[id^="itr-sub-"]').forEach(el => { trSum += parseFloat(el.textContent.replace(/[^0-9.-]/g,''))||0; });
+  const elTrSum = document.getElementById('itr-sum'); if(elTrSum) elTrSum.textContent = fmtN(trSum);
+  const elTrTot = document.getElementById('itr-total'); if(elTrTot) elTrTot.textContent = '$ ' + fmtN(trSum * FACTOR);
+  // Grand total for header
+  const totalMN = (cdTot1 + cdTot2) * FACTOR + (en1Sum + en2Sum) * FACTOR + trSum * FACTOR;
+  const elGrandMN = document.getElementById('ins-total-mn'); if(elGrandMN) elGrandMN.textContent = fmt(totalMN);
+}
+
+async function addInsumosRow(tabla) {
+  const r = await api('/api/insumos/add_row','POST',{proyecto_id:PID, tabla});
+  await reloadSections();
+  switchTab('INSUMOS');
+}
+
+async function deleteInsumosRow(id, tabla) {
+  if(!await askConfirm('¿Eliminar esta fila?')) return;
+  await api('/api/insumos/delete_row','POST',{id, tabla, proyecto_id:PID});
+  await reloadSections();
+  switchTab('INSUMOS');
+}
+
+function renderInsumos(c, sec) {
+  const FACTOR = 1.2;
+  const cdRows = projectData.insumos_cd || [];
+  const enRows = projectData.insumos_en_cd || [];
+  const trRows = projectData.insumos_transporte || [];
+
+  // Calculate totals
+  const cdSum1 = cdRows.reduce((s,r)=>s+parseFloat(r.subtotal_mn||0),0);
+  const cdSum2 = cdRows.reduce((s,r)=>s+parseFloat(r.subtotal_mn2||0),0);
+  const enSum1 = enRows.reduce((s,r)=>s+parseFloat(r.subtotal_mn||0),0);
+  const enSum2 = enRows.reduce((s,r)=>s+parseFloat(r.subtotal_mn2||0),0);
+  const trSum  = trRows.reduce((s,r)=>s+parseFloat(r.subtotal||0),0);
+  const totalMN = (cdSum1+cdSum2)*FACTOR + (enSum1+enSum2)*FACTOR + trSum*FACTOR;
+
+  // Input helper
+  const inp = (f, val, type='number', w='60px', extra='') =>
+    `<input class="excel-input" type="${type}" value="${esc(String(val||''))}" data-f="${f}" oninput="${extra}" style="width:${w};padding:3px 5px;font-size:11px;" step="any"/>`;
+
+  // ── Viáticos a CD rows ──────────────────────────────────────────
+  const cdHeaderStyle = 'background:#0d3c61;color:white;font-size:11px;font-weight:700;text-align:center;padding:5px 4px;border:1px solid #1a5276;';
+  const cdCellStyle   = 'background:#d4e9f7;font-size:11px;padding:3px;border:1px solid #aed6f1;';
+  const cdDarkCell    = 'background:#1a5276;border:1px solid #1a5276;';
+  const cdBlueCell    = 'background:#1e8bc3;color:white;font-size:11px;font-weight:700;padding:4px;text-align:center;border:1px solid #1a5276;';
+
+  let cdRowsHtml = '';
+  cdRows.forEach(r => {
+    const sub1 = parseFloat(r.subtotal_mn||0), sub2 = parseFloat(r.subtotal_mn2||0);
+    cdRowsHtml += `<tr id="icd-row-${r.id}">
+      <td style="${cdCellStyle}">${inp('persona',r.persona,'text','100%','saveInsumosCd('+r.id+',"persona",this.value)')}</td>
+      <td style="${cdCellStyle}">${inp('personas',r.personas,'number','45px','saveInsumosCd('+r.id+',"personas",this.value)')}</td>
+      <td style="${cdCellStyle}">${inp('viajes_cd',r.viajes_cd,'number','45px','saveInsumosCd('+r.id+',"viajes_cd",this.value)')}</td>
+      <td style="${cdCellStyle}">$ ${inp('autobus',r.autobus,'number','55px','saveInsumosCd('+r.id+',"autobus",this.value)')}</td>
+      <td style="${cdCellStyle}">$ ${inp('taxis',r.taxis,'number','55px','saveInsumosCd('+r.id+',"taxis",this.value)')}</td>
+      <td style="${cdCellStyle};text-align:right;" id="icd-sub1-${r.id}">$ ${fmtN(sub1)}</td>
+      <td style="${cdDarkCell}"></td>
+      <td style="${cdCellStyle}">${inp('autocasetas',r.autocasetas,'number','55px','saveInsumosCd('+r.id+',"autocasetas",this.value)')}</td>
+      <td style="${cdCellStyle}">${inp('gasolina',r.gasolina,'number','55px','saveInsumosCd('+r.id+',"gasolina",this.value)')}</td>
+      <td style="${cdCellStyle};text-align:right;" id="icd-sub2-${r.id}">$ ${fmtN(sub2)}</td>
+      <td style="background:transparent;border:none;width:28px;"><button onclick="deleteInsumosRow(${r.id},'cd')" class="btn btn-sm btn-light text-danger border-0 py-0 px-1" style="font-size:12px;"><i class="fa-solid fa-times"></i></button></td>
+    </tr>`;
+  });
+
+  // ── Viáticos en CD rows ─────────────────────────────────────────
+  const enCellStyle = 'background:#d0eaff;font-size:11px;padding:3px;border:1px solid #aed6f1;';
+  const enDarkCell  = 'background:#1a5276;border:1px solid #1a5276;';
+
+  let enRowsHtml = '';
+  enRows.forEach(r => {
+    const sub1 = parseFloat(r.subtotal_mn||0), sub2 = parseFloat(r.subtotal_mn2||0);
+    enRowsHtml += `<tr id="iec-row-${r.id}">
+      <td style="${enCellStyle}">${inp('persona',r.persona,'text','100%','saveInsumosEnCd('+r.id+',"persona",this.value)')}</td>
+      <td style="${enCellStyle}">${inp('personas',r.personas,'number','42px','saveInsumosEnCd('+r.id+',"personas",this.value)')}</td>
+      <td style="${enCellStyle}">${inp('dias',r.dias,'number','42px','saveInsumosEnCd('+r.id+',"dias",this.value)')}</td>
+      <td style="${enCellStyle}">$ ${inp('alimentos',r.alimentos,'number','55px','saveInsumosEnCd('+r.id+',"alimentos",this.value)')}</td>
+      <td style="${enCellStyle}">$ ${inp('hotel',r.hotel,'number','55px','saveInsumosEnCd('+r.id+',"hotel",this.value)')}</td>
+      <td style="${enCellStyle}">$ ${inp('transporte',r.transporte,'number','55px','saveInsumosEnCd('+r.id+',"transporte",this.value)')}</td>
+      <td style="${enCellStyle};text-align:right;" id="iec-sub1-${r.id}">$ ${fmtN(sub1)}</td>
+      <td style="${enDarkCell}"></td>
+      <td style="${enCellStyle}">$ ${inp('renta_coche',r.renta_coche,'number','55px','saveInsumosEnCd('+r.id+',"renta_coche",this.value)')}</td>
+      <td style="${enCellStyle}">${inp('meses',r.meses,'number','42px','saveInsumosEnCd('+r.id+',"meses",this.value)')}</td>
+      <td style="${enCellStyle}">$ ${inp('renta_casa',r.renta_casa,'number','55px','saveInsumosEnCd('+r.id+',"renta_casa",this.value)')}</td>
+      <td style="${enCellStyle};text-align:right;" id="iec-sub2-${r.id}">$ ${fmtN(sub2)}</td>
+      <td style="background:transparent;border:none;width:28px;"><button onclick="deleteInsumosRow(${r.id},'en_cd')" class="btn btn-sm btn-light text-danger border-0 py-0 px-1" style="font-size:12px;"><i class="fa-solid fa-times"></i></button></td>
+    </tr>`;
+  });
+
+  // ── Transporte rows ─────────────────────────────────────────────
+  const trCellStyle = 'background:#d4e9f7;font-size:11px;padding:3px;border:1px solid #aed6f1;';
+  let trRowsHtml = '';
+  trRows.forEach(r => {
+    const sub = parseFloat(r.subtotal||0);
+    trRowsHtml += `<tr id="itr-row-${r.id}">
+      <td style="${trCellStyle}">${inp('descripcion',r.descripcion,'text','100%','saveInsumosTransporte('+r.id+')')}</td>
+      <td style="${trCellStyle}">${inp('costo',r.costo,'number','70px','saveInsumosTransporte('+r.id+')')}</td>
+      <td style="${trCellStyle}">${inp('no_veces',r.no_veces,'number','55px','saveInsumosTransporte('+r.id+')')}</td>
+      <td style="${trCellStyle};text-align:right;font-weight:700;" id="itr-sub-${r.id}">${fmtN(sub)}</td>
+      <td style="background:transparent;border:none;width:28px;"><button onclick="deleteInsumosRow(${r.id},'transporte')" class="btn btn-sm btn-light text-danger border-0 py-0 px-1" style="font-size:12px;"><i class="fa-solid fa-times"></i></button></td>
+    </tr>`;
+  });
+
+  c.innerHTML = `
+  <div class="card shadow-sm border-0 overflow-hidden mb-3">
+    <div class="p-3 d-flex align-items-center justify-content-between text-white" style="background:#dc2626">
+      <div>
+        <div class="text-uppercase" style="font-size:10px;opacity:0.8;letter-spacing:0.5px">Sección</div>
+        <div class="fs-5 fw-bold">INSUMOS</div>
+      </div>
+      <div class="text-end text-white text-opacity-90" style="font-size:13px">
+        <div>Total MN: <strong id="ins-total-mn">${fmt(totalMN)}</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ VIÁTICOS A CD ═══ -->
+  <div class="card shadow-sm border-0 mb-3 overflow-hidden">
+    <div class="p-2 px-3 fw-bold text-white" style="background:#0d3c61;font-size:13px;">VIÁTICOS A CD</div>
+    <div class="table-responsive">
+      <table style="border-collapse:collapse;width:100%;min-width:700px;">
+        <thead><tr>
+          <th style="${cdHeaderStyle};min-width:110px;">VIÁTICOS A CD</th>
+          <th style="${cdHeaderStyle};width:55px;">PERSONAS</th>
+          <th style="${cdHeaderStyle};width:65px;">VIAJES A CD</th>
+          <th style="${cdHeaderStyle};width:80px;">AUTOBÚS</th>
+          <th style="${cdHeaderStyle};width:80px;">TAXIS</th>
+          <th style="${cdHeaderStyle};width:90px;">SUBTOTAL MN</th>
+          <th style="${cdDarkCell};width:14px;"></th>
+          <th style="${cdHeaderStyle};width:90px;">AUTO-CASETAS</th>
+          <th style="${cdHeaderStyle};width:80px;">GASOLINA</th>
+          <th style="${cdHeaderStyle};width:90px;">SUB TOTAL MN</th>
+          <th style="background:transparent;border:none;width:28px;"></th>
+        </tr></thead>
+        <tbody>${cdRowsHtml}</tbody>
+        <tfoot>
+          <tr style="background:#1a5276;">
+            <td colspan="5" style="background:#1a5276;border:1px solid #0d3c61;"></td>
+            <td style="${cdBlueCell}" id="icd-sum1">$ ${fmtN(cdSum1)}</td>
+            <td style="${cdDarkCell}"></td>
+            <td colspan="2" style="background:#1a5276;border:1px solid #0d3c61;"></td>
+            <td style="${cdBlueCell}" id="icd-sum2">$ ${fmtN(cdSum2)}</td>
+            <td style="background:transparent;border:none;"></td>
+          </tr>
+          <tr>
+            <td colspan="4" style="background:#d4e9f7;border:1px solid #aed6f1;"></td>
+            <td style="${cdBlueCell}">FACTOR</td>
+            <td style="${cdBlueCell}" id="icd-total1">$ ${fmtN(cdSum1*FACTOR)}</td>
+            <td style="${cdDarkCell}"></td>
+            <td style="${cdBlueCell}">FACTOR</td>
+            <td style="background:#d4e9f7;border:1px solid #aed6f1;"></td>
+            <td style="${cdBlueCell}" id="icd-total2">$ ${fmtN(cdSum2*FACTOR)}</td>
+            <td style="background:transparent;border:none;"></td>
+          </tr>
+          <tr>
+            <td colspan="4" style="background:#d4e9f7;border:1px solid #aed6f1;"></td>
+            <td style="${cdBlueCell}">TOTAL</td>
+            <td style="${cdBlueCell}">$ -</td>
+            <td style="${cdDarkCell}"></td>
+            <td style="${cdBlueCell}">TOTAL</td>
+            <td style="background:#d4e9f7;border:1px solid #aed6f1;"></td>
+            <td style="${cdBlueCell}">$ -</td>
+            <td style="background:transparent;border:none;"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="p-2 border-top bg-light">
+      <button onclick="addInsumosRow('cd')" class="btn btn-sm d-flex align-items-center gap-1 fw-semibold" style="background:#0d3c61;color:white;font-size:12px;">
+        <i class="fa-solid fa-plus"></i> Agregar Fila
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══ VIÁTICOS EN CD ═══ -->
+  <div class="card shadow-sm border-0 mb-3 overflow-hidden">
+    <div class="p-2 px-3 fw-bold text-white" style="background:#0d3c61;font-size:13px;">VIÁTICOS EN CD</div>
+    <div class="table-responsive">
+      <table style="border-collapse:collapse;width:100%;min-width:800px;">
+        <thead><tr>
+          <th style="${cdHeaderStyle};min-width:110px;">VIÁTICOS EN CD</th>
+          <th style="${cdHeaderStyle};width:55px;">PERSONAS</th>
+          <th style="${cdHeaderStyle};width:50px;">DÍAS</th>
+          <th style="${cdHeaderStyle};width:80px;">ALIMENTOS</th>
+          <th style="${cdHeaderStyle};width:75px;">HOTEL</th>
+          <th style="${cdHeaderStyle};width:80px;">TRANSPORTE</th>
+          <th style="${cdHeaderStyle};width:90px;">SUB TOTAL MN</th>
+          <th style="${cdDarkCell};width:14px;"></th>
+          <th style="${cdHeaderStyle};width:90px;">RENTA COCHE</th>
+          <th style="${cdHeaderStyle};width:55px;">MESES</th>
+          <th style="${cdHeaderStyle};width:80px;">RENTA CASA</th>
+          <th style="${cdHeaderStyle};width:90px;">SUB TOTAL MN2</th>
+          <th style="background:transparent;border:none;width:28px;"></th>
+        </tr></thead>
+        <tbody>${enRowsHtml}</tbody>
+        <tfoot>
+          <tr style="background:#1a5276;">
+            <td colspan="6" style="background:#1a5276;border:1px solid #0d3c61;"></td>
+            <td style="${cdBlueCell}" id="iec-sum1">$ ${fmtN(enSum1)}</td>
+            <td style="${cdDarkCell}"></td>
+            <td colspan="3" style="background:#1a5276;border:1px solid #0d3c61;"></td>
+            <td style="${cdBlueCell}" id="iec-sum2">$ ${fmtN(enSum2)}</td>
+            <td style="background:transparent;border:none;"></td>
+          </tr>
+          <tr>
+            <td colspan="5" style="background:#d0eaff;border:1px solid #aed6f1;"></td>
+            <td style="${cdBlueCell}">FACTOR</td>
+            <td style="${cdBlueCell}" id="iec-total1">$ ${fmtN(enSum1*FACTOR)}</td>
+            <td style="${cdDarkCell}"></td>
+            <td style="${cdBlueCell}">FACTOR</td>
+            <td colspan="2" style="background:#d0eaff;border:1px solid #aed6f1;"></td>
+            <td style="${cdBlueCell}" id="iec-total2">$ ${fmtN(enSum2*FACTOR)}</td>
+            <td style="background:transparent;border:none;"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="p-2 border-top bg-light">
+      <button onclick="addInsumosRow('en_cd')" class="btn btn-sm d-flex align-items-center gap-1 fw-semibold" style="background:#0d3c61;color:white;font-size:12px;">
+        <i class="fa-solid fa-plus"></i> Agregar Fila
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══ TRANSPORTE ═══ -->
+  <div class="card shadow-sm border-0 mb-3 overflow-hidden" style="max-width:450px;">
+    <div class="p-2 px-3 fw-bold text-white" style="background:#0d3c61;font-size:13px;">TRANSPORTE</div>
+    <div class="table-responsive">
+      <table style="border-collapse:collapse;width:100%;">
+        <thead><tr>
+          <th style="${cdHeaderStyle};min-width:150px;">TRANSPORTE</th>
+          <th style="${cdHeaderStyle};width:85px;">COSTO</th>
+          <th style="${cdHeaderStyle};width:75px;">NO. VECES</th>
+          <th style="${cdHeaderStyle};width:90px;">SUB TOTAL</th>
+          <th style="background:transparent;border:none;width:28px;"></th>
+        </tr></thead>
+        <tbody>${trRowsHtml}</tbody>
+        <tfoot>
+          <tr style="background:#1a5276;">
+            <td colspan="2" style="background:#1a5276;border:1px solid #0d3c61;"></td>
+            <td colspan="1" style="${cdBlueCell}">SUBTOTAL</td>
+            <td style="${cdBlueCell};text-align:right;" id="itr-sum">${fmtN(trSum)}</td>
+            <td style="background:transparent;border:none;"></td>
+          </tr>
+          <tr>
+            <td colspan="2" style="background:#d4e9f7;border:1px solid #aed6f1;"></td>
+            <td style="${cdBlueCell}">FACTOR</td>
+            <td style="${cdBlueCell}">1.2</td>
+            <td style="background:transparent;border:none;"></td>
+          </tr>
+          <tr>
+            <td colspan="2" style="background:#d4e9f7;border:1px solid #aed6f1;"></td>
+            <td style="${cdBlueCell}">TOTAL</td>
+            <td style="${cdBlueCell}" id="itr-total">$ ${fmtN(trSum*FACTOR)}</td>
+            <td style="background:transparent;border:none;"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="p-2 border-top bg-light">
+      <button onclick="addInsumosRow('transporte')" class="btn btn-sm d-flex align-items-center gap-1 fw-semibold" style="background:#0d3c61;color:white;font-size:12px;">
+        <i class="fa-solid fa-plus"></i> Agregar Fila
+      </button>
+    </div>
+  </div>`;
+}
+// ═══════════════════════════════════════════════════════════════
+
 function renderManoObra(c, sec) {
+
   const partidas = sec.partidas||[];
   let tbody_rows = '';
   partidas.forEach((p,i)=>{

@@ -315,12 +315,33 @@ def api_get_proyecto(pid):
         except Exception:
             subtemas = []
     listas = q("SELECT * FROM listas_predefinidas ORDER BY seccion_codigo, orden")
+    # Load INSUMOS data
+    insumos_cd, insumos_en_cd, insumos_transporte = [], [], []
+    try:
+        insumos_cd = list(q("SELECT * FROM insumos_viaticos_cd WHERE proyecto_id=%s ORDER BY orden", (pid,)))
+        insumos_en_cd = list(q("SELECT * FROM insumos_viaticos_en_cd WHERE proyecto_id=%s ORDER BY orden", (pid,)))
+        insumos_transporte = list(q("SELECT * FROM insumos_transporte WHERE proyecto_id=%s ORDER BY orden", (pid,)))
+    except Exception:
+        _ensure_insumos_tables()
+        insumos_cd = list(q("SELECT * FROM insumos_viaticos_cd WHERE proyecto_id=%s ORDER BY orden", (pid,)))
+        insumos_en_cd = list(q("SELECT * FROM insumos_viaticos_en_cd WHERE proyecto_id=%s ORDER BY orden", (pid,)))
+        insumos_transporte = list(q("SELECT * FROM insumos_transporte WHERE proyecto_id=%s ORDER BY orden", (pid,)))
+    # Auto-seed insumos rows if empty (for existing projects)
+    has_insumos_sec = any(s['codigo']=='INSUMOS' for s in secciones)
+    if has_insumos_sec and not insumos_cd and not insumos_en_cd and not insumos_transporte:
+        _seed_insumos(pid)
+        insumos_cd = list(q("SELECT * FROM insumos_viaticos_cd WHERE proyecto_id=%s ORDER BY orden", (pid,)))
+        insumos_en_cd = list(q("SELECT * FROM insumos_viaticos_en_cd WHERE proyecto_id=%s ORDER BY orden", (pid,)))
+        insumos_transporte = list(q("SELECT * FROM insumos_transporte WHERE proyecto_id=%s ORDER BY orden", (pid,)))
     return jsonify(
         proyecto=_serialize(proyecto),
         secciones=[_serialize(s) for s in secciones],
         condiciones=list(condiciones),
         subtemas=list(subtemas),
-        listas=list(listas)
+        listas=list(listas),
+        insumos_cd=insumos_cd,
+        insumos_en_cd=insumos_en_cd,
+        insumos_transporte=insumos_transporte
     )
 
 @app.route("/api/partidas/create", methods=["POST"])
@@ -537,6 +558,180 @@ def api_update_lista():
 def api_delete_lista():
     ex("DELETE FROM listas_predefinidas WHERE id=%s", (request.json.get("id"),))
     return jsonify(ok=True)
+
+# ─── INSUMOS HELPERS ────────────────────────────────────────────────────────────
+def _ensure_insumos_tables():
+    ex("""CREATE TABLE IF NOT EXISTS `insumos_viaticos_cd` (
+      `id` int(11) NOT NULL AUTO_INCREMENT,
+      `proyecto_id` int(11) NOT NULL,
+      `persona` varchar(200) DEFAULT '',
+      `personas` float DEFAULT 0,
+      `viajes_cd` float DEFAULT 0,
+      `autobus` float DEFAULT 0,
+      `taxis` float DEFAULT 0,
+      `subtotal_mn` float DEFAULT 0,
+      `autocasetas` float DEFAULT 0,
+      `gasolina` float DEFAULT 0,
+      `subtotal_mn2` float DEFAULT 0,
+      `orden` int(11) DEFAULT 0,
+      PRIMARY KEY (`id`),
+      KEY `proyecto_id` (`proyecto_id`),
+      CONSTRAINT `ivc_ibfk_1` FOREIGN KEY (`proyecto_id`) REFERENCES `proyectos` (`id`) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""")
+    ex("""CREATE TABLE IF NOT EXISTS `insumos_viaticos_en_cd` (
+      `id` int(11) NOT NULL AUTO_INCREMENT,
+      `proyecto_id` int(11) NOT NULL,
+      `persona` varchar(200) DEFAULT '',
+      `personas` float DEFAULT 0,
+      `dias` float DEFAULT 0,
+      `alimentos` float DEFAULT 0,
+      `hotel` float DEFAULT 0,
+      `transporte` float DEFAULT 0,
+      `subtotal_mn` float DEFAULT 0,
+      `renta_coche` float DEFAULT 0,
+      `meses` float DEFAULT 0,
+      `renta_casa` float DEFAULT 0,
+      `subtotal_mn2` float DEFAULT 0,
+      `orden` int(11) DEFAULT 0,
+      PRIMARY KEY (`id`),
+      KEY `proyecto_id` (`proyecto_id`),
+      CONSTRAINT `ivec_ibfk_1` FOREIGN KEY (`proyecto_id`) REFERENCES `proyectos` (`id`) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""")
+    ex("""CREATE TABLE IF NOT EXISTS `insumos_transporte` (
+      `id` int(11) NOT NULL AUTO_INCREMENT,
+      `proyecto_id` int(11) NOT NULL,
+      `descripcion` varchar(300) DEFAULT '',
+      `costo` float DEFAULT 0,
+      `no_veces` float DEFAULT 0,
+      `subtotal` float DEFAULT 0,
+      `orden` int(11) DEFAULT 0,
+      PRIMARY KEY (`id`),
+      KEY `proyecto_id` (`proyecto_id`),
+      CONSTRAINT `it_ibfk_1` FOREIGN KEY (`proyecto_id`) REFERENCES `proyectos` (`id`) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""")
+
+def _seed_insumos(pid):
+    _ensure_insumos_tables()
+    personas = ['INGENIERO','TECNICO','ELECTRICO','AYUDANTE GENERAL']
+    for i, p in enumerate(personas):
+        ex("INSERT INTO insumos_viaticos_cd (proyecto_id,persona,personas,viajes_cd,autobus,taxis,subtotal_mn,autocasetas,gasolina,subtotal_mn2,orden) VALUES (%s,%s,0,0,0,0,0,0,0,0,%s)",
+           (pid, p, i+1))
+        ex("INSERT INTO insumos_viaticos_en_cd (proyecto_id,persona,personas,dias,alimentos,hotel,transporte,subtotal_mn,renta_coche,meses,renta_casa,subtotal_mn2,orden) VALUES (%s,%s,0,0,0,0,0,0,0,0,0,0,%s)",
+           (pid, p, i+1))
+    transporte_items = ['CAMIONETA CARGA','ENVIO PAQUETERIA','IMSS','']
+    for i, desc in enumerate(transporte_items):
+        ex("INSERT INTO insumos_transporte (proyecto_id,descripcion,costo,no_veces,subtotal,orden) VALUES (%s,%s,0,0,0,%s)",
+           (pid, desc, i+1))
+
+@app.route("/api/insumos/update_cd", methods=["POST"])
+@login_required
+def api_update_insumos_cd():
+    d = request.json or {}
+    _ensure_insumos_tables()
+    iid = d.get("id")
+    p = float(d.get("personas") or 0)
+    v = float(d.get("viajes_cd") or 0)
+    a = float(d.get("autobus") or 0)
+    t = float(d.get("taxis") or 0)
+    sub1 = p * v * (a + t)
+    ac = float(d.get("autocasetas") or 0)
+    g = float(d.get("gasolina") or 0)
+    sub2 = p * v * (ac + g)
+    ex("""UPDATE insumos_viaticos_cd SET persona=%s,personas=%s,viajes_cd=%s,autobus=%s,taxis=%s,
+          subtotal_mn=%s,autocasetas=%s,gasolina=%s,subtotal_mn2=%s WHERE id=%s""",
+       (d.get("persona",""), p, v, a, t, sub1, ac, g, sub2, iid))
+    _update_insumos_total(d.get("proyecto_id"))
+    return jsonify(ok=True, subtotal_mn=sub1, subtotal_mn2=sub2)
+
+@app.route("/api/insumos/update_en_cd", methods=["POST"])
+@login_required
+def api_update_insumos_en_cd():
+    d = request.json or {}
+    _ensure_insumos_tables()
+    iid = d.get("id")
+    p = float(d.get("personas") or 0)
+    di = float(d.get("dias") or 0)
+    al = float(d.get("alimentos") or 0)
+    h = float(d.get("hotel") or 0)
+    tr = float(d.get("transporte") or 0)
+    sub1 = p * di * (al + h + tr)
+    rc = float(d.get("renta_coche") or 0)
+    m = float(d.get("meses") or 0)
+    ca = float(d.get("renta_casa") or 0)
+    sub2 = (rc * m) + (ca * m)
+    ex("""UPDATE insumos_viaticos_en_cd SET persona=%s,personas=%s,dias=%s,alimentos=%s,hotel=%s,
+          transporte=%s,subtotal_mn=%s,renta_coche=%s,meses=%s,renta_casa=%s,subtotal_mn2=%s WHERE id=%s""",
+       (d.get("persona",""), p, di, al, h, tr, sub1, rc, m, ca, sub2, iid))
+    _update_insumos_total(d.get("proyecto_id"))
+    return jsonify(ok=True, subtotal_mn=sub1, subtotal_mn2=sub2)
+
+@app.route("/api/insumos/update_transporte", methods=["POST"])
+@login_required
+def api_update_insumos_transporte():
+    d = request.json or {}
+    _ensure_insumos_tables()
+    iid = d.get("id")
+    c = float(d.get("costo") or 0)
+    n = float(d.get("no_veces") or 0)
+    sub = c * n
+    ex("UPDATE insumos_transporte SET descripcion=%s,costo=%s,no_veces=%s,subtotal=%s WHERE id=%s",
+       (d.get("descripcion",""), c, n, sub, iid))
+    _update_insumos_total(d.get("proyecto_id"))
+    return jsonify(ok=True, subtotal=sub)
+
+@app.route("/api/insumos/add_row", methods=["POST"])
+@login_required
+def api_insumos_add_row():
+    d = request.json or {}
+    pid = d.get("proyecto_id")
+    tabla = d.get("tabla")  # 'cd', 'en_cd', 'transporte'
+    _ensure_insumos_tables()
+    if tabla == 'cd':
+        n = q("SELECT COUNT(*) cnt FROM insumos_viaticos_cd WHERE proyecto_id=%s", (pid,), fetch="one")["cnt"]+1
+        new_id = ex("INSERT INTO insumos_viaticos_cd (proyecto_id,persona,personas,viajes_cd,autobus,taxis,subtotal_mn,autocasetas,gasolina,subtotal_mn2,orden) VALUES (%s,'',0,0,0,0,0,0,0,0,%s)", (pid, n))
+    elif tabla == 'en_cd':
+        n = q("SELECT COUNT(*) cnt FROM insumos_viaticos_en_cd WHERE proyecto_id=%s", (pid,), fetch="one")["cnt"]+1
+        new_id = ex("INSERT INTO insumos_viaticos_en_cd (proyecto_id,persona,personas,dias,alimentos,hotel,transporte,subtotal_mn,renta_coche,meses,renta_casa,subtotal_mn2,orden) VALUES (%s,'',0,0,0,0,0,0,0,0,0,0,%s)", (pid, n))
+    else:
+        n = q("SELECT COUNT(*) cnt FROM insumos_transporte WHERE proyecto_id=%s", (pid,), fetch="one")["cnt"]+1
+        new_id = ex("INSERT INTO insumos_transporte (proyecto_id,descripcion,costo,no_veces,subtotal,orden) VALUES (%s,'',0,0,0,%s)", (pid, n))
+    return jsonify(id=new_id)
+
+@app.route("/api/insumos/delete_row", methods=["POST"])
+@login_required
+def api_insumos_delete_row():
+    d = request.json or {}
+    iid = d.get("id")
+    tabla = d.get("tabla")
+    pid = d.get("proyecto_id")
+    _ensure_insumos_tables()
+    if tabla == 'cd':
+        ex("DELETE FROM insumos_viaticos_cd WHERE id=%s", (iid,))
+    elif tabla == 'en_cd':
+        ex("DELETE FROM insumos_viaticos_en_cd WHERE id=%s", (iid,))
+    else:
+        ex("DELETE FROM insumos_transporte WHERE id=%s", (iid,))
+    _update_insumos_total(pid)
+    return jsonify(ok=True)
+
+def _update_insumos_total(pid):
+    if not pid: return
+    _ensure_insumos_tables()
+    cd_rows = q("SELECT subtotal_mn, subtotal_mn2 FROM insumos_viaticos_cd WHERE proyecto_id=%s", (pid,))
+    en_rows = q("SELECT subtotal_mn, subtotal_mn2 FROM insumos_viaticos_en_cd WHERE proyecto_id=%s", (pid,))
+    tr_rows = q("SELECT subtotal FROM insumos_transporte WHERE proyecto_id=%s", (pid,))
+    factor = 1.2
+    sum_cd1 = sum(float(r.get("subtotal_mn",0)) for r in cd_rows)
+    sum_cd2 = sum(float(r.get("subtotal_mn2",0)) for r in cd_rows)
+    sum_en1 = sum(float(r.get("subtotal_mn",0)) for r in en_rows)
+    sum_en2 = sum(float(r.get("subtotal_mn2",0)) for r in en_rows)
+    sum_tr = sum(float(r.get("subtotal",0)) for r in tr_rows)
+    total_insumos = (sum_cd1 + sum_cd2) * factor + (sum_en1 + sum_en2) * factor + sum_tr * factor
+    # Update the INSUMOS section total in secciones
+    sec = q("SELECT id FROM secciones WHERE proyecto_id=%s AND codigo='INSUMOS'", (pid,), fetch="one")
+    if sec:
+        ex("UPDATE secciones SET subtotal_mn=%s, subtotal_usd=0 WHERE id=%s", (total_insumos, sec["id"]))
+        _recalc_totals(pid)
 
 @app.route("/api/subtemas_prese")
 @login_required
