@@ -445,10 +445,11 @@ def api_pdf(pid):
     proyecto   = q("SELECT * FROM proyectos WHERE id=%s", (pid,), fetch="one")
     secciones  = q("SELECT * FROM secciones WHERE proyecto_id=%s ORDER BY orden", (pid,))
     condiciones= q("SELECT * FROM condiciones_comerciales WHERE proyecto_id=%s ORDER BY orden", (pid,))
+    subtemas   = q("SELECT * FROM subtemas_prese WHERE proyecto_id=%s ORDER BY orden, id", (pid,))
     moneda = request.args.get("moneda", "MN")
     try:
         from fpdf import FPDF
-        pdf = _build_pdf(proyecto, secciones, condiciones, moneda)
+        pdf = _build_pdf(proyecto, secciones, condiciones, moneda, subtemas)
         buf = io.BytesIO()
         pdf.output(buf)
         buf.seek(0)
@@ -465,6 +466,7 @@ def api_pdf_save(pid):
     proyecto   = q("SELECT * FROM proyectos WHERE id=%s", (pid,), fetch="one")
     secciones  = q("SELECT * FROM secciones WHERE proyecto_id=%s ORDER BY orden", (pid,))
     condiciones= q("SELECT * FROM condiciones_comerciales WHERE proyecto_id=%s ORDER BY orden", (pid,))
+    subtemas   = q("SELECT * FROM subtemas_prese WHERE proyecto_id=%s ORDER BY orden, id", (pid,))
     try:
         import os
         filename = f"COT_{proyecto.get('numero_proyecto','')}.pdf"
@@ -488,7 +490,7 @@ def api_pdf_save(pid):
             root.destroy()
         if not filepath:
             return jsonify(ok=False, canceled=True)
-        pdf = _build_pdf(proyecto, secciones, condiciones, moneda)
+        pdf = _build_pdf(proyecto, secciones, condiciones, moneda, subtemas)
         pdf.output(filepath)
         return jsonify(ok=True, path=filepath)
     except Exception as e:
@@ -775,122 +777,393 @@ def _recalc_totals(pid):
     tusd = sum(float(r.get("subtotal_usd") or 0) for r in rows)
     ex("UPDATE proyectos SET total_mn=%s,total_usd=%s WHERE id=%s",(tmn,tusd,pid))
 
-def _build_pdf(proyecto, secciones, condiciones, moneda="MN"):
+def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
     from fpdf import FPDF
     from utils.numero_a_letras import numero_a_letras
+    import os
+
+    # Load partidas for all sections
+    for s in secciones:
+        if s["tipo"] == "mano_obra":
+            s["partidas"] = q("SELECT * FROM partidas_mano_obra WHERE seccion_id=%s ORDER BY orden, id", (s["id"],))
+        else:
+            s["partidas"] = q("SELECT * FROM partidas_equipo WHERE seccion_id=%s ORDER BY orden, id", (s["id"],))
+
     pdf = FPDF()
-    pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
-    BLUE = (37, 99, 235)
+
+    BLUE = (30, 58, 138)  # #1e3a8a
     DARK = (15, 23, 42)
     GRAY = (100, 116, 139)
-    import os
-    logo_path = os.path.join("static", "img", "logo.png")
-    if os.path.exists(logo_path):
-        pdf.image(logo_path, x=12, y=8, h=16)
-    else:
-        pdf.set_text_color(*BLUE)
-        pdf.set_font("Helvetica","B",20)
-        pdf.set_xy(12,8)
-        pdf.cell(0,8,"DEMATIQ AUTOMATIZACIÓN")
-        pdf.set_font("Helvetica","",9)
-        pdf.set_xy(12,20)
-        pdf.cell(0,5,"Sistema de Cotizaciones Profesional")
-    pdf.set_text_color(*DARK)
-    pdf.set_font("Helvetica","B",12)
-    pdf.set_xy(130,8)
-    pdf.cell(0,6,f"COT. No. {proyecto.get('numero_proyecto','---')}", align="R")
-    pdf.set_font("Helvetica","",9)
-    pdf.set_xy(130,15)
-    pdf.cell(0,5,f"Fecha: {str(proyecto.get('fecha_creacion',''))[:10]}", align="R")
-    pdf.set_fill_color(*BLUE)
-    pdf.rect(0, 28, 210, 2, "F")
-    pdf.set_xy(0,45)
-    def sec_title(t):
-        pdf.set_fill_color(*BLUE)
-        pdf.set_text_color(255,255,255)
-        pdf.set_font("Helvetica","B",10)
-        pdf.cell(0,8,f"  {t}",ln=True,fill=True)
-        pdf.set_text_color(*DARK)
-        pdf.ln(2)
-    def info(lbl,val):
-        pdf.set_x(12)
-        pdf.set_font("Helvetica","B",9)
+    LIGHT_GRAY = (241, 245, 249)
+
+    if proyecto.get("tipo_proyecto") in ("cotizacion", "mecanico"):
+        # PAGE 1: COVER PAGE / PRESENTATION
+        pdf.add_page()
+        
+        # Draw Logo
+        logo_path = os.path.join("static", "img", "logo.png")
+        if os.path.exists(logo_path):
+            pdf.image(logo_path, x=12, y=8, h=16)
+            
+        # Draw Slogans next to logo
         pdf.set_text_color(*GRAY)
-        pdf.cell(45,6,lbl.upper()+":",ln=False)
-        pdf.set_font("Helvetica","",9)
+        pdf.set_font("Helvetica", "I", 7.5)
+        slogans = [
+            "Integracion de sistemas Automatizados",
+            "Programacion de PLC, HMI",
+            "Servicio de Diseño y Armado Tableros",
+            "Polizas de Mantenimiento"
+        ]
+        y_slog = 8
+        for sl in slogans:
+            pdf.set_xy(65, y_slog)
+            pdf.cell(0, 4, sl)
+            y_slog += 4
+
+        # Draw Salesperson & Quote Info on right
+        vendedor = q("SELECT valor FROM configuracion WHERE clave='vendedor'", fetch="one")
+        vendedor = vendedor.get("valor") if vendedor else "Jose Moreno Rangel"
+        
         pdf.set_text_color(*DARK)
-        pdf.multi_cell(0,6,str(val or "---"))
-    sec_title("INFORMACIÓN DEL CLIENTE")
-    info("Empresa",proyecto.get("empresa_cliente"))
-    info("Atención",proyecto.get("atencion"))
-    info("Teléfono",proyecto.get("telefono_cliente"))
-    info("Email",proyecto.get("email_cliente"))
-    info("Referencia",proyecto.get("referencia"))
-    pdf.ln(4)
-    sec_title("RESUMEN DE COTIZACIÓN")
-    tc = float(proyecto.get("tipo_cambio_usd") or 20)
-    cw=[80,55,55]
-    pdf.set_fill_color(239,246,255)
-    pdf.set_font("Helvetica","B",9)
-    for i,(h,w) in enumerate(zip(["SECCIÓN","TOTAL MN","TOTAL USD"],cw)):
-        pdf.cell(w,7,h,border=1,fill=True,align="R" if i>0 else "L")
-    pdf.ln()
-    tmn_total=tusd_total=0
-    alt=False
-    for s in secciones:
-        if s["codigo"] in("PRESE","REPORTE","CONDICIONES"):
-            continue
-        mn=float(s.get("subtotal_mn") or 0)
-        usd=float(s.get("subtotal_usd") or 0)
-        tmn_total+=mn; tusd_total+=usd
-        pdf.set_fill_color(248,250,252) if alt else pdf.set_fill_color(255,255,255)
-        pdf.set_font("Helvetica","",9)
-        pdf.cell(cw[0],6,s.get("titulo","---"),border=1,fill=True)
-        pdf.cell(cw[1],6,f"$ {mn:,.2f}",border=1,fill=True,align="R")
-        pdf.cell(cw[2],6,f"$ {usd:,.2f}",border=1,fill=True,align="R")
-        pdf.ln(); alt=not alt
-    pdf.set_fill_color(*BLUE); pdf.set_text_color(255,255,255)
-    pdf.set_font("Helvetica","B",9)
-    pdf.cell(cw[0],7,"TOTAL GENERAL",border=1,fill=True)
-    pdf.cell(cw[1],7,f"$ {tmn_total:,.2f}",border=1,fill=True,align="R")
-    pdf.cell(cw[2],7,f"$ {tusd_total:,.2f}",border=1,fill=True,align="R")
-    pdf.ln(); pdf.set_text_color(*DARK); pdf.ln(4)
-    if moneda == "USD":
-        sub_val = Re_val = tusd_total
-        label_cur = "USD"
-        suffix = "USD"
-    else:
-        sub_val = Re_val = tmn_total
-        label_cur = "MN"
-        suffix = "M.N."
-    porcentaje_iva = float(proyecto.get("porcentaje_iva") if proyecto.get("porcentaje_iva") is not None else 16.00)
-    iva = sub_val * (porcentaje_iva / 100.0)
-    total_final = sub_val + iva
-    pdf.set_font("Helvetica","",9)
-    pdf.cell(80,6,f"Subtotal {label_cur}:",border=1); pdf.cell(0,6,f"$ {sub_val:,.2f}",border=1,align="R",ln=True)
-    pdf.cell(80,6,f"IVA ({porcentaje_iva:g}%):",border=1);   pdf.cell(0,6,f"$ {iva:,.2f}",border=1,align="R",ln=True)
-    pdf.set_fill_color(*BLUE); pdf.set_text_color(255,255,255)
-    pdf.set_font("Helvetica","B",10)
-    pdf.cell(80,8,"TOTAL CON IVA:",border=1,fill=True)
-    pdf.cell(0,8,f"$ {total_final:,.2f} {suffix}",border=1,fill=True,align="R",ln=True)
-    pdf.set_text_color(*GRAY); pdf.set_font("Helvetica","I",8)
-    try:
-        from utils.numero_a_letras import numero_a_letras
-        letras = numero_a_letras(total_final)
-        if moneda == "USD":
-            letras = letras.replace("PESOS", "DÓLARES").replace("M.N.", "USD")
-        pdf.ln(3); pdf.multi_cell(0,4,f"SON: {letras}")
-    except Exception:
-        pass
-    pdf.set_text_color(*DARK); pdf.ln(6)
-    if condiciones:
-        sec_title("CONDICIONES COMERCIALES")
-        for c in condiciones:
-            pdf.set_font("Helvetica","B",9); pdf.cell(20,5,c.get("codigo",""),ln=False)
-            pdf.set_font("Helvetica","",9);  pdf.multi_cell(0,5,c.get("contenido",""))
+        pdf.set_font("Helvetica", "", 9)
+        pdf.set_xy(130, 8)
+        pdf.cell(68, 5, f"Ventas: {vendedor}", align="R")
+        
+        # COTIZACION Banner
+        pdf.set_fill_color(*BLUE)
+        pdf.rect(130, 14, 68, 7, "F")
+        pdf.set_xy(130, 14)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.cell(68, 7, "COTIZACION", align="C")
+        
+        # Quote Details
+        pdf.set_text_color(*DARK)
+        pdf.set_font("Helvetica", "", 9)
+        
+        pdf.set_xy(130, 23)
+        pdf.cell(30, 5, "COTIZACION No.")
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(38, 5, str(proyecto.get("numero_proyecto") or "---"), align="R")
+        
+        pdf.set_font("Helvetica", "", 9)
+        pdf.set_xy(130, 28)
+        pdf.cell(30, 5, "FECHA")
+        pdf.cell(38, 5, str(proyecto.get("fecha_creacion") or "")[:10], align="R")
+        
+        pdf.set_xy(130, 33)
+        pdf.cell(30, 5, "VENCIMIENTO")
+        pdf.cell(38, 5, str(proyecto.get("fecha_vencimiento") or "")[:10], align="R")
+
+        # Separator line
+        pdf.set_fill_color(*BLUE)
+        pdf.rect(0, 42, 210, 1, "F")
+        
+        # Customer Info
+        pdf.set_xy(12, 47)
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(20, 5, "Atencion:")
+        pdf.set_font("Helvetica", "", 9)
+        pdf.cell(0, 5, str(proyecto.get("atencion") or "---"), ln=True)
+        
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(20, 5, "TEL:")
+        pdf.set_font("Helvetica", "", 9)
+        pdf.cell(50, 5, str(proyecto.get("telefono_cliente") or "---"))
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(20, 5, "Empresa:")
+        pdf.set_font("Helvetica", "", 9)
+        pdf.cell(0, 5, str(proyecto.get("empresa_cliente") or "---"), ln=True)
+        
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(20, 5, "E-mail:")
+        pdf.set_font("Helvetica", "", 9)
+        pdf.cell(0, 5, str(proyecto.get("email_cliente") or "---"), ln=True)
+        
+        pdf.ln(4)
+        
+        # Su Referencia
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.cell(28, 6, "Su Referencia:")
+        pdf.set_font("Helvetica", "", 10)
+        pdf.multi_cell(0, 6, str(proyecto.get("referencia") or "---"))
+        pdf.ln(2)
+        
+        # Description of the solution
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.cell(0, 6, "DESCRIPCION DE LA SOLUCION.", ln=True)
+        pdf.set_font("Helvetica", "", 9.5)
+        pdf.multi_cell(0, 5.5, str(proyecto.get("descripcion_solucion") or "De acuerdo a la información proporcionada se realiza la siguiente propuesta:"))
+        pdf.ln(4)
+        
+        # Subthemes
+        if subtemas:
+            for st in subtemas:
+                # Subtheme Header Banner
+                pdf.set_fill_color(226, 232, 240)  # Light grey background
+                pdf.set_text_color(*BLUE)
+                pdf.set_font("Helvetica", "B", 9.5)
+                # Draw filled cell for header
+                pdf.cell(0, 7, f"  {st.get('indice')} {st.get('titulo')}".upper(), ln=True, fill=True)
+                pdf.ln(1)
+                
+                # Render points of the subtheme
+                pdf.set_text_color(*DARK)
+                pdf.set_font("Helvetica", "", 9)
+                
+                raw_lines = st.get("contenido", "").split("\n")
+                for line in raw_lines:
+                    if not line.strip():
+                        continue
+                    # Print the point with a left margin
+                    pdf.set_x(18)
+                    pdf.multi_cell(0, 5, line.strip())
+                pdf.ln(3)
+
+        # PAGE 2: DETAILED ECONOMIC PROPOSAL TABLE
+        pdf.add_page()
+        
+        # Page Title
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.set_text_color(*BLUE)
+        pdf.cell(0, 8, "PROPUESTA ECONÓMICA", ln=True)
+        pdf.ln(2)
+        
+        # Table Header
+        pdf.set_fill_color(*BLUE)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Helvetica", "B", 9)
+        
+        cw = [15, 105, 25, 20, 23]  # PDA, Descripción, Precio, Cantidad, Subtotal
+        headers = ["Partida", "Descripción", "Precio", "Cant.", "Subtotal"]
+        for w, h in zip(cw, headers):
+            align = "C"
+            if h == "Descripción": align = "L"
+            if h in ("Precio", "Subtotal"): align = "R"
+            pdf.cell(w, 7, h, border=1, fill=True, align=align)
+        pdf.ln()
+        
+        # Table Rows
+        pdf.set_text_color(*DARK)
+        pdf.set_font("Helvetica", "", 9)
+        
+        subtotal_mn = 0
+        subtotal_usd = 0
+        partida_idx = 1
+        alt = False
+        
+        for sec in secciones:
+            if sec["codigo"] in ("PRESE", "REPORTE", "CONDICIONES", "LISTAS"):
+                continue
+            partidas = sec.get("partidas", [])
+            for p in partidas:
+                rowSub_mn = float(p.get("total_mn") or 0)
+                rowSub_usd = float(p.get("total_usd") or 0)
+                rowSub = rowSub_usd if moneda == "USD" else rowSub_mn
+                
+                rowQty = 1
+                rowPrice = 0
+                if sec["tipo"] == "mano_obra":
+                    rowQty = float(p.get("horas_mo") or 0) * float(p.get("dias_trabajo") or 0) or 1
+                    rowPrice = float(p.get("costo_hora_usd") or 0)
+                else:
+                    rowQty = float(p.get("cantidad") or 0) or 1
+                    rowPrice = float(p.get("precio_lista") or 0)
+                
+                subtotal_mn += rowSub_mn
+                subtotal_usd += rowSub_usd
+                
+                # Render Row
+                pdf.set_fill_color(248, 250, 252) if alt else pdf.set_fill_color(255, 255, 255)
+                
+                desc_text = str(p.get("descripcion") or "")
+                desc_lines = max(1, int(len(desc_text) / 50))
+                row_h = 5 * desc_lines
+                
+                x = pdf.get_x()
+                y = pdf.get_y()
+                
+                pdf.cell(cw[0], row_h, str(partida_idx), border=1, fill=True, align="C")
+                
+                pdf.set_xy(x + cw[0], y)
+                pdf.multi_cell(cw[1], 5, desc_text, border=1, fill=True, align="L")
+                
+                pdf.set_xy(x + cw[0] + cw[1], y)
+                pdf.cell(cw[2], row_h, f"$ {rowPrice:,.2f}", border=1, fill=True, align="R")
+                pdf.cell(cw[3], row_h, f"{rowQty:g}", border=1, fill=True, align="C")
+                pdf.cell(cw[4], row_h, f"$ {rowSub:,.2f}", border=1, fill=True, align="R")
+                pdf.ln()
+                
+                partida_idx += 1
+                alt = not alt
+
+        # Economical totals
+        sub_val = subtotal_usd if moneda == "USD" else subtotal_mn
+        pct_iva = float(proyecto.get("porcentaje_iva") if proyecto.get("porcentaje_iva") is not None else 16.00)
+        iva_val = sub_val * (pct_iva / 100.0)
+        total_val = sub_val + iva_val
+        suffix = "USD" if moneda == "USD" else "M.N."
+        
+        pdf.ln(3)
+        pdf.set_font("Helvetica", "", 9)
+        pdf.cell(cw[0] + cw[1] + cw[2] + cw[3], 6, "SUB TOTAL", border=1, align="R")
+        pdf.cell(cw[4], 6, f"$ {sub_val:,.2f}", border=1, align="R", ln=True)
+        
+        # IVA
+        pdf.cell(cw[0] + cw[1] + cw[2] + cw[3], 6, f"IVA ({pct_iva:g}%)", border=1, align="R")
+        pdf.cell(cw[4], 6, f"$ {iva_val:,.2f}", border=1, align="R", ln=True)
+        
+        # TOTAL Banner
+        pdf.set_fill_color(0, 188, 212)  # Cyan #00bcd4
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.cell(cw[0] + cw[1] + cw[2] + cw[3], 8, "TOTAL CON IVA", border=1, fill=True, align="R")
+        pdf.cell(cw[4], 8, f"$ {total_val:,.2f} {suffix}", border=1, fill=True, align="R", ln=True)
+        
+        # Words total
+        pdf.ln(2)
+        pdf.set_text_color(*GRAY)
+        pdf.set_font("Helvetica", "I", 8.5)
+        try:
+            letras = numero_a_letras(total_val)
+            if moneda == "USD":
+                letras = letras.replace("PESOS", "DÓLARES").replace("M.N.", "USD")
+            pdf.multi_cell(0, 4, f"SON: {letras}")
+        except Exception:
+            pass
+            
+        pdf.set_text_color(*DARK)
+        pdf.ln(6)
+        
+        # Commercial Conditions
+        if condiciones:
+            # Banner
+            pdf.set_fill_color(226, 232, 240)
+            pdf.set_text_color(*BLUE)
+            pdf.set_font("Helvetica", "B", 9.5)
+            pdf.cell(0, 7, "  A3 - CONDICIONES COMERCIALES", ln=True, fill=True)
             pdf.ln(1)
-    return pdf
+            
+            pdf.set_text_color(*DARK)
+            for c in condiciones:
+                pdf.set_font("Helvetica", "B", 9)
+                pdf.cell(20, 5, c.get("codigo", ""), ln=False)
+                pdf.set_font("Helvetica", "", 9)
+                pdf.multi_cell(0, 5, c.get("contenido", ""))
+                pdf.ln(1)
+                
+        return pdf
+
+    else:
+        # ----------------------------------------------------
+        # ORIGINAL STANDARD PROJECT LAYOUT
+        # ----------------------------------------------------
+        pdf.add_page()
+        logo_path = os.path.join("static", "img", "logo.png")
+        if os.path.exists(logo_path):
+            pdf.image(logo_path, x=12, y=8, h=16)
+        else:
+            pdf.set_text_color(*BLUE)
+            pdf.set_font("Helvetica","B",20)
+            pdf.set_xy(12,8)
+            pdf.cell(0,8,"DEMATIQ AUTOMATIZACIÓN")
+            pdf.set_font("Helvetica","",9)
+            pdf.set_xy(12,20)
+            pdf.cell(0,5,"Sistema de Cotizaciones Profesional")
+        pdf.set_text_color(*DARK)
+        pdf.set_font("Helvetica","B",12)
+        pdf.set_xy(130,8)
+        pdf.cell(0,6,f"COT. No. {proyecto.get('numero_proyecto','---')}", align="R")
+        pdf.set_font("Helvetica","",9)
+        pdf.set_xy(130,15)
+        pdf.cell(0,5,f"Fecha: {str(proyecto.get('fecha_creacion',''))[:10]}", align="R")
+        pdf.set_fill_color(37, 99, 235)
+        pdf.rect(0, 28, 210, 2, "F")
+        pdf.set_xy(0,45)
+        def sec_title(t):
+            pdf.set_fill_color(37, 99, 235)
+            pdf.set_text_color(255,255,255)
+            pdf.set_font("Helvetica","B",10)
+            pdf.cell(0,8,f"  {t}",ln=True,fill=True)
+            pdf.set_text_color(*DARK)
+            pdf.ln(2)
+        def info(lbl,val):
+            pdf.set_x(12)
+            pdf.set_font("Helvetica","B",9)
+            pdf.set_text_color(*GRAY)
+            pdf.cell(45,6,lbl.upper()+":",ln=False)
+            pdf.set_font("Helvetica","",9)
+            pdf.set_text_color(*DARK)
+            pdf.multi_cell(0,6,str(val or "---"))
+        sec_title("INFORMACIÓN DEL CLIENTE")
+        info("Empresa",proyecto.get("empresa_cliente"))
+        info("Atención",proyecto.get("atencion"))
+        info("Teléfono",proyecto.get("telefono_cliente"))
+        info("Email",proyecto.get("email_cliente"))
+        info("Referencia",proyecto.get("referencia"))
+        pdf.ln(4)
+        sec_title("RESUMEN DE COTIZACIÓN")
+        cw=[80,55,55]
+        pdf.set_fill_color(239,246,255)
+        pdf.set_font("Helvetica","B",9)
+        for i,(h,w) in enumerate(zip(["SECCIÓN","TOTAL MN","TOTAL USD"],cw)):
+            pdf.cell(w,7,h,border=1,fill=True,align="R" if i>0 else "L")
+        pdf.ln()
+        tmn_total=tusd_total=0
+        alt=False
+        for s in secciones:
+            if s["codigo"] in("PRESE","REPORTE","CONDICIONES"):
+                continue
+            mn=float(s.get("subtotal_mn") or 0)
+            usd=float(s.get("subtotal_usd") or 0)
+            tmn_total+=mn; tusd_total+=usd
+            pdf.set_fill_color(248,250,252) if alt else pdf.set_fill_color(255,255,255)
+            pdf.set_font("Helvetica","",9)
+            pdf.cell(cw[0],6,s.get("titulo","---"),border=1,fill=True)
+            pdf.cell(cw[1],6,f"$ {mn:,.2f}",border=1,fill=True,align="R")
+            pdf.cell(cw[2],6,f"$ {usd:,.2f}",border=1,fill=True,align="R")
+            pdf.ln(); alt=not alt
+        pdf.set_fill_color(37, 99, 235); pdf.set_text_color(255,255,255)
+        pdf.set_font("Helvetica","B",9)
+        pdf.cell(cw[0],7,"TOTAL GENERAL",border=1,fill=True)
+        pdf.cell(cw[1],7,f"$ {tmn_total:,.2f}",border=1,fill=True,align="R")
+        pdf.cell(cw[2],7,f"$ {tusd_total:,.2f}",border=1,fill=True,align="R")
+        pdf.ln(); pdf.set_text_color(*DARK); pdf.ln(4)
+        if moneda == "USD":
+            sub_val = Re_val = tusd_total
+            label_cur = "USD"
+            suffix = "USD"
+        else:
+            sub_val = Re_val = tmn_total
+            label_cur = "MN"
+            suffix = "M.N."
+        porcentaje_iva = float(proyecto.get("porcentaje_iva") if proyecto.get("porcentaje_iva") is not None else 16.00)
+        iva = sub_val * (porcentaje_iva / 100.0)
+        total_final = sub_val + iva
+        pdf.set_font("Helvetica","",9)
+        pdf.cell(80,6,f"Subtotal {label_cur}:",border=1); pdf.cell(0,6,f"$ {sub_val:,.2f}",border=1,align="R",ln=True)
+        pdf.cell(80,6,f"IVA ({porcentaje_iva:g}%):",border=1);   pdf.cell(0,6,f"$ {iva:,.2f}",border=1,align="R",ln=True)
+        pdf.set_fill_color(37, 99, 235); pdf.set_text_color(255,255,255)
+        pdf.set_font("Helvetica","B",10)
+        pdf.cell(80,8,"TOTAL CON IVA:",border=1,fill=True)
+        pdf.cell(0,8,f"$ {total_final:,.2f} {suffix}",border=1,fill=True,align="R",ln=True)
+        pdf.set_text_color(*GRAY); pdf.set_font("Helvetica","I",8)
+        try:
+            letras = numero_a_letras(total_final)
+            if moneda == "USD":
+                letras = letras.replace("PESOS", "DÓLARES").replace("M.N.", "USD")
+            pdf.ln(3); pdf.multi_cell(0,4,f"SON: {letras}")
+        except Exception:
+            pass
+        pdf.set_text_color(*DARK); pdf.ln(6)
+        if condiciones:
+            sec_title("CONDICIONES COMERCIALES")
+            for c in condiciones:
+                pdf.set_font("Helvetica","B",9); pdf.cell(20,5,c.get("codigo",""),ln=False)
+                pdf.set_font("Helvetica","",9);  pdf.multi_cell(0,5,c.get("contenido",""))
+                pdf.ln(1)
+        return pdf
 
 @app.route("/api/configuracion/update", methods=["POST"])
 @login_required
