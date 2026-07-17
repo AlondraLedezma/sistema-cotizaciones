@@ -973,12 +973,86 @@ async function deleteCondicion(id) {
 function renderPrese(c) {
   const p = projectData.proyecto||{};
   const subtemas = projectData.subtemas||[];
+
+  if (!['mecanico', 'cotizacion'].includes(p.tipo_proyecto)) {
+    // Standard Project Layout
+    let subtemasHTML = subtemas.map((st,i) => {
+      const points = parseSubtemaPoints(st);
+      let pointsHTML = points.map((pt, idx) => `
+        <div class="d-flex align-items-center gap-2 mb-2 position-relative pt-1">
+          <span class="fw-bold text-primary" style="font-size:12.5px; min-width:45px;">${st.indice}.${idx + 1}</span>
+          <input class="form-control form-control-sm border-0 bg-light" style="font-size:13px; border-radius:4px;" value="${esc(pt)}" onchange="saveSubtemaPoint(${st.id}, ${idx}, this.value)" placeholder="Escribe el punto aquí..."/>
+          <button onclick="deleteSubtemaPoint(${st.id}, ${idx})" class="btn btn-sm btn-link p-0 text-danger border-0 bg-transparent" style="text-decoration:none;" type="button" title="Eliminar punto">✕</button>
+        </div>
+      `).join('');
+
+      if (!points.length) {
+        pointsHTML = `<div class="text-muted text-center py-2" style="font-size:12px;">Sin apartados. Haz clic en agregar.</div>`;
+      }
+
+      const isExpanded = expandedSubtemas.has(st.id);
+      return `
+        <div class="card mb-3 border border-light-subtle shadow-sm">
+          <div class="d-flex align-items-center gap-2 p-2 rounded cursor-pointer bg-light" onclick="toggleSubtemaCollapse(this, ${st.id})">
+            <i class="fa-solid ${isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}" style="font-size:10px; transition:0.2s"></i>
+            <span class="badge bg-primary text-white fw-bold" style="font-size:11px; min-width:30px;">${esc(st.indice)}</span>
+            <input class="form-control form-control-sm fw-bold text-uppercase border-0 bg-transparent flex-grow-1" value="${esc(st.titulo||'')}" style="font-size:13px;" onblur="updateSubtema(${st.id},'titulo',this.value)" onclick="event.stopPropagation()"/>
+            <button onclick="event.stopPropagation(); deleteSubtema(${st.id})" class="btn btn-sm btn-light text-danger border-0 ms-auto py-0"><i class="fa-solid fa-times"></i></button>
+          </div>
+          <div style="display:${isExpanded ? 'block' : 'none'};" class="ps-4 pe-3 pt-3 pb-3 collapse-content">
+            <div id="subtema-points-list-${st.id}">${pointsHTML}</div>
+            <div class="text-start mt-2">
+              <button onclick="addSubtemaPoint(${st.id})" class="btn btn-xs btn-outline-primary fw-semibold" style="font-size:11px; padding:2px 8px;" type="button">
+                <i class="fa-solid fa-plus me-1"></i> Agregar Apartado
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    c.innerHTML = `
+      <div class="card shadow-sm border-0 overflow-hidden max-width-900">
+        <div class="p-3 text-white" style="background:linear-gradient(135deg,#475569,#334155)">
+          <div class="text-uppercase" style="font-size:10px;opacity:0.8;letter-spacing:0.5px">Sección</div>
+          <div class="fs-5 fw-bold">Presentación / Alcance del Proyecto</div>
+        </div>
+        <div class="p-4 bg-light border-bottom">
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Su Referencia</label>
+              <input id="f-referencia" class="form-control form-control-sm" value="${esc(p.referencia||'')}" onblur="saveProjectField()" />
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Fecha</label>
+              <input id="f-fecha" type="date" class="form-control form-control-sm" value="${p.fecha_creacion||''}" onblur="saveProjectField()" />
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Vencimiento</label>
+              <input id="f-vencimiento" type="date" class="form-control form-control-sm" value="${p.fecha_vencimiento||''}" onblur="saveProjectField()" />
+            </div>
+          </div>
+        </div>
+        <div class="p-4">
+          <label class="form-label fw-bold text-muted text-uppercase mb-2" style="font-size:10px;letter-spacing:0.5px">DESCRIPCIÓN DE LA SOLUCIÓN</label>
+          <textarea id="prese-desc" class="form-control mb-3" style="resize:vertical;min-height:80px;line-height:1.6" onblur="saveDesc(this.value)" placeholder="Descripción general de la solución propuesta...">${esc(p.descripcion_solucion||'')}</textarea>
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <div class="fw-bold text-dark" style="font-size:14px"><i class="fa-solid fa-list-ol text-primary me-2"></i>Subtemas de Alcance</div>
+            <button onclick="addSubtema()" class="btn btn-sm btn-primary"><i class="fa-solid fa-plus me-1"></i>Agregar Subtema</button>
+          </div>
+          <div id="subtemas-container">${subtemasHTML || '<div class="text-center py-3 text-muted" style="font-size:13px">Sin subtemas. Agrega el primero.</div>'}</div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  // WYSIWYG Cover Page layout for quotes
   let subtemasHTML = subtemas.map((st,i) => {
     const points = parseSubtemaPoints(st);
-    let pointsHTML = points.map((p, idx) => `
+    let pointsHTML = points.map((pt, idx) => `
       <div class="d-flex align-items-center gap-2 mb-2 position-relative pt-1">
         <span class="fw-bold text-primary" style="font-size:12.5px; min-width:45px;">${st.indice}.${idx + 1}</span>
-        <input class="form-control form-control-sm border-0 bg-light" style="font-size:13px; border-radius:4px;" value="${esc(p)}" onchange="saveSubtemaPoint(${st.id}, ${idx}, this.value)" placeholder="Escribe el punto aquí..."/>
+        <input class="form-control form-control-sm border-0 bg-light" style="font-size:13px; border-radius:4px;" value="${esc(pt)}" onchange="saveSubtemaPoint(${st.id}, ${idx}, this.value)" placeholder="Escribe el punto aquí..."/>
         <button onclick="deleteSubtemaPoint(${st.id}, ${idx})" class="btn btn-sm btn-link p-0 text-danger border-0 bg-transparent" style="text-decoration:none;" type="button" title="Eliminar punto">✕</button>
       </div>
     `).join('');
@@ -1009,39 +1083,98 @@ function renderPrese(c) {
   }).join('');
 
   c.innerHTML = `
-    <div class="card shadow-sm border-0 overflow-hidden max-width-900">
-      <div class="p-3 text-white" style="background:linear-gradient(135deg,#475569,#334155)">
-        <div class="text-uppercase" style="font-size:10px;opacity:0.8;letter-spacing:0.5px">Sección</div>
-        <div class="fs-5 fw-bold">Presentación / Alcance ${['mecanico', 'cotizacion'].includes(p.tipo_proyecto) ? 'de la Cotización' : 'del Proyecto'}</div>
-      </div>
-      <div class="p-4 bg-light border-bottom">
-        <div class="row g-2">
-          <div class="col-md-6">
-            <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Su Referencia</label>
-            <input class="form-control form-control-sm" value="${esc(p.referencia||'')}" onblur="saveProjectField({referencia:this.value})" />
+    <div class="card shadow-sm border border-light-subtle bg-white max-width-900 mx-auto p-4" style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; color:#0f172a;">
+      <!-- Header block -->
+      <div class="row align-items-start mb-4">
+        <!-- Logo & Slogans -->
+        <div class="col-7">
+          <div class="d-flex align-items-start gap-3">
+            <img src="/static/img/logo.png" style="height:48px;" alt="DEMATIQ"/>
+            <div style="font-size:10px; color:#64748b; line-height:1.4; font-style:italic;">
+              Integracion de sistemas Automatizados<br/>
+              Programacion de PLC, HMI<br/>
+              Servicio de Diseño y Armado Tableros<br/>
+              Polizas de Mantenimiento
+            </div>
           </div>
-          <div class="col-md-3">
-            <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Fecha</label>
-            <input type="date" class="form-control form-control-sm" value="${p.fecha_creacion||''}" onblur="saveProjectField({fecha_creacion:this.value})" />
+        </div>
+        <!-- Sales Manager & Quotation Details -->
+        <div class="col-5 text-end" style="font-size:12px;">
+          <div class="mb-1 text-muted fw-semibold d-flex align-items-center justify-content-end">
+            Ventas: &nbsp;
+            <input id="f-vendedor-prese" class="quote-header-input fw-semibold text-end border-0 bg-transparent" style="width:140px; border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(window.currentVendedor || vendedor_config || 'Jose Moreno Rangel')}" onchange="saveVendedorConfig('vendedor', this.value)"/>
           </div>
-          <div class="col-md-3">
-            <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Vencimiento</label>
-            <input type="date" class="form-control form-control-sm" value="${p.fecha_vencimiento||''}" onblur="saveProjectField({fecha_vencimiento:this.value})" />
+          <div class="text-center py-1 text-white fw-bold text-uppercase rounded-1 mb-2" style="background:#1e3a8a; font-size:14px; letter-spacing:1px;">
+            COTIZACION
+          </div>
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="fw-bold text-muted text-uppercase" style="font-size:9px">COTIZACION No.</span>
+            <input id="top-numero" class="quote-header-input fw-bold text-end border-0 bg-transparent" style="width:60%; border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(p.numero_proyecto||'')}" onchange="saveProjectField()"/>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="fw-bold text-muted text-uppercase" style="font-size:9px">FECHA</span>
+            <input id="f-fecha" type="date" class="quote-header-input text-end border-0 bg-transparent text-muted" style="width:60%; border-bottom:1px dashed #ccc !important; outline:none;" value="${p.fecha_creacion||''}" onchange="saveProjectField()"/>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="fw-bold text-muted text-uppercase" style="font-size:9px">VENCIMIENTO</span>
+            <input id="f-vencimiento" type="date" class="quote-header-input text-end border-0 bg-transparent" style="width:60%; border-bottom:1px dashed #ccc !important; outline:none;" value="${p.fecha_vencimiento||''}" onchange="saveProjectField()"/>
           </div>
         </div>
       </div>
-      <div class="p-4">
-        <label class="form-label fw-bold text-muted text-uppercase mb-2" style="font-size:10px;letter-spacing:0.5px">DESCRIPCIÓN DE LA SOLUCIÓN</label>
-        <textarea id="prese-desc" class="form-control mb-3" style="resize:vertical;min-height:80px;line-height:1.6" onblur="saveDesc(this.value)" placeholder="Descripción general de la solución propuesta...">${esc(p.descripcion_solucion||'')}</textarea>
-        ${!['mecanico', 'cotizacion'].includes(p.tipo_proyecto) ? `
+
+      <hr style="border-top: 1.5px solid #1e3a8a; opacity:1; margin: 0 0 16px 0;"/>
+
+      <!-- Customer Info & Reference Grid -->
+      <div class="row g-3 mb-4" style="font-size:13px;">
+        <div class="col-7">
+          <div class="mb-2 d-flex">
+            <strong style="min-width:70px; color:#475569;">Atencion:</strong>
+            <input id="f-atencion" class="quote-header-input flex-grow-1 border-0 bg-transparent" style="border-bottom:1px dashed #ccc !important; outline:none; font-weight:500;" value="${esc(p.atencion||'')}" placeholder="Nombre del contacto..." onchange="saveProjectField()"/>
+          </div>
+          <div class="mb-2 d-flex align-items-center gap-2">
+            <strong style="min-width:70px; color:#475569;">TEL:</strong>
+            <input id="f-telefono" class="quote-header-input border-0 bg-transparent" style="width:120px; border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(p.telefono_cliente||'')}" placeholder="Teléfono..." onchange="saveProjectField()"/>
+            <strong style="color:#475569;">Empresa:</strong>
+            <input id="f-empresa" class="quote-header-input flex-grow-1 border-0 bg-transparent" style="border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(p.empresa_cliente||'')}" placeholder="Empresa..." onchange="saveProjectField()"/>
+          </div>
+          <div class="d-flex">
+            <strong style="min-width:70px; color:#475569;">E-mail:</strong>
+            <input id="f-email" class="quote-header-input flex-grow-1 border-0 bg-transparent" style="border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(p.email_cliente||'')}" placeholder="Email..." onchange="saveProjectField()"/>
+          </div>
+        </div>
+        <div class="col-5">
+          <div class="d-flex flex-column h-100 justify-content-end pb-1">
+            <div class="d-flex align-items-center mb-2">
+              <strong style="min-width:130px; color:#475569;">Tipo de Cambio USD:</strong>
+              <input id="f-tc" type="number" step="0.01" class="quote-header-input border-0 bg-transparent fw-bold text-primary" style="width:70px; border-bottom:1px dashed #ccc !important; outline:none;" value="${p.tipo_cambio_usd||20}" onchange="saveProjectField()"/>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-4 pt-2 border-top" style="font-size:14px;">
+        <div class="d-flex align-items-center">
+          <strong style="min-width:110px; color:#0f172a;">Su Referencia:</strong>
+          <input id="f-referencia" class="quote-header-input fw-bold text-uppercase text-dark flex-grow-1 border-0 bg-transparent" style="border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(p.referencia||'')}" placeholder="Programación de Sistema de Trazabilidad..." onchange="saveProjectField()"/>
+        </div>
+      </div>
+
+      <!-- Solution Description -->
+      <div class="mb-4">
+        <h6 class="fw-bold text-uppercase mb-2" style="font-size:12px; letter-spacing:0.5px; color:#475569;">DESCRIPCION DE LA SOLUCION.</h6>
+        <textarea id="prese-desc" class="form-control border-light-subtle bg-light" style="resize:vertical; min-height:80px; line-height:1.6; font-size:13px;" onblur="saveDesc(this.value)" placeholder="De acuerdo a la información proporcionada por el cliente se realiza la siguiente propuesta...">${esc(p.descripcion_solucion||'')}</textarea>
+      </div>
+
+      <!-- Subthemes Section -->
+      <div class="border-top pt-3">
         <div class="d-flex align-items-center justify-content-between mb-3">
-          <div class="fw-bold text-dark" style="font-size:14px"><i class="fa-solid fa-list-ol text-primary me-2"></i>Subtemas de Alcance</div>
-          <button onclick="addSubtema()" class="btn btn-sm btn-primary"><i class="fa-solid fa-plus me-1"></i>Agregar Subtema</button>
+          <h6 class="fw-bold text-dark mb-0" style="font-size:13px;"><i class="fa-solid fa-list-ol text-primary me-2"></i>Subtemas de Alcance</h6>
+          <button onclick="addSubtema()" class="btn btn-sm btn-primary py-1 px-3"><i class="fa-solid fa-plus me-1"></i>Agregar Subtema</button>
         </div>
         <div id="subtemas-container">${subtemasHTML || '<div class="text-center py-3 text-muted" style="font-size:13px">Sin subtemas. Agrega el primero.</div>'}</div>
-        ` : ''}
       </div>
     </div>`;
+}
 }
 
 async function saveDesc(val) {
@@ -1495,12 +1628,14 @@ async function saveVendedorConfig(clave, valor) {
   if (clave === 'vendedor') window.currentVendedor = valor;
   if (clave === 'vendedor_telefono') window.currentVendedorTel = valor;
   
-  // Sync vendor input fields if both exist in the DOM
+  // Sync vendor input fields if they exist in the DOM
   const topInput = document.getElementById('f-vendedor-top');
   const footInput = document.getElementById('f-vendedor');
+  const preseInput = document.getElementById('f-vendedor-prese');
   if (clave === 'vendedor') {
     if (topInput) topInput.value = valor;
     if (footInput) footInput.value = valor;
+    if (preseInput) preseInput.value = valor;
   }
 
   try {
