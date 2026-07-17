@@ -116,6 +116,7 @@ const PID = {{ proyecto.id }};
 const vendedor_config = "{{ vendedor_config }}";
 const vendedor_telefono = "{{ vendedor_telefono }}";
 const nota_aclaracion = "{{ nota_aclaracion }}";
+const expandedSubtemas = new Set();
 const TABS = [
   {code:'PRESE',     label:'PRESE',        color:'#475569'},
   {code:'REPORTE',   label:'REPORTE',      color:'#16a34a'},
@@ -784,7 +785,7 @@ function getMarcaField(p, sec) {
   const opts = listas.filter(l => l.seccion_codigo === sec.codigo);
   if (opts.length > 0) {
     const selected = p.marca||'';
-    return `<select class="excel-select" data-field="marca" onchange="saveEQ(${p.id})" style="width:120px">
+    return `<select class="excel-select" data-field="marca" onchange="saveEQ(${p.id})" style="width:135px">
       <option value="">—</option>
       ${opts.map(o => `<option value="${esc(o.valor)}" ${o.valor===selected?'selected':''}>${esc(o.valor)}</option>`).join('')}
     </select>`;
@@ -986,15 +987,16 @@ function renderPrese(c) {
       pointsHTML = `<div class="text-muted text-center py-2" style="font-size:12px;">Sin apartados. Haz clic en agregar.</div>`;
     }
 
+    const isExpanded = expandedSubtemas.has(st.id);
     return `
       <div class="card mb-3 border border-light-subtle shadow-sm">
-        <div class="d-flex align-items-center gap-2 p-2 rounded cursor-pointer bg-light" onclick="toggleSubtemaCollapse(this)">
-          <i class="fa-solid fa-chevron-right" style="font-size:10px; transition:0.2s"></i>
+        <div class="d-flex align-items-center gap-2 p-2 rounded cursor-pointer bg-light" onclick="toggleSubtemaCollapse(this, ${st.id})">
+          <i class="fa-solid ${isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}" style="font-size:10px; transition:0.2s"></i>
           <span class="badge bg-primary text-white fw-bold" style="font-size:11px; min-width:30px;">${esc(st.indice)}</span>
           <input class="form-control form-control-sm fw-bold text-uppercase border-0 bg-transparent flex-grow-1" value="${esc(st.titulo||'')}" style="font-size:13px;" onblur="updateSubtema(${st.id},'titulo',this.value)" onclick="event.stopPropagation()"/>
           <button onclick="event.stopPropagation(); deleteSubtema(${st.id})" class="btn btn-sm btn-light text-danger border-0 ms-auto py-0"><i class="fa-solid fa-times"></i></button>
         </div>
-        <div style="display:none;" class="ps-4 pe-3 pt-3 pb-3 collapse-content">
+        <div style="display:${isExpanded ? 'block' : 'none'};" class="ps-4 pe-3 pt-3 pb-3 collapse-content">
           <div id="subtema-points-list-${st.id}">${pointsHTML}</div>
           <div class="text-start mt-2">
             <button onclick="addSubtemaPoint(${st.id})" class="btn btn-xs btn-outline-primary fw-semibold" style="font-size:11px; padding:2px 8px;" type="button">
@@ -1605,7 +1607,7 @@ async function addSubtemaPoint(subtemaId) {
   if (!st) return;
   
   const points = parseSubtemaPoints(st);
-  points.push('Nuevo apartado...');
+  points.push('');
   
   const serialized = serializeSubtemaPoints(st, points);
   try {
@@ -1615,6 +1617,8 @@ async function addSubtemaPoint(subtemaId) {
       indice: st.indice,
       contenido: serialized
     });
+    // Ensure the tab stays expanded during full reload
+    expandedSubtemas.add(subtemaId);
     await loadProject();
     showToast('Apartado agregado', 'success');
   } catch(e) {
@@ -1622,15 +1626,17 @@ async function addSubtemaPoint(subtemaId) {
   }
 }
 
-function toggleSubtemaCollapse(headerEl) {
+function toggleSubtemaCollapse(headerEl, subtemaId) {
   const content = headerEl.nextElementSibling;
   const chevron = headerEl.querySelector('.fa-chevron-down, .fa-chevron-right');
   if (content.style.display === 'none') {
     content.style.display = 'block';
     if (chevron) { chevron.classList.replace('fa-chevron-right', 'fa-chevron-down'); }
+    expandedSubtemas.add(subtemaId);
   } else {
     content.style.display = 'none';
     if (chevron) { chevron.classList.replace('fa-chevron-down', 'fa-chevron-right'); }
+    expandedSubtemas.delete(subtemaId);
   }
 }
 
