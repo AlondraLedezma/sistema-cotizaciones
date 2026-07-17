@@ -143,10 +143,14 @@ def proyecto(pid):
     slogans_row = q("SELECT valor FROM configuracion WHERE clave='slogans'", fetch="one")
     slogans = slogans_row.get("valor") if slogans_row else "Integracion de sistemas Automatizados\nProgramacion de PLC, HMI\nServicio de Diseño y Armado Tableros\nPolizas de Mantenimiento"
     
+    titulo_cond_row = q("SELECT valor FROM configuracion WHERE clave='condiciones_seccion_titulo'", fetch="one")
+    titulo_cond = titulo_cond_row.get("valor") if titulo_cond_row else "CONDICIONES COMERCIALES"
+    
     return render_template("proyecto.html", proyecto=p, vendedor_config=vendedor,
                            vendedor_telefono=vendedor_telefono,
                            nota_aclaracion=nota_aclaracion,
                            slogans_config=slogans,
+                           condiciones_seccion_titulo_config=titulo_cond,
                            user_email=session.get("user_email"))
 
 @app.route("/api/stats")
@@ -409,9 +413,10 @@ def api_delete_partida():
 def api_create_cond():
     d = request.json or {}
     pid = d.get("proyecto_id")
+    cont = d.get("contenido", "")
     n = q("SELECT COUNT(*) cnt FROM condiciones_comerciales WHERE proyecto_id=%s", (pid,), fetch="one")["cnt"] + 1
     new_id = ex("INSERT INTO condiciones_comerciales (proyecto_id,codigo,contenido,orden) VALUES (%s,%s,%s,%s)",
-                (pid, f"C{n}", "Nueva condición comercial.", n))
+                (pid, f"C{n}", cont, n))
     return jsonify(id=new_id, codigo=f"C{n}")
 
 @app.route("/api/condiciones/update", methods=["POST"])
@@ -997,17 +1002,21 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
         
         # Commercial Conditions
         if condiciones:
+            # Load section title from configuration
+            tit_row = q("SELECT valor FROM configuracion WHERE clave='condiciones_seccion_titulo'", fetch="one")
+            tit_val = tit_row["valor"] if tit_row and tit_row.get("valor") else "CONDICIONES COMERCIALES"
+            
             # Banner
             pdf.set_fill_color(226, 232, 240)
             pdf.set_text_color(*BLUE)
             pdf.set_font("Helvetica", "B", 9.5)
-            pdf.cell(0, 7, "  A3 - CONDICIONES COMERCIALES", ln=True, fill=True)
+            pdf.cell(0, 7, f"  A3 - {tit_val.upper()}", ln=True, fill=True)
             pdf.ln(1)
             
             pdf.set_text_color(*DARK)
-            for c in condiciones:
+            for idx, c in enumerate(condiciones):
                 pdf.set_font("Helvetica", "B", 9)
-                pdf.cell(20, 5, c.get("codigo", ""), ln=False)
+                pdf.cell(15, 5, f"A3.{idx + 1}", ln=False)
                 pdf.set_font("Helvetica", "", 9)
                 pdf.multi_cell(0, 5, c.get("contenido", ""))
                 pdf.ln(1)

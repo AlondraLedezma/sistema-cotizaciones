@@ -117,6 +117,7 @@ const vendedor_config = "{{ vendedor_config }}";
 const vendedor_telefono = "{{ vendedor_telefono }}";
 const nota_aclaracion = "{{ nota_aclaracion }}";
 const slogans_config = `{{ slogans_config|replace('\n', '\\n') }}`;
+const condiciones_seccion_titulo_config = "{{ condiciones_seccion_titulo_config }}";
 const expandedSubtemas = new Set();
 const TABS = [
   {code:'PRESE',     label:'PRESE',        color:'#475569'},
@@ -1039,9 +1040,9 @@ function renderPrese(c) {
         </div>
         <!-- Sales Manager & Quotation Details -->
         <div class="col-5 text-end" style="font-size:12px;">
-          <div class="mb-1 text-muted fw-semibold d-flex align-items-center justify-content-between">
-            <span>Ventas:</span>
-            <input id="f-vendedor-prese" class="quote-header-input fw-semibold text-end border-0 bg-transparent" style="width:200px; border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(window.currentVendedor || vendedor_config || 'Jose Moreno Rangel')}" onchange="saveVendedorConfig('vendedor', this.value)"/>
+          <div class="mb-1 text-muted fw-semibold d-flex align-items-center w-100">
+            <span style="margin-right:8px; white-space:nowrap;">Ventas:</span>
+            <input id="f-vendedor-prese" class="quote-header-input fw-semibold text-end border-0 bg-transparent flex-grow-1" style="border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(window.currentVendedor || vendedor_config || 'Jose Moreno Rangel')}" onchange="saveVendedorConfig('vendedor', this.value)"/>
           </div>
           <div class="text-center py-1 text-white fw-bold text-uppercase rounded-1 mb-2" style="background:#1e3a8a; font-size:14px; letter-spacing:1px;">
             COTIZACION
@@ -1134,22 +1135,28 @@ function renderPrese(c) {
 
       <!-- Conditions Section (matching Image 3) -->
       <div class="mt-4 pt-3 border-top">
-        <div class="p-2 rounded mb-2 text-dark fw-bold text-uppercase" style="font-size:12px; background:#e2e8f0; color:#1e3a8a !important; letter-spacing:0.5px;">
-          A3 - CONDICIONES COMERCIALES
-        </div>
-        <div id="prese-condiciones-list">
-          ${(projectData.condiciones || []).map((cond, index) => `
-            <div class="d-flex align-items-center gap-2 mb-2 position-relative pt-1">
-              <span class="fw-bold text-primary" style="font-size:12.5px; min-width:45px;">A3.${index + 1}</span>
-              <input class="form-control form-control-sm border-0 bg-light" style="font-size:13px; border-radius:4px;" value="${esc(cond.contenido || '')}" onchange="updatePreseCond(${cond.id}, this.value)" placeholder="Escribe la condición comercial aquí..."/>
-              <button onclick="deletePreseCondicion(${cond.id})" class="btn btn-sm btn-link p-0 text-danger border-0 bg-transparent" style="text-decoration:none;" type="button" title="Eliminar condición">✕</button>
+        <div class="card mb-3 border border-light-subtle shadow-sm">
+          <div class="d-flex align-items-center gap-2 p-2 rounded bg-light">
+            <i class="fa-solid fa-chevron-down" style="font-size:10px;"></i>
+            <span class="badge bg-primary text-white fw-bold" style="font-size:11px; min-width:30px;">A3</span>
+            <input class="form-control form-control-sm fw-bold text-uppercase border-0 bg-transparent flex-grow-1" value="${esc(window.currentCondicionesTitulo || condiciones_seccion_titulo_config || 'CONDICIONES COMERCIALES')}" style="font-size:13px;" onblur="saveVendedorConfig('condiciones_seccion_titulo', this.value)"/>
+          </div>
+          <div class="ps-4 pe-3 pt-3 pb-3">
+            <div id="prese-condiciones-list">
+              ${(projectData.condiciones || []).map((cond, index) => `
+                <div class="d-flex align-items-center gap-2 mb-2 position-relative pt-1">
+                  <span class="fw-bold text-primary" style="font-size:12.5px; min-width:45px;">A3.${index + 1}</span>
+                  <input class="form-control form-control-sm border-0 bg-light" style="font-size:13px; border-radius:4px;" value="${esc(cond.contenido || '')}" onchange="updatePreseCond(${cond.id}, this.value)" placeholder="Escribe la condición comercial aquí..."/>
+                  <button onclick="deletePreseCondicion(${cond.id})" class="btn btn-sm btn-link p-0 text-danger border-0 bg-transparent" style="text-decoration:none;" type="button" title="Eliminar condición">✕</button>
+                </div>
+              `).join('')}
             </div>
-          `).join('')}
-        </div>
-        <div class="text-start mt-2">
-          <button onclick="addPreseCondicion()" class="btn btn-xs btn-outline-primary fw-semibold" style="font-size:11px; padding:2px 8px;" type="button">
-            <i class="fa-solid fa-plus me-1"></i> Agregar Condición
-          </button>
+            <div class="text-start mt-2">
+              <button onclick="addPreseCondicion()" class="btn btn-xs btn-outline-primary fw-semibold" style="font-size:11px; padding:2px 8px;" type="button">
+                <i class="fa-solid fa-plus me-1"></i> Agregar Condición
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>`;
@@ -1606,6 +1613,7 @@ async function saveVendedorConfig(clave, valor) {
   if (clave === 'vendedor') window.currentVendedor = valor;
   if (clave === 'vendedor_telefono') window.currentVendedorTel = valor;
   if (clave === 'slogans') window.currentSlogans = valor;
+  if (clave === 'condiciones_seccion_titulo') window.currentCondicionesTitulo = valor;
   
   // Sync vendor input fields if they exist in the DOM
   const topInput = document.getElementById('f-vendedor-top');
