@@ -134,7 +134,9 @@ def proyecto(pid):
     p = q("SELECT * FROM proyectos WHERE id=%s", (pid,), fetch="one")
     if not p:
         return redirect(url_for("dashboard"))
-    return render_template("proyecto.html", proyecto=p,
+    vendedor_row = q("SELECT valor FROM configuracion WHERE clave='vendedor'", fetch="one")
+    vendedor = vendedor_row.get("valor") if vendedor_row else "Jose Moreno Rangel"
+    return render_template("proyecto.html", proyecto=p, vendedor_config=vendedor,
                            user_email=session.get("user_email"))
 
 @app.route("/api/stats")
@@ -231,6 +233,12 @@ def api_delete_proyecto():
 def api_update_proyecto():
     d = request.json or {}
     pid = d.get("id")
+    new_num = d.get("numero_proyecto")
+    if new_num:
+        conflict = q("SELECT id FROM proyectos WHERE numero_proyecto=%s AND id!=%s", (new_num, pid), fetch="one")
+        if conflict:
+            return jsonify(error="El número de proyecto ya está en uso"), 400
+        ex("UPDATE proyectos SET numero_proyecto=%s WHERE id=%s", (new_num, pid))
     ex("""UPDATE proyectos SET nombre_proyecto=%s,empresa_cliente=%s,
           contacto_cliente=%s,telefono_cliente=%s,email_cliente=%s,
           atencion=%s,referencia=%s,descripcion_solucion=%s,
@@ -431,20 +439,26 @@ def api_pdf_save(pid):
     secciones  = q("SELECT * FROM secciones WHERE proyecto_id=%s ORDER BY orden", (pid,))
     condiciones= q("SELECT * FROM condiciones_comerciales WHERE proyecto_id=%s ORDER BY orden", (pid,))
     try:
-        import tkinter as tk
-        from tkinter import filedialog
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes("-topmost", True)
+        import os
         filename = f"COT_{proyecto.get('numero_proyecto','')}.pdf"
-        filepath = filedialog.asksaveasfilename(
-            parent=root,
-            title="Guardar PDF de Cotización",
-            initialfile=filename,
-            defaultextension=".pdf",
-            filetypes=[("Archivos PDF", "*.pdf")]
-        )
-        root.destroy()
+        folder = (proyecto.get("carpeta_link") or "").strip()
+        filepath = None
+        if folder and os.path.isdir(folder):
+            filepath = os.path.join(folder, filename)
+        else:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            filepath = filedialog.asksaveasfilename(
+                parent=root,
+                title="Guardar PDF de Cotización",
+                initialfile=filename,
+                defaultextension=".pdf",
+                filetypes=[("Archivos PDF", "*.pdf")]
+            )
+            root.destroy()
         if not filepath:
             return jsonify(ok=False, canceled=True)
         pdf = _build_pdf(proyecto, secciones, condiciones, moneda)

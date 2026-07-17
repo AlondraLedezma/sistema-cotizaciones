@@ -1,6 +1,27 @@
 {% extends "base.html" %}
 {% block title %}DEMATIQ — {{ proyecto.nombre_proyecto or 'Proyecto' }}{% endblock %}
 {% block content %}
+<style>
+.quote-header-input {
+  background: transparent;
+  border: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  color: #0f172a;
+  padding: 4px 8px;
+  width: 100%;
+  transition: all 0.15s ease;
+}
+.quote-header-input:focus {
+  background: #fffbeb !important;
+  outline: 1.5px solid #2563eb;
+  border-radius: 4px;
+}
+.quote-header-input::placeholder {
+  color: #94a3b8;
+  font-weight: normal;
+}
+</style>
 <div class="d-flex flex-column min-vh-100" style="background:#f8fafc">
 
   <div class="bg-white border-bottom sticky-top" style="z-index:100; box-shadow:0 1px 4px rgba(0,0,0,0.05)">
@@ -29,6 +50,88 @@
       </div>
     </div>
 
+    {% if proyecto.tipo_proyecto in ['mecanico', 'cotizacion'] %}
+    <!-- Cotización Header (Excel-like Preview Header) -->
+    <div class="border-top p-4 bg-white" style="font-family: 'Inter', sans-serif;">
+      <div class="card shadow-sm border border-light-subtle rounded-3 overflow-hidden">
+        <div class="card-body p-4 bg-white">
+          <div class="row g-4">
+            <!-- Left Panel: Client Information -->
+            <div class="col-md-7 border-end pe-md-4">
+              <div class="mb-3">
+                <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing: 0.5px;">Atención</label>
+                <input id="f-atencion" class="form-control form-control-sm quote-header-input fw-semibold" placeholder="Persona(s) a quien se dirige..." value="{{ proyecto.atencion or '' }}"/>
+              </div>
+              <div class="row g-3 mb-3">
+                <div class="col-sm-6">
+                  <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing: 0.5px;">Empresa / Cliente</label>
+                  <input id="f-empresa" class="form-control form-control-sm quote-header-input fw-semibold" placeholder="Nombre de la empresa..." value="{{ proyecto.empresa_cliente or '' }}"/>
+                </div>
+                <div class="col-sm-6">
+                  <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing: 0.5px;">Teléfono</label>
+                  <input id="f-telefono" class="form-control form-control-sm quote-header-input" placeholder="Teléfono de contacto..." value="{{ proyecto.telefono_cliente or '' }}"/>
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing: 0.5px;">E-mail</label>
+                <input id="f-email" class="form-control form-control-sm quote-header-input" placeholder="correo@cliente.com..." value="{{ proyecto.email_cliente or '' }}"/>
+              </div>
+              <div class="row g-3 border-top pt-3 mt-2">
+                <div class="col-sm-4">
+                  <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing: 0.5px;">Tipo de Cambio USD</label>
+                  <input id="f-tc" type="number" step="0.01" class="form-control form-control-sm quote-header-input fw-bold text-primary" value="{{ proyecto.tipo_cambio_usd or '20.00' }}"/>
+                </div>
+                <div class="col-sm-8">
+                  <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing: 0.5px;">Carpeta / Ruta del Proyecto</label>
+                  <div class="input-group input-group-sm">
+                    <input id="f-carpeta" class="form-control quote-header-input text-truncate" placeholder="C:\Proyectos\..." value="{{ proyecto.carpeta_link or '' }}"/>
+                    <button onclick="seleccionarCarpeta()" class="btn btn-outline-secondary btn-sm border-0 bg-transparent text-primary" type="button"><i class="fa-solid fa-folder-open"></i></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Panel: Quote metadata -->
+            <div class="col-md-5 ps-md-4 d-flex flex-column justify-content-between">
+              <div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="text-muted fw-semibold" style="font-size:12px">Ventas: {{ vendedor_config or 'Jose Moreno Rangel' }}</span>
+                  <span class="badge {% if proyecto.tipo_proyecto == 'mecanico' %}bg-warning-subtle text-warning-emphasis border border-warning-subtle{% else %}bg-success-subtle text-success-emphasis border border-success-subtle{% endif %} text-uppercase fw-bold" style="font-size:10px">
+                    {{ 'Mecánico' if proyecto.tipo_proyecto == 'mecanico' else 'Cotización' }}
+                  </span>
+                </div>
+                <div class="text-center py-2 text-white fw-bold text-uppercase rounded-2 mb-3" style="background:linear-gradient(135deg, #1e3a8a, #0d9488); font-size:15px; letter-spacing:2px; box-shadow: 0 2px 4px rgba(0,0,0,0.1)">
+                  COTIZACION
+                </div>
+                <div class="row g-2 mb-2" style="font-size:13px">
+                  <div class="col-6 fw-bold text-muted text-uppercase" style="font-size:10px">COTIZACION No.</div>
+                  <div class="col-6 fw-bold text-dark text-end">
+                    <input id="top-numero" class="form-control form-control-sm quote-header-input fw-bold text-end" value="{{ proyecto.numero_proyecto }}" onblur="saveProjectField({numero_proyecto:this.value})" />
+                  </div>
+                </div>
+                <div class="row g-2 mb-2" style="font-size:13px">
+                  <div class="col-6 fw-bold text-muted text-uppercase" style="font-size:10px">FECHA</div>
+                  <div class="col-6 text-dark text-end">
+                    <input id="f-fecha" type="date" class="form-control form-control-sm quote-header-input text-end" value="{{ proyecto.fecha_creacion or '' }}"/>
+                  </div>
+                </div>
+                <div class="row g-2 mb-2" style="font-size:13px">
+                  <div class="col-6 fw-bold text-muted text-uppercase" style="font-size:10px">VENCIMIENTO</div>
+                  <div class="col-6 text-dark text-end">
+                    <input id="f-vencimiento" type="date" class="form-control form-control-sm quote-header-input text-end" value="{{ proyecto.fecha_vencimiento or '' }}"/>
+                  </div>
+                </div>
+              </div>
+              <div class="mt-3 pt-3 border-top">
+                <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing: 0.5px;">Referencia / Proyecto</label>
+                <input id="f-referencia" class="form-control form-control-sm quote-header-input fw-bold text-uppercase text-primary" placeholder="Ej. COT - AQ 670 034 - LOCALIZADOR DE TOPES..." value="{{ proyecto.referencia or '' }}"/>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% else %}
     <div class="border-top px-4 py-2 bg-light row g-2 m-0" style="background:linear-gradient(135deg,#eff6ff,#f5f3ff)">
       <div class="col-6 col-sm-4 col-md-2">
         <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Empresa</label>
@@ -62,6 +165,7 @@
         </div>
       </div>
     </div>
+    {% endif %}
 
     <div class="bg-dark px-4 d-flex gap-1 overflow-x-auto" id="tabs-bar" style="height:38px"></div>
   </div>
@@ -871,15 +975,19 @@ async function saveProject() {
 }
 
 async function saveProjectField(extra={}) {
+  const nombre_el = document.getElementById('f-nombre') || document.getElementById('top-nombre');
+  const nombre_val = (nombre_el?.tagName === 'INPUT') ? nombre_el.value : (nombre_el?.textContent || '');
   await api('/api/proyectos/update','POST',{
     id: PID,
-    nombre_proyecto: document.getElementById('top-nombre')?.textContent||'',
+    nombre_proyecto: nombre_val,
     numero_proyecto: document.getElementById('top-numero')?.value||'',
     empresa_cliente: document.getElementById('f-empresa')?.value||'',
     atencion:        document.getElementById('f-atencion')?.value||'',
     telefono_cliente:document.getElementById('f-telefono')?.value||'',
     email_cliente:   document.getElementById('f-email')?.value||'',
     fecha_creacion:  document.getElementById('f-fecha')?.value||'',
+    fecha_vencimiento:document.getElementById('f-vencimiento')?.value||'',
+    referencia:      document.getElementById('f-referencia')?.value||'',
     tipo_cambio_usd: document.getElementById('f-tc')?.value||20,
     carpeta_link:    document.getElementById('f-carpeta')?.value||'',
     ...extra,
@@ -968,8 +1076,12 @@ async function seleccionarCarpeta() {
 
 function esc(s) { return String(s).replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-['f-empresa','f-atencion','f-telefono','f-email','f-fecha','f-tc','f-carpeta'].forEach(id => {
-  document.getElementById(id)?.addEventListener('change', ()=> scheduleSave(()=>saveProjectField({})));
+['f-empresa','f-atencion','f-telefono','f-email','f-fecha','f-tc','f-carpeta','f-vencimiento','f-referencia','f-nombre'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('change', () => scheduleSave(() => saveProjectField({})));
+    el.addEventListener('input', () => scheduleSave(() => saveProjectField({})));
+  }
 });
 
 initProject();
