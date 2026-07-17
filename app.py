@@ -797,7 +797,7 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
     GRAY = (100, 116, 139)
     LIGHT_GRAY = (241, 245, 249)
 
-    if proyecto.get("tipo_proyecto") in ("cotizacion", "mecanico"):
+    if True:  # Apply premium proposal cover page layout to all PDFs
         # PAGE 1: COVER PAGE / PRESENTATION
         pdf.add_page()
         
@@ -843,47 +843,56 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
         pdf.set_font("Helvetica", "", 9)
         
         pdf.set_xy(130, 23)
-        pdf.cell(30, 5, "COTIZACION No.")
-        pdf.set_font("Helvetica", "B", 9)
-        pdf.cell(38, 5, str(proyecto.get("numero_proyecto") or "---"), align="R")
+        pdf.cell(30, 7, "COTIZACION No.")
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.cell(38, 7, str(proyecto.get("numero_proyecto") or "---"), align="R")
         
-        pdf.set_font("Helvetica", "", 9)
-        pdf.set_xy(130, 28)
-        pdf.cell(30, 5, "FECHA")
-        pdf.cell(38, 5, str(proyecto.get("fecha_creacion") or "")[:10], align="R")
-        
-        pdf.set_xy(130, 33)
-        pdf.cell(30, 5, "VENCIMIENTO")
-        pdf.cell(38, 5, str(proyecto.get("fecha_vencimiento") or "")[:10], align="R")
-
-        # Separator line
-        pdf.set_fill_color(*BLUE)
-        pdf.rect(0, 42, 210, 1, "F")
-        
-        # Customer Info
-        pdf.set_xy(12, 47)
+        # Customer Info on Left, Dates on Right (aligned side-by-side)
+        # Row 1: Atencion & FECHA
+        pdf.set_xy(12, 45)
         pdf.set_font("Helvetica", "B", 9)
         pdf.cell(20, 5, "Atencion:")
         pdf.set_font("Helvetica", "", 9)
-        pdf.cell(0, 5, str(proyecto.get("atencion") or "---"), ln=True)
+        pdf.cell(100, 5, str(proyecto.get("atencion") or "---"))
+        
+        pdf.set_xy(140, 45)
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(25, 5, "FECHA")
+        pdf.set_font("Helvetica", "", 9)
+        pdf.cell(33, 5, str(proyecto.get("fecha_creacion") or "")[:10], align="R")
+        
+        # Row 2: TEL / Empresa & VENCIMIENTO
+        pdf.set_xy(12, 51)
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(10, 5, "TEL:")
+        pdf.set_font("Helvetica", "", 9)
+        pdf.cell(30, 5, str(proyecto.get("telefono_cliente") or "---"))
         
         pdf.set_font("Helvetica", "B", 9)
-        pdf.cell(20, 5, "TEL:")
+        pdf.cell(18, 5, "Empresa:")
         pdf.set_font("Helvetica", "", 9)
-        pdf.cell(50, 5, str(proyecto.get("telefono_cliente") or "---"))
-        pdf.set_font("Helvetica", "B", 9)
-        pdf.cell(20, 5, "Empresa:")
-        pdf.set_font("Helvetica", "", 9)
-        pdf.cell(0, 5, str(proyecto.get("empresa_cliente") or "---"), ln=True)
+        pdf.cell(62, 5, str(proyecto.get("empresa_cliente") or "---"))
         
+        pdf.set_xy(140, 51)
         pdf.set_font("Helvetica", "B", 9)
-        pdf.cell(20, 5, "E-mail:")
+        pdf.cell(25, 5, "VENCIMIENTO")
         pdf.set_font("Helvetica", "", 9)
-        pdf.cell(0, 5, str(proyecto.get("email_cliente") or "---"), ln=True)
+        pdf.cell(33, 5, str(proyecto.get("fecha_vencimiento") or "")[:10], align="R")
         
-        pdf.ln(4)
+        # Row 3: E-mail
+        pdf.set_xy(12, 57)
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(15, 5, "E-mail:")
+        pdf.set_font("Helvetica", "", 9)
+        pdf.cell(105, 5, str(proyecto.get("email_cliente") or "---"))
+
+        # Separator line
+        pdf.set_draw_color(*BLUE)
+        pdf.set_line_width(0.5)
+        pdf.line(12, 65, 198, 65)
         
         # Su Referencia
+        pdf.set_xy(12, 68)
         pdf.set_font("Helvetica", "B", 10)
         pdf.cell(28, 6, "Su Referencia:")
         pdf.set_font("Helvetica", "", 10)
@@ -891,6 +900,7 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
         pdf.ln(2)
         
         # Description of the solution
+        pdf.set_x(12)
         pdf.set_font("Helvetica", "B", 10)
         pdf.cell(0, 6, "DESCRIPCION DE LA SOLUCION.", ln=True)
         pdf.set_font("Helvetica", "", 9.5)
