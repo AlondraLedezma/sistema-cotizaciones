@@ -22,14 +22,13 @@
 
         <p class="text-muted text-center" style="font-size:13px; font-weight:500">Ingresa tus credenciales para continuar</p>
 
-        <form method="POST" action="/login" id="login-form" autocomplete="off">
-          <input type="text" name="username_fake" style="display:none" tabindex="-1" autocomplete="off"/>
+        <form method="POST" action="/login" id="login-form">
 
           <div class="mb-3">
             <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing:0.5px">Correo electrónico</label>
             <div class="position-relative">
               <i class="fa-solid fa-user position-absolute text-muted" style="left:14px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none"></i>
-              <input type="email" name="email" id="inp-email" class="form-control" placeholder="usuario@correo.com" style="padding-left:42px" autocomplete="new-password" required/>
+              <input type="email" name="email" id="inp-email" class="form-control" placeholder="usuario@correo.com" style="padding-left:42px" autocomplete="username" required/>
             </div>
           </div>
 
@@ -37,7 +36,7 @@
             <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing:0.5px">Contraseña</label>
             <div class="position-relative">
               <i class="fa-solid fa-lock position-absolute text-muted" style="left:14px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none"></i>
-              <input type="password" name="password" id="inp-pass" class="form-control" placeholder="Ingresa tu contraseña" style="padding-left:42px; padding-right:44px" autocomplete="new-password" required/>
+              <input type="password" name="password" id="inp-pass" class="form-control" placeholder="Ingresa tu contraseña" style="padding-left:42px; padding-right:44px" autocomplete="current-password" required/>
               <button type="button" onclick="togglePass()" class="position-absolute bg-transparent border-0 text-muted p-1" style="right:12px; top:50%; transform:translateY(-50%)">
                 <i class="fa-solid fa-eye" id="eye-ico" style="font-size:14px"></i>
               </button>

@@ -186,7 +186,12 @@
       </a>
 
       <div class="dm-sidebar-section">Proyectos Recientes</div>
-      <div id="sidebar-recents">
+      <div id="sidebar-projects-recents">
+        <span class="px-4 py-2 d-block text-muted" style="font-size:12px">Cargando...</span>
+      </div>
+
+      <div class="dm-sidebar-section">Cotizaciones Recientes</div>
+      <div id="sidebar-quotes-recents">
         <span class="px-4 py-2 d-block text-muted" style="font-size:12px">Cargando...</span>
       </div>
     </div>
@@ -301,10 +306,11 @@
 
       <div class="row g-3">
         <div class="col-lg-8">
-          <div class="card shadow-sm border-0 overflow-hidden">
+          <!-- Card for Proyectos -->
+          <div class="card shadow-sm border-0 overflow-hidden mb-4">
             <div class="card-header bg-white border-0 py-3 d-flex align-items-center justify-content-between">
               <span class="fw-bold text-uppercase text-dark" style="font-size:13px;letter-spacing:0.5px">
-                <i class="fa-solid fa-table-list text-primary me-2"></i>Lista de Proyectos
+                <i class="fa-solid fa-folder text-primary me-2"></i>Proyectos
               </span>
             </div>
             <div class="table-responsive">
@@ -332,26 +338,77 @@
               </table>
             </div>
           </div>
+
+          <!-- Card for Cotizaciones -->
+          <div class="card shadow-sm border-0 overflow-hidden">
+            <div class="card-header bg-white border-0 py-3 d-flex align-items-center justify-content-between">
+              <span class="fw-bold text-uppercase text-dark" style="font-size:13px;letter-spacing:0.5px">
+                <i class="fa-solid fa-file-invoice text-success me-2"></i>Cotizaciones
+              </span>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-striped table-hover align-middle mb-0" style="font-size:13px">
+                <thead class="table-dark" style="background:#2c323f">
+                  <tr>
+                    <th class="text-center" style="width:40px">#</th>
+                    <th class="text-center" style="width:140px">No. Cotización</th>
+                    <th class="text-start">Nombre</th>
+                    <th class="text-start">Empresa</th>
+                    <th class="text-center" style="width:120px">Fecha</th>
+                    <th class="text-end" style="width:130px;white-space:nowrap">Total MN</th>
+                    <th class="text-end" style="width:130px;white-space:nowrap">Total USD</th>
+                    <th class="text-center" style="width:150px">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="quotes-tbody">
+                  <tr>
+                    <td colspan="8" class="text-center py-5 text-muted">
+                      <div class="spinner-border spinner-border-sm text-success me-2" role="status"></div>
+                      <span>Cargando cotizaciones...</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <div id="empty-state" class="text-center py-5 bg-white rounded shadow-sm mt-3" style="display:none">
             <div class="d-inline-flex p-3 bg-light rounded-circle text-primary mb-3">
               <i class="fa-solid fa-folder-open fs-3"></i>
             </div>
-            <div class="fw-bold text-dark fs-6">Sin proyectos aún</div>
-            <div class="text-muted mb-3" style="font-size:13px">Crea tu primera cotización para comenzar</div>
-            <button class="btn btn-primary btn-sm" onclick="openModal('modal-create')">
-              <i class="fa-solid fa-plus me-1"></i>Crear Primer Proyecto
-            </button>
+            <div class="fw-bold text-dark fs-6">Sin elementos aún</div>
+            <div class="text-muted mb-3" style="font-size:13px">Crea tu primer proyecto o cotización para comenzar</div>
           </div>
         </div>
         <div class="col-lg-4">
-          <div class="card shadow-sm border-0 h-100">
+          <div class="card shadow-sm border-0 h-100 d-flex flex-column" style="max-height: 800px;">
+            <div class="card-header bg-white border-0 py-3 d-flex align-items-center justify-content-between border-bottom">
+              <span class="fw-bold text-uppercase text-dark" style="font-size:13px;letter-spacing:0.5px">
+                📝 &nbsp;Desglose de Elementos
+              </span>
+              <span id="elements-count-badge" class="badge bg-secondary" style="font-size:11px;">0 items</span>
+            </div>
+            <div class="card-body p-0 overflow-auto" id="breakdown-container" style="max-height: 700px;">
+              <div class="text-center py-5 text-muted">
+                <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                <span>Cargando desglose...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chart Row -->
+      <div class="row g-3 mt-3">
+        <div class="col-12">
+          <div class="card shadow-sm border-0">
             <div class="card-header bg-white border-0 py-3 d-flex align-items-center justify-content-between">
               <span class="fw-bold text-uppercase text-dark" style="font-size:13px;letter-spacing:0.5px">
-                <i class="fa-solid fa-chart-bar text-primary me-2"></i>Montos por Mes
+                📊 &nbsp;Montos Facturados por Mes
               </span>
               <select id="year-select" class="form-select form-select-sm" style="width:100px" onchange="loadYearData(this.value)"></select>
             </div>
-            <div class="card-body py-4" style="height:260px">
+            <div class="card-body py-4" style="height:320px">
               <canvas id="chart-canvas"></canvas>
             </div>
           </div>
@@ -596,6 +653,7 @@
       document.getElementById('stat-amount').textContent = fmt(stats.stats?.monto || 0);
       renderTable(projs.data  || []);
       renderRecents(projs.data|| []);
+      renderBreakdown(projs.data|| []);
       
       const yearR = await api('/api/stats/anual');
       const sel = document.getElementById('year-select');
@@ -605,11 +663,10 @@
       }
       renderMonthlyChart(yearR.mensual || []);
     } catch(e) {
-      document.getElementById('projects-tbody').innerHTML =
-        `<tr><td colspan="8" class="text-center py-5 text-danger fw-bold">
-          <i class="fa-solid fa-circle-exclamation me-2"></i>
-          Error de conexión con MySQL. Verifica que XAMPP tenga MySQL activo.
-        </td></tr>`;
+      const errHTML = `<tr><td colspan="8" class="text-center py-5 text-danger fw-bold"><i class="fa-solid fa-circle-exclamation me-2"></i>Error de conexión con MySQL. Verifica que XAMPP tenga MySQL activo.</td></tr>`;
+      document.getElementById('projects-tbody').innerHTML = errHTML;
+      document.getElementById('quotes-tbody').innerHTML = errHTML;
+      document.getElementById('breakdown-container').innerHTML = `<div class="text-center py-5 text-danger fw-bold"><i class="fa-solid fa-circle-exclamation me-2"></i>Error de conexión.</div>`;
     }
   }
 
@@ -629,41 +686,146 @@
   }
 
   function renderTable(rows) {
-    const tbody = document.getElementById('projects-tbody');
+    const pTbody = document.getElementById('projects-tbody');
+    const qTbody = document.getElementById('quotes-tbody');
     const empty = document.getElementById('empty-state');
-    if (!rows.length) {
-      tbody.innerHTML = '';
+    
+    if (!rows || !rows.length) {
+      pTbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No hay proyectos registrados</td></tr>';
+      qTbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No hay cotizaciones registradas</td></tr>';
       empty.style.display = 'block';
       return;
     }
     empty.style.display = 'none';
-    tbody.innerHTML = rows.map((p, i) => `
-      <tr>
-        <td class="text-muted text-center" style="font-size:12px">${i+1}</td>
-        <td class="text-center"><span class="badge bg-primary bg-opacity-10 text-primary fw-bold" style="font-size:12px">${p.numero_proyecto||'---'}</span></td>
-        <td class="fw-semibold text-start" style="max-width:200px"><div class="text-truncate">${p.nombre_proyecto||''}</div></td>
-        <td class="text-muted text-start" style="font-size:12px">${p.empresa_cliente||''}</td>
-        <td class="text-muted text-center" style="font-size:12px;white-space:nowrap">${formatDate(p.fecha_creacion)}</td>
-        <td class="text-end fw-bold text-dark">${fmt(p.total_mn)}</td>
-        <td class="text-end fw-semibold text-primary">${fmt(p.total_usd)}</td>
-        <td class="text-center">
-          <div class="btn-group btn-group-sm">
-            <a href="/proyecto/${p.id}" class="btn btn-warning" title="Editar"><i class="fa-solid fa-pencil text-dark"></i></a>
-            <button onclick="downloadPDF(${p.id},'${p.numero_proyecto||p.id}')" class="btn btn-success" title="Exportar PDF"><i class="fa-solid fa-file-pdf"></i></button>
-            <button onclick="duplicateProject(${p.id})" class="btn btn-info" title="Duplicar"><i class="fa-solid fa-copy text-white"></i></button>
-            <button onclick="openDelete(${p.id})" class="btn btn-danger" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
-          </div>
-        </td>
-      </tr>`).join('');
+    
+    const projects = rows.filter(r => !['mecanico', 'cotizacion'].includes(r.tipo_proyecto));
+    const quotes = rows.filter(r => ['mecanico', 'cotizacion'].includes(r.tipo_proyecto));
+
+    if (projects.length === 0) {
+      pTbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No hay proyectos registrados</td></tr>';
+    } else {
+      pTbody.innerHTML = projects.map((p, i) => `
+        <tr>
+          <td class="text-muted text-center" style="font-size:12px">${i+1}</td>
+          <td class="text-center"><span class="badge bg-primary bg-opacity-10 text-primary fw-bold" style="font-size:12px">${p.numero_proyecto||'---'}</span></td>
+          <td class="fw-semibold text-start" style="max-width:200px"><div class="text-truncate">${p.nombre_proyecto||''}</div></td>
+          <td class="text-muted text-start" style="font-size:12px">${p.empresa_cliente||''}</td>
+          <td class="text-muted text-center" style="font-size:12px;white-space:nowrap">${formatDate(p.fecha_creacion)}</td>
+          <td class="text-end fw-bold text-dark">${fmt(p.total_mn)}</td>
+          <td class="text-end fw-semibold text-primary">${fmt(p.total_usd)}</td>
+          <td class="text-center">
+            <div class="btn-group btn-group-sm">
+              <a href="/proyecto/${p.id}" class="btn btn-warning" title="Editar"><i class="fa-solid fa-pencil text-dark"></i></a>
+              <button onclick="downloadPDF(${p.id},'${p.numero_proyecto||p.id}')" class="btn btn-success" title="Exportar PDF"><i class="fa-solid fa-file-pdf"></i></button>
+              <button onclick="duplicateProject(${p.id})" class="btn btn-info" title="Duplicar"><i class="fa-solid fa-copy text-white"></i></button>
+              <button onclick="openDelete(${p.id})" class="btn btn-danger" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          </td>
+        </tr>`).join('');
+    }
+
+    if (quotes.length === 0) {
+      qTbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No hay cotizaciones registradas</td></tr>';
+    } else {
+      qTbody.innerHTML = quotes.map((p, i) => `
+        <tr>
+          <td class="text-muted text-center" style="font-size:12px">${i+1}</td>
+          <td class="text-center"><span class="badge bg-success bg-opacity-10 text-success fw-bold" style="font-size:12px">${p.numero_proyecto||'---'}</span></td>
+          <td class="fw-semibold text-start" style="max-width:200px"><div class="text-truncate">${p.nombre_proyecto||''}</div></td>
+          <td class="text-muted text-start" style="font-size:12px">${p.empresa_cliente||''}</td>
+          <td class="text-muted text-center" style="font-size:12px;white-space:nowrap">${formatDate(p.fecha_creacion)}</td>
+          <td class="text-end fw-bold text-dark">${fmt(p.total_mn)}</td>
+          <td class="text-end fw-semibold text-success">${fmt(p.total_usd)}</td>
+          <td class="text-center">
+            <div class="btn-group btn-group-sm">
+              <a href="/proyecto/${p.id}" class="btn btn-warning" title="Editar"><i class="fa-solid fa-pencil text-dark"></i></a>
+              <button onclick="downloadPDF(${p.id},'${p.numero_proyecto||p.id}')" class="btn btn-success" title="Exportar PDF"><i class="fa-solid fa-file-pdf"></i></button>
+              <button onclick="duplicateProject(${p.id})" class="btn btn-info" title="Duplicar"><i class="fa-solid fa-copy text-white"></i></button>
+              <button onclick="openDelete(${p.id})" class="btn btn-danger" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          </td>
+        </tr>`).join('');
+    }
   }
 
   function renderRecents(rows) {
-    const el = document.getElementById('sidebar-recents');
-    if (!rows.length) { el.innerHTML = '<span class="px-4 py-2 d-block text-muted" style="font-size:12px">Sin proyectos</span>'; return; }
-    el.innerHTML = rows.slice(0,5).map(p => `
-      <a href="/proyecto/${p.id}" class="dm-nav-recent" title="${p.nombre_proyecto}">
-        <i class="fa-regular fa-folder me-2 text-primary"></i>${p.nombre_proyecto||p.numero_proyecto}
-      </a>`).join('');
+    const elProjects = document.getElementById('sidebar-projects-recents');
+    const elQuotes = document.getElementById('sidebar-quotes-recents');
+    
+    const projects = rows.filter(r => !['mecanico', 'cotizacion'].includes(r.tipo_proyecto));
+    const quotes = rows.filter(r => ['mecanico', 'cotizacion'].includes(r.tipo_proyecto));
+
+    if (elProjects) {
+      if (!projects.length) {
+        elProjects.innerHTML = '<span class="px-4 py-2 d-block text-muted" style="font-size:12px">Sin proyectos</span>';
+      } else {
+        elProjects.innerHTML = projects.slice(0,5).map(p => `
+          <a href="/proyecto/${p.id}" class="dm-nav-recent" title="${p.nombre_proyecto}">
+            📂 &nbsp;${p.nombre_proyecto||p.numero_proyecto}
+          </a>`).join('');
+      }
+    }
+
+    if (elQuotes) {
+      if (!quotes.length) {
+        elQuotes.innerHTML = '<span class="px-4 py-2 d-block text-muted" style="font-size:12px">Sin cotizaciones</span>';
+      } else {
+        elQuotes.innerHTML = quotes.slice(0,5).map(p => `
+          <a href="/proyecto/${p.id}" class="dm-nav-recent" title="${p.nombre_proyecto}">
+            📄 &nbsp;${p.nombre_proyecto||p.numero_proyecto}
+          </a>`).join('');
+      }
+    }
+  }
+
+  function renderBreakdown(rows) {
+    const el = document.getElementById('breakdown-container');
+    const badge = document.getElementById('elements-count-badge');
+    if (!el) return;
+    if (!rows || !rows.length) {
+      el.innerHTML = '<div class="text-center py-5 text-muted">No hay datos para mostrar</div>';
+      if (badge) badge.textContent = '0 items';
+      return;
+    }
+    if (badge) badge.textContent = `${rows.length} items`;
+
+    el.innerHTML = `
+      <div class="list-group list-group-flush" style="font-size: 12.5px;">
+        ${rows.map(p => {
+          const isQuote = ['mecanico', 'cotizacion'].includes(p.tipo_proyecto);
+          const badgeClass = isQuote ? 'bg-success bg-opacity-10 text-success' : 'bg-primary bg-opacity-10 text-primary';
+          const typeLabel = p.tipo_proyecto === 'mecanico' ? 'Mecánico' : (p.tipo_proyecto === 'cotizacion' ? 'Cotización' : 'Proyecto');
+          const totalVal = parseFloat(p.total_mn) || 0;
+          const sectionsCount = isQuote ? 7 : 10;
+          
+          return `
+            <div class="list-group-item p-3 border-bottom">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="badge ${badgeClass} fw-bold" style="font-size:11px;">${typeLabel}</span>
+                <span class="text-muted fw-semibold" style="font-size:11px;"># ${p.numero_proyecto || '---'}</span>
+              </div>
+              <h6 class="fw-bold text-dark mb-1 text-truncate" title="${p.nombre_proyecto}">${p.nombre_proyecto || ''}</h6>
+              <div class="d-flex justify-content-between text-muted mb-1">
+                <span>Cliente:</span>
+                <span class="fw-semibold text-dark text-truncate" style="max-width:180px;">${p.empresa_cliente || '—'}</span>
+              </div>
+              <div class="d-flex justify-content-between text-muted mb-1">
+                <span>Términos:</span>
+                <span class="text-dark">${sectionsCount} Secciones &bull; ${p.tiempo_entrega || '—'}</span>
+              </div>
+              <div class="d-flex justify-content-between text-muted mb-1">
+                <span>Condiciones:</span>
+                <span class="text-dark text-truncate" style="max-width:180px;">${p.condiciones_pago || '—'}</span>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top border-light">
+                <span class="fw-bold text-secondary">Total:</span>
+                <span class="fw-bold text-dark fs-6">${fmt(totalVal)} <span style="font-size:10px;font-weight:normal;">MN</span></span>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
   }
 
   async function loadYearData(year) {

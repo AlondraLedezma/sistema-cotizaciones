@@ -136,7 +136,13 @@ def proyecto(pid):
         return redirect(url_for("dashboard"))
     vendedor_row = q("SELECT valor FROM configuracion WHERE clave='vendedor'", fetch="one")
     vendedor = vendedor_row.get("valor") if vendedor_row else "Jose Moreno Rangel"
+    tel_row = q("SELECT valor FROM configuracion WHERE clave='vendedor_telefono'", fetch="one")
+    vendedor_telefono = tel_row.get("valor") if tel_row else "442 7214891"
+    nota_row = q("SELECT valor FROM configuracion WHERE clave='nota_aclaracion'", fetch="one")
+    nota_aclaracion = nota_row.get("valor") if nota_row else "Para cualquier aclaración con respecto a esta cotización o para colocar su orden, favor de comunicarse al correo: integraqro07@outlook.com"
     return render_template("proyecto.html", proyecto=p, vendedor_config=vendedor,
+                           vendedor_telefono=vendedor_telefono,
+                           nota_aclaracion=nota_aclaracion,
                            user_email=session.get("user_email"))
 
 @app.route("/api/stats")
@@ -243,13 +249,13 @@ def api_update_proyecto():
           contacto_cliente=%s,telefono_cliente=%s,email_cliente=%s,
           atencion=%s,referencia=%s,descripcion_solucion=%s,
           fecha_creacion=%s,fecha_vencimiento=%s,tipo_cambio_usd=%s,
-          carpeta_link=%s WHERE id=%s""",
+          carpeta_link=%s,tiempo_entrega=%s,condiciones_pago=%s WHERE id=%s""",
        (d.get("nombre_proyecto"), d.get("empresa_cliente"),
         d.get("contacto_cliente"), d.get("telefono_cliente"),
         d.get("email_cliente"), d.get("atencion"), d.get("referencia"),
         d.get("descripcion_solucion"), d.get("fecha_creacion"),
         d.get("fecha_vencimiento"), d.get("tipo_cambio_usd") or 20,
-        d.get("carpeta_link"), pid))
+        d.get("carpeta_link"), d.get("tiempo_entrega"), d.get("condiciones_pago"), pid))
     _recalc_totals(pid)
     return jsonify(ok=True)
 
@@ -278,7 +284,24 @@ def api_get_proyecto(pid):
         else:
             s["partidas"] = list(q("SELECT * FROM partidas_equipo WHERE seccion_id=%s ORDER BY orden", (s["id"],)))
     condiciones = q("SELECT * FROM condiciones_comerciales WHERE proyecto_id=%s ORDER BY orden", (pid,))
-    subtemas = q("SELECT * FROM subtemas_prese WHERE proyecto_id=%s ORDER BY orden", (pid,))
+    try:
+        subtemas = q("SELECT * FROM subtemas_prese WHERE proyecto_id=%s ORDER BY orden", (pid,))
+    except Exception:
+        try:
+            ex("""CREATE TABLE IF NOT EXISTS `subtemas_prese` (
+              `id` int(11) NOT NULL AUTO_INCREMENT,
+              `proyecto_id` int(11) NOT NULL,
+              `titulo` varchar(500) NOT NULL,
+              `contenido` text DEFAULT NULL,
+              `indice` varchar(20) NOT NULL,
+              `orden` int(11) DEFAULT 0,
+              PRIMARY KEY (`id`),
+              KEY `proyecto_id` (`proyecto_id`),
+              CONSTRAINT `subtemas_prese_ibfk_1` FOREIGN KEY (`proyecto_id`) REFERENCES `proyectos` (`id`) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;""")
+            subtemas = q("SELECT * FROM subtemas_prese WHERE proyecto_id=%s ORDER BY orden", (pid,))
+        except Exception:
+            subtemas = []
     listas = q("SELECT * FROM listas_predefinidas ORDER BY seccion_codigo, orden")
     return jsonify(
         proyecto=_serialize(proyecto),
@@ -504,7 +527,10 @@ def api_delete_lista():
 @login_required
 def api_subtemas():
     pid = request.args.get("proyecto_id")
-    rows = q("SELECT * FROM subtemas_prese WHERE proyecto_id=%s ORDER BY orden", (pid,))
+    try:
+        rows = q("SELECT * FROM subtemas_prese WHERE proyecto_id=%s ORDER BY orden", (pid,))
+    except Exception:
+        rows = []
     return jsonify(data=list(rows))
 
 @app.route("/api/subtemas_prese/create", methods=["POST"])
@@ -860,6 +886,14 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN"):
             pdf.set_font("Helvetica","",9);  pdf.multi_cell(0,5,c.get("contenido",""))
             pdf.ln(1)
     return pdf
+
+@app.route("/api/configuracion/update", methods=["POST"])
+@login_required
+def api_update_configuracion():
+    d = request.json or {}
+    for k, v in d.items():
+        ex("INSERT INTO configuracion (clave, valor) VALUES (%s, %s) ON DUPLICATE KEY UPDATE valor=%s", (k, str(v), str(v)))
+    return jsonify(success=True)
 
 if __name__ == "__main__":
     import webbrowser, threading

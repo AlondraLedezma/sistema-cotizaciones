@@ -28,11 +28,15 @@
     
     <div class="px-4 d-flex align-items-center justify-content-between" style="height:56px">
       <div class="d-flex align-items-center gap-2">
+        <a href="/dashboard" class="d-flex align-items-center gap-2 text-decoration-none me-2">
+          <img src="/static/img/logo.png" style="height:26px;width:auto;object-fit:contain" alt="DEMATIQ"/>
+        </a>
+        <span class="text-muted me-2">|</span>
         <a href="/dashboard" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1">
           <i class="fa-solid fa-arrow-left" style="font-size:11px"></i>Dashboard
         </a>
         <span class="text-muted">/</span>
-        <span class="text-muted" style="font-size:13px">Proyectos</span>
+        <span class="text-muted" style="font-size:13px">{{ 'Cotizaciones' if proyecto.tipo_proyecto in ['mecanico', 'cotizacion'] else 'Proyectos' }}</span>
         <span class="text-muted">/</span>
         <span class="fw-bold text-dark" style="font-size:13px" id="top-nombre">{{ proyecto.nombre_proyecto }}</span>
         <input class="badge bg-primary ms-2 border-0 text-white fw-bold text-center" id="top-numero" value="{{ proyecto.numero_proyecto }}" style="width:140px;font-size:12px" onblur="saveProjectField({numero_proyecto:this.value})" />
@@ -50,88 +54,8 @@
       </div>
     </div>
 
-    {% if proyecto.tipo_proyecto in ['mecanico', 'cotizacion'] %}
-    <!-- Cotización Header (Excel-like Preview Header) -->
-    <div class="border-top p-4 bg-white" style="font-family: 'Inter', sans-serif;">
-      <div class="card shadow-sm border border-light-subtle rounded-3 overflow-hidden">
-        <div class="card-body p-4 bg-white">
-          <div class="row g-4">
-            <!-- Left Panel: Client Information -->
-            <div class="col-md-7 border-end pe-md-4">
-              <div class="mb-3">
-                <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing: 0.5px;">Atención</label>
-                <input id="f-atencion" class="form-control form-control-sm quote-header-input fw-semibold" placeholder="Persona(s) a quien se dirige..." value="{{ proyecto.atencion or '' }}"/>
-              </div>
-              <div class="row g-3 mb-3">
-                <div class="col-sm-6">
-                  <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing: 0.5px;">Empresa / Cliente</label>
-                  <input id="f-empresa" class="form-control form-control-sm quote-header-input fw-semibold" placeholder="Nombre de la empresa..." value="{{ proyecto.empresa_cliente or '' }}"/>
-                </div>
-                <div class="col-sm-6">
-                  <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing: 0.5px;">Teléfono</label>
-                  <input id="f-telefono" class="form-control form-control-sm quote-header-input" placeholder="Teléfono de contacto..." value="{{ proyecto.telefono_cliente or '' }}"/>
-                </div>
-              </div>
-              <div class="mb-3">
-                <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing: 0.5px;">E-mail</label>
-                <input id="f-email" class="form-control form-control-sm quote-header-input" placeholder="correo@cliente.com..." value="{{ proyecto.email_cliente or '' }}"/>
-              </div>
-              <div class="row g-3 border-top pt-3 mt-2">
-                <div class="col-sm-4">
-                  <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing: 0.5px;">Tipo de Cambio USD</label>
-                  <input id="f-tc" type="number" step="0.01" class="form-control form-control-sm quote-header-input fw-bold text-primary" value="{{ proyecto.tipo_cambio_usd or '20.00' }}"/>
-                </div>
-                <div class="col-sm-8">
-                  <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing: 0.5px;">Carpeta / Ruta del Proyecto</label>
-                  <div class="input-group input-group-sm">
-                    <input id="f-carpeta" class="form-control quote-header-input text-truncate" placeholder="C:\Proyectos\..." value="{{ proyecto.carpeta_link or '' }}"/>
-                    <button onclick="seleccionarCarpeta()" class="btn btn-outline-secondary btn-sm border-0 bg-transparent text-primary" type="button"><i class="fa-solid fa-folder-open"></i></button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Right Panel: Quote metadata -->
-            <div class="col-md-5 ps-md-4 d-flex flex-column justify-content-between">
-              <div>
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                  <span class="text-muted fw-semibold" style="font-size:12px">Ventas: {{ vendedor_config or 'Jose Moreno Rangel' }}</span>
-                  <span class="badge {% if proyecto.tipo_proyecto == 'mecanico' %}bg-warning-subtle text-warning-emphasis border border-warning-subtle{% else %}bg-success-subtle text-success-emphasis border border-success-subtle{% endif %} text-uppercase fw-bold" style="font-size:10px">
-                    {{ 'Mecánico' if proyecto.tipo_proyecto == 'mecanico' else 'Cotización' }}
-                  </span>
-                </div>
-                <div class="text-center py-2 text-white fw-bold text-uppercase rounded-2 mb-3" style="background:linear-gradient(135deg, #1e3a8a, #0d9488); font-size:15px; letter-spacing:2px; box-shadow: 0 2px 4px rgba(0,0,0,0.1)">
-                  COTIZACION
-                </div>
-                <div class="row g-2 mb-2" style="font-size:13px">
-                  <div class="col-6 fw-bold text-muted text-uppercase" style="font-size:10px">COTIZACION No.</div>
-                  <div class="col-6 fw-bold text-dark text-end">
-                    <input id="top-numero" class="form-control form-control-sm quote-header-input fw-bold text-end" value="{{ proyecto.numero_proyecto }}" onblur="saveProjectField({numero_proyecto:this.value})" />
-                  </div>
-                </div>
-                <div class="row g-2 mb-2" style="font-size:13px">
-                  <div class="col-6 fw-bold text-muted text-uppercase" style="font-size:10px">FECHA</div>
-                  <div class="col-6 text-dark text-end">
-                    <input id="f-fecha" type="date" class="form-control form-control-sm quote-header-input text-end" value="{{ proyecto.fecha_creacion or '' }}"/>
-                  </div>
-                </div>
-                <div class="row g-2 mb-2" style="font-size:13px">
-                  <div class="col-6 fw-bold text-muted text-uppercase" style="font-size:10px">VENCIMIENTO</div>
-                  <div class="col-6 text-dark text-end">
-                    <input id="f-vencimiento" type="date" class="form-control form-control-sm quote-header-input text-end" value="{{ proyecto.fecha_vencimiento or '' }}"/>
-                  </div>
-                </div>
-              </div>
-              <div class="mt-3 pt-3 border-top">
-                <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:10px; letter-spacing: 0.5px;">Referencia / Proyecto</label>
-                <input id="f-referencia" class="form-control form-control-sm quote-header-input fw-bold text-uppercase text-primary" placeholder="Ej. COT - AQ 670 034 - LOCALIZADOR DE TOPES..." value="{{ proyecto.referencia or '' }}"/>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    {% else %}
+    {% if proyecto.tipo_proyecto not in ['mecanico', 'cotizacion'] %}
+    <!-- Standard Project Header (Old layout) -->
     <div class="border-top px-4 py-2 bg-light row g-2 m-0" style="background:linear-gradient(135deg,#eff6ff,#f5f3ff)">
       <div class="col-6 col-sm-4 col-md-2">
         <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Empresa</label>
@@ -165,9 +89,8 @@
         </div>
       </div>
     </div>
-    {% endif %}
-
     <div class="bg-dark px-4 d-flex gap-1 overflow-x-auto" id="tabs-bar" style="height:38px"></div>
+    {% endif %}
   </div>
 
   <div class="flex-grow-1 p-4 overflow-auto" id="tab-content">
@@ -190,6 +113,9 @@
 {% block scripts %}
 <script>
 const PID = {{ proyecto.id }};
+const vendedor_config = "{{ vendedor_config }}";
+const vendedor_telefono = "{{ vendedor_telefono }}";
+const nota_aclaracion = "{{ nota_aclaracion }}";
 const TABS = [
   {code:'PRESE',     label:'PRESE',        color:'#475569'},
   {code:'REPORTE',   label:'REPORTE',      color:'#16a34a'},
@@ -207,8 +133,13 @@ const TABS = [
 let projectData = null;
 let currentTab = 'REPORTE';
 let saveTimer = null;
+let prevCurrency = 'MN';
 
-function getTC() { return parseFloat(document.getElementById('f-tc').value)||20; }
+function getTC() {
+  const el = document.getElementById('f-tc');
+  if (el) return parseFloat(el.value)||20;
+  return parseFloat(projectData?.proyecto?.tipo_cambio_usd)||20;
+}
 
 function updateTabStyles() {
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -229,37 +160,47 @@ function updateTabStyles() {
   });
 }
 
-const tabsBar = document.getElementById('tabs-bar');
-TABS.forEach(t => {
-  const btn = document.createElement('button');
-  btn.className = 'tab-btn';
-  btn.dataset.code = t.code;
-  btn.textContent = t.label;
-  btn.style.background = t.color;
-  btn.style.marginBottom = '0';
-  btn.addEventListener('mouseenter', () => {
-    if (btn.dataset.code !== currentTab) {
-      btn.style.opacity = '1';
-      btn.style.boxShadow = `0 4px 15px ${t.color}50`;
-      btn.style.transform = 'translateY(-1px)';
-    }
+function renderTabs() {
+  const tabsBar = document.getElementById('tabs-bar');
+  if (!tabsBar) return;
+  tabsBar.innerHTML = '';
+  
+  const activeCodes = (projectData?.secciones || []).map(s => s.codigo);
+  TABS.forEach(t => {
+    if (!activeCodes.includes(t.code)) return;
+    
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn';
+    btn.dataset.code = t.code;
+    btn.textContent = t.label;
+    btn.style.background = t.color;
+    btn.style.marginBottom = '0';
+    btn.addEventListener('mouseenter', () => {
+      if (btn.dataset.code !== currentTab) {
+        btn.style.opacity = '1';
+        btn.style.boxShadow = `0 4px 15px ${t.color}50`;
+        btn.style.transform = 'translateY(-1px)';
+      }
+    });
+    btn.addEventListener('mouseleave', () => {
+      if (btn.dataset.code !== currentTab) {
+        btn.style.opacity = '0.75';
+        btn.style.boxShadow = 'none';
+        btn.style.transform = 'none';
+      }
+    });
+    btn.addEventListener('click', () => switchTab(t.code));
+    tabsBar.appendChild(btn);
   });
-  btn.addEventListener('mouseleave', () => {
-    if (btn.dataset.code !== currentTab) {
-      btn.style.opacity = '0.75';
-      btn.style.boxShadow = 'none';
-      btn.style.transform = 'none';
-    }
-  });
-  btn.addEventListener('click', () => switchTab(t.code));
-  tabsBar.appendChild(btn);
-});
+  updateTabStyles();
+}
 
 async function loadProject() {
   try {
     const r = await api(`/api/proyecto/${PID}`);
     projectData = r;
     updateStatusBar();
+    renderTabs();
     switchTab(currentTab);
   } catch(e) {
     const r2 = await api(`/api/proyecto/${PID}`).catch(async()=> await api(`/api/proyecto/${PID}`).catch(async()=>{
@@ -278,6 +219,7 @@ async function _load() {
     projectData = await r.json();
   }
   updateStatusBar();
+  renderTabs();
   switchTab(currentTab);
 }
 
@@ -287,8 +229,10 @@ async function initProject() {
     if (!res.ok) throw new Error('Error al cargar');
     projectData = await res.json();
     updateStatusBar();
+    renderTabs();
     switchTab(currentTab);
   } catch(e) {
+    console.error(e);
     document.getElementById('tab-content').innerHTML =
       `<div class="text-center py-5 text-danger fw-bold"><i class="fa-solid fa-circle-exclamation fs-3 mb-2 d-block"></i>Error al cargar. Verifica MySQL en XAMPP.</div>`;
   }
@@ -327,79 +271,354 @@ function updateStatusBar() {
   document.getElementById('sb-total').textContent=fmt(tmn+iva);
 }
 
+function fmtCurrency(val) {
+  if (val === null || val === undefined || isNaN(val) || val === 0) return '0.00';
+  return new Intl.NumberFormat('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
+}
+
+function togglePrevCurrency(cur) {
+  prevCurrency = cur;
+  const content = document.getElementById('tab-content');
+  renderReporte(content);
+}
+
+function numeroALetras(num, currency='MN') {
+  const unidades = ['', 'UN', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE'];
+  const decenas = ['DIEZ', 'ONCE', 'DOCE', 'TRECE', 'CATORCE', 'QUINCE', 'DIECISEIS', 'DIECISIETE', 'DIECIOCHO', 'DIECINUEVE'];
+  const decenas10 = ['', 'DIEZ', 'VEINTE', 'TREINTA', 'CUARENTA', 'CINCUENTA', 'SESENTA', 'SETENTA', 'OCHENTA', 'NOVENTA'];
+  const centenas = ['', 'CIENTO', 'DOSCIENTOS', 'TRESCIENTOS', 'CUATROCENTOS', 'QUINIENTOS', 'SEISCIENTOS', 'SETECIENTOS', 'OCHOCIENTOS', 'NOVECIENTOS'];
+
+  function tramo(n) {
+    if (n === 0) return '';
+    if (n < 10) return unidades[n];
+    if (n < 20) return decenas[n - 10];
+    if (n < 30) {
+      if (n === 20) return 'VEINTE';
+      return 'VEINTI' + unidades[n - 20];
+    }
+    const dec = Math.floor(n / 10);
+    const uni = n % 10;
+    if (uni === 0) return decenas10[dec];
+    return decenas10[dec] + ' Y ' + unidades[uni];
+  }
+
+  function centenar(n) {
+    if (n === 100) return 'CIEN';
+    const cent = Math.floor(n / 100);
+    const resto = n % 100;
+    if (cent === 0) return tramo(resto);
+    return centenas[cent] + ' ' + tramo(resto);
+  }
+
+  const centavos = Math.round((num - Math.floor(num)) * 100);
+  let entero = Math.floor(num);
+  const suffix = currency === 'USD' ? ' DÓLARES ' + String(centavos).padStart(2, '0') + '/100 USD' : ' PESOS ' + String(centavos).padStart(2, '0') + '/100 M.N.';
+  if (entero === 0) return 'CERO' + suffix;
+
+  let str = '';
+  if (entero >= 1000000) {
+    const millon = Math.floor(entero / 1000000);
+    entero = entero % 1000000;
+    if (millon === 1) str += 'UN MILLON ';
+    else str += centenar(millon) + ' MILLONES ';
+  }
+  if (entero >= 1000) {
+    const miles = Math.floor(entero / 1000);
+    entero = entero % 1000;
+    if (miles === 1) str += 'MIL ';
+    else str += centenar(miles) + ' MIL ';
+  }
+  if (entero > 0) {
+    str += centenar(entero);
+  }
+
+  str = str.trim() + suffix;
+  return str.replace(/\s+/g, ' ');
+}
+
 function renderReporte(c) {
   const p = projectData.proyecto||{};
-  const secs = (projectData.secciones||[]).filter(s=>!['PRESE','REPORTE','CONDICIONES','LISTAS'].includes(s.codigo));
-  let tmn=0,tusd=0;
-  secs.forEach(s=>{ tmn+=parseFloat(s.subtotal_mn||0); tusd+=parseFloat(s.subtotal_usd||0); });
-  const iva=tmn*0.16;
+  if (!['mecanico', 'cotizacion'].includes(p.tipo_proyecto)) {
+    const secs = (projectData.secciones||[]).filter(s=>!['PRESE','REPORTE','CONDICIONES','LISTAS'].includes(s.codigo));
+    let tmn=0,tusd=0;
+    secs.forEach(s=>{ tmn+=parseFloat(s.subtotal_mn||0); tusd+=parseFloat(s.subtotal_usd||0); });
+    const iva=tmn*0.16;
 
-  c.innerHTML = `
-    <div class="row g-3 max-width-1100">
-      <div class="col-lg-8">
-        <div class="card shadow-sm border-0 overflow-hidden">
-          <div class="p-3 text-white" style="background:linear-gradient(135deg,#1e40af,#2563eb,#7c3aed)">
-            <div class="text-uppercase" style="font-size:10px; opacity:0.8; letter-spacing:0.5px">Resumen de Cotización</div>
-            <div class="fs-5 fw-bold">No. ${p.numero_proyecto||'---'}</div>
-          </div>
-          <div class="d-flex align-items-center gap-2 p-3 bg-light border-bottom" style="font-size:13px">
-            <span class="fw-semibold text-dark">Tipo de Cambio USD:</span>
-            <input type="number" id="tc-inline" value="${getTC().toFixed(2)}" step="0.01" class="form-control form-control-sm fw-bold text-primary" style="width:90px" oninput="document.getElementById('f-tc').value=this.value"/>
-            <span class="text-muted">MXN por USD</span>
-          </div>
-          <table class="excel-table">
-            <thead><tr>
-              <th>SECCIÓN</th>
-              <th class="text-end" style="width:130px">TOTAL MN</th>
-              <th class="text-end" style="width:130px">TOTAL USD</th>
-            </tr></thead>
-            <tbody>
-              ${secs.map((s,i)=>`
-                <tr style="${i%2===1?'background:#f8fafc':''}">
-                  <td class="fw-semibold">
-                    <span class="d-inline-block rounded-circle" style="width:8px;height:8px;background:${s.color||'#2563eb'};margin-right:10px;vertical-align:middle"></span>
-                    ${s.titulo||s.codigo}
-                  </td>
-                  <td class="text-end fw-bold text-dark">${fmt(s.subtotal_mn)}</td>
-                  <td class="text-end text-primary">${fmt(s.subtotal_usd)}</td>
-                </tr>`).join('')}
-              <tr class="total-row">
-                <td class="p-3">TOTAL GENERAL</td>
-                <td class="text-end p-3">${fmt(tmn)}</td>
-                <td class="text-end p-3">${fmt(tusd)}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="p-3 bg-light border-top">
-            <div class="d-flex flex-column align-items-end gap-1">
-              <div class="d-flex gap-4 text-muted" style="font-size:13px">
-                <span>Subtotal MN:</span><strong>${fmt(tmn)}</strong>
-              </div>
-              <div class="d-flex gap-4 text-muted" style="font-size:13px">
-                <span>IVA 16%:</span><strong>${fmt(iva)}</strong>
-              </div>
-              <div class="d-flex gap-4 text-dark fw-bold border-top pt-2 mt-2" style="font-size:15px">
-                <span>TOTAL CON IVA:</span><strong class="text-success">${fmt(tmn+iva)}</strong>
+    c.innerHTML = `
+      <div class="row g-3 max-width-1100">
+        <div class="col-lg-8">
+          <div class="card shadow-sm border-0 overflow-hidden">
+            <div class="p-3 text-white" style="background:linear-gradient(135deg,#1e40af,#2563eb,#7c3aed)">
+              <div class="text-uppercase" style="font-size:10px; opacity:0.8; letter-spacing:0.5px">Resumen de Cotización</div>
+              <div class="fs-5 fw-bold">No. ${p.numero_proyecto||'---'}</div>
+            </div>
+            <div class="d-flex align-items-center gap-2 p-3 bg-light border-bottom" style="font-size:13px">
+              <span class="fw-semibold text-dark">Tipo de Cambio USD:</span>
+              <input type="number" id="tc-inline" value="${getTC().toFixed(2)}" step="0.01" class="form-control form-control-sm fw-bold text-primary" style="width:90px" oninput="document.getElementById('f-tc').value=this.value"/>
+              <span class="text-muted">MXN por USD</span>
+            </div>
+            <table class="excel-table">
+              <thead><tr>
+                <th>SECCIÓN</th>
+                <th class="text-end" style="width:130px">TOTAL MN</th>
+                <th class="text-end" style="width:130px">TOTAL USD</th>
+              </tr></thead>
+              <tbody>
+                ${secs.map((s,i)=>`
+                  <tr style="${i%2===1?'background:#f8fafc':''}">
+                    <td class="fw-semibold">
+                      <span class="d-inline-block rounded-circle" style="width:8px;height:8px;background:${s.color||'#2563eb'};margin-right:10px;vertical-align:middle"></span>
+                      ${s.titulo||s.codigo}
+                    </td>
+                    <td class="text-end fw-bold text-dark">${fmt(s.subtotal_mn)}</td>
+                    <td class="text-end text-primary">${fmt(s.subtotal_usd)}</td>
+                  </tr>`).join('')}
+                <tr class="total-row">
+                  <td class="p-3">TOTAL GENERAL</td>
+                  <td class="text-end p-3">${fmt(tmn)}</td>
+                  <td class="text-end p-3">${fmt(tusd)}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="p-3 bg-light border-top">
+              <div class="d-flex flex-column align-items-end gap-1">
+                <div class="d-flex gap-4 text-muted" style="font-size:13px">
+                  <span>Subtotal MN:</span><strong>${fmt(tmn)}</strong>
+                </div>
+                <div class="d-flex gap-4 text-muted" style="font-size:13px">
+                  <span>IVA 16%:</span><strong>${fmt(iva)}</strong>
+                </div>
+                <div class="d-flex gap-4 text-dark fw-bold border-top pt-2 mt-2" style="font-size:15px">
+                  <span>TOTAL CON IVA:</span><strong class="text-success">${fmt(tmn+iva)}</strong>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-      <div class="col-lg-4">
-        <div class="card shadow-sm border-0 overflow-hidden mb-3">
-          <div class="p-3 border-bottom fw-bold text-dark" style="font-size:14px">
-            <i class="fa-solid fa-building text-primary me-2"></i>Datos del Cliente
+        <div class="col-lg-4">
+          <div class="card shadow-sm border-0 overflow-hidden mb-3">
+            <div class="p-3 border-bottom fw-bold text-dark" style="font-size:14px">
+              <i class="fa-solid fa-building text-primary me-2"></i>Datos del Cliente
+            </div>
+            ${[['Empresa',p.empresa_cliente],['Atención',p.atencion],['Proyecto',p.nombre_proyecto],['Cotización No.',p.numero_proyecto],['Fecha',str(p.fecha_creacion)],['Referencia',p.referencia]].map(([l,v])=>`
+              <div class="px-3 py-2 border-bottom d-flex flex-column">
+                <span class="text-uppercase fw-bold text-muted" style="font-size:9px;letter-spacing:0.5px">${l}</span>
+                <span class="text-dark fw-semibold" style="font-size:13px;margin-top:2px">${v||'—'}</span>
+              </div>`).join('')}
           </div>
-          ${[['Empresa',p.empresa_cliente],['Atención',p.atencion],['Proyecto',p.nombre_proyecto],['Cotización No.',p.numero_proyecto],['Fecha',str(p.fecha_creacion)],['Referencia',p.referencia]].map(([l,v])=>`
-            <div class="px-3 py-2 border-bottom d-flex flex-column">
-              <span class="text-uppercase fw-bold text-muted" style="font-size:9px;letter-spacing:0.5px">${l}</span>
-              <span class="text-dark fw-semibold" style="font-size:13px;margin-top:2px">${v||'—'}</span>
-            </div>`).join('')}
+          <div class="card shadow-sm border-0 p-3 bg-light" style="border:1.5px solid #dbeafe!important">
+            <div class="fw-bold text-primary mb-2" style="font-size:13px"><i class="fa-solid fa-circle-info me-2"></i>Referencia del proyecto</div>
+            <textarea id="r-referencia" class="form-control form-control-sm mb-2" style="resize:vertical;min-height:80px" placeholder="Descripción general / notas del proyecto...">${p.referencia||''}</textarea>
+            <button onclick="saveRef()" class="btn btn-sm btn-primary w-100 fw-semibold">Guardar referencia</button>
+          </div>
         </div>
-        <div class="card shadow-sm border-0 p-3 bg-light" style="border:1.5px solid #dbeafe!important">
-          <div class="fw-bold text-primary mb-2" style="font-size:13px"><i class="fa-solid fa-circle-info me-2"></i>Referencia del proyecto</div>
-          <textarea id="r-referencia" class="form-control form-control-sm mb-2" style="resize:vertical;min-height:80px" placeholder="Descripción general / notas del proyecto...">${p.referencia||''}</textarea>
-          <button onclick="saveRef()" class="btn btn-sm btn-primary w-100 fw-semibold">Guardar referencia</button>
+      </div>`;
+    return;
+  }
+
+  const secs = (projectData.secciones||[]).filter(s=>!['PRESE','REPORTE','CONDICIONES','LISTAS'].includes(s.codigo));
+  let subtotal_mn=0, subtotal_usd=0;
+  let tbody_rows = '';
+  let partidaIndex = 1;
+
+  secs.forEach(sec => {
+    const partidas = sec.partidas||[];
+    if (partidas.length === 0) return;
+    
+
+
+    partidas.forEach(p => {
+      let rowSub_mn = parseFloat(p.total_mn||0);
+      let rowSub_usd = parseFloat(p.total_usd||0);
+      let rowSub = prevCurrency === 'USD' ? rowSub_usd : rowSub_mn;
+      
+      let rowQty = 1;
+      let rowPrice = 0;
+      if (sec.tipo === 'mano_obra') {
+        rowQty = parseFloat(p.horas_mo||0) * parseFloat(p.dias_trabajo||0) || 1;
+        rowPrice = parseFloat(p.costo_hora_usd||0);
+      } else {
+        rowQty = parseFloat(p.cantidad||0) || 1;
+        rowPrice = parseFloat(p.precio_lista||0);
+      }
+
+      tbody_rows += `
+        <tr style="border-bottom: 1px solid #e2e8f0;">
+          <td style="padding: 8px; border: 1px solid #e2e8f0; text-align:center; font-weight:500; background: #fafafa;">
+            ${partidaIndex}
+          </td>
+          <td style="padding: 0; border: 1px solid #e2e8f0;">
+            <input class="excel-input" value="${esc(p.descripcion||'')}" style="border:none; width:100%; padding:8px; outline:none; font-family:inherit; font-size:inherit;" onchange="saveReporteItem(${p.id}, '${sec.tipo}', 'descripcion', this.value)"/>
+          </td>
+          <td style="padding: 0; border: 1px solid #e2e8f0; text-align:right;">
+            <input class="excel-input text-end" type="number" step="0.01" value="${rowPrice||''}" style="border:none; width:100%; padding:8px; outline:none; font-family:inherit; font-size:inherit;" onchange="saveReporteItem(${p.id}, '${sec.tipo}', 'precio', this.value)"/>
+          </td>
+          <td style="padding: 0; border: 1px solid #e2e8f0; text-align:center;">
+            <input class="excel-input text-center" type="number" step="1" value="${rowQty||''}" style="border:none; width:100%; padding:8px; outline:none; font-family:inherit; font-size:inherit;" onchange="saveReporteItem(${p.id}, '${sec.tipo}', 'cantidad', this.value)"/>
+          </td>
+          <td style="padding: 8px; border: 1px solid #e2e8f0; text-align:right; font-weight:bold; position:relative; padding-right: 28px;">
+            $ ${fmtCurrency(rowSub)}
+            <button onclick="deleteReporteItem(${p.id}, '${sec.tipo}')" class="btn btn-sm btn-link p-0 text-danger border-0 bg-transparent" style="position:absolute; right:6px; top:50%; transform:translateY(-50%); font-size:12px; text-decoration:none;" type="button" title="Eliminar partida">✕</button>
+          </td>
+        </tr>`;
+
+      partidaIndex++;
+      subtotal_mn += rowSub_mn;
+      subtotal_usd += rowSub_usd;
+    });
+  });
+
+  const subtotal_val = prevCurrency === 'USD' ? subtotal_usd : subtotal_mn;
+  const iva_val = subtotal_val * 0.16;
+  const total_val = subtotal_val + iva_val;
+
+  c.innerHTML = `
+    <div class="card shadow border-0 overflow-hidden max-width-1000 mx-auto bg-white p-4" style="font-family:'Outfit', sans-serif;">
+      <!-- Toggle Currency -->
+      <div class="d-flex justify-content-between align-items-center mb-3 bg-light p-2 rounded">
+        <span class="fw-bold text-muted" style="font-size:12px"><i class="fa-solid fa-file-invoice-dollar me-1"></i>VISTA PREVIA DE COTIZACIÓN</span>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-primary ${prevCurrency==='MN'?'active':''}" id="btn-prev-mn" onclick="togglePrevCurrency('MN')">Moneda Nacional (MN)</button>
+          <button class="btn btn-outline-primary ${prevCurrency==='USD'?'active':''}" id="btn-prev-usd" onclick="togglePrevCurrency('USD')">Dólares (USD)</button>
+        </div>
+      </div>
+
+      <!-- Sheet Container -->
+      <div class="p-5 border border-light-subtle rounded bg-white shadow-sm" style="min-width: 800px; color: #000; position:relative; overflow-x:auto;">
+        <!-- Sheet Header -->
+        <div class="row mb-4">
+          <div class="col-7" style="font-size: 13px; line-height: 1.8;">
+            <div class="mb-2">
+              <strong>Atencion:</strong>
+              <input id="f-atencion" class="quote-header-input fw-semibold ms-1" style="width:75%; border:none; border-bottom:1px dashed #ccc; outline:none;" value="${esc(p.atencion||'')}" placeholder="Persona(s) a quien se dirige..." onchange="saveProjectField()"/>
+            </div>
+            <div class="mb-2">
+              <strong>TEL:</strong>
+              <input id="f-telefono" class="quote-header-input ms-1" style="width:30%; border:none; border-bottom:1px dashed #ccc; outline:none;" value="${esc(p.telefono_cliente||'')}" placeholder="Teléfono..." onchange="saveProjectField()"/>
+              &nbsp;&nbsp;&nbsp;&nbsp;
+              <strong>Empresa:</strong>
+              <input id="f-empresa" class="quote-header-input fw-semibold ms-1" style="width:35%; border:none; border-bottom:1px dashed #ccc; outline:none;" value="${esc(p.empresa_cliente||'')}" placeholder="Empresa..." onchange="saveProjectField()"/>
+            </div>
+            <div>
+              <strong>E-mail:</strong>
+              <input id="f-email" class="quote-header-input text-primary ms-1" style="width:80%; border:none; border-bottom:1px dashed #ccc; outline:none;" value="${esc(p.email_cliente||'')}" placeholder="correo@cliente.com..." onchange="saveProjectField()"/>
+            </div>
+            <!-- Dynamic fields: Carpeta and T/C inside sheet left panel -->
+            <div class="mt-3 pt-3 border-top border-light" style="font-size: 11px; color:#555; line-height: 2;">
+              <div class="d-flex align-items-center mb-1">
+                <strong>Carpeta de Guardado:</strong> &nbsp;
+                <input id="f-carpeta" class="quote-header-input flex-grow-1 border-0 bg-transparent text-truncate" value="${esc(p.carpeta_link||'')}" placeholder="Selecciona la ruta..." style="font-size:11px; border-bottom:1px dashed #ccc !important; outline:none;" onchange="saveProjectField()"/>
+                <button onclick="seleccionarCarpeta()" class="btn btn-sm btn-link p-0 text-primary border-0 bg-transparent ms-1" type="button"><i class="fa-solid fa-folder-open"></i></button>
+              </div>
+              <div class="d-flex align-items-center">
+                <strong>Tipo de Cambio USD:</strong> &nbsp;
+                <input id="f-tc" type="number" step="0.01" class="quote-header-input border-0 bg-transparent" value="${p.tipo_cambio_usd||20}" style="width:70px; font-weight:bold; color:#2563eb; font-size:11px; border-bottom:1px dashed #ccc !important; outline:none;" onchange="saveProjectField()"/>
+              </div>
+            </div>
+          </div>
+          <div class="col-5 text-end" style="font-size: 13px;">
+            <div class="mb-1 text-muted fw-semibold d-flex align-items-center justify-content-end">
+              Ventas: &nbsp;
+              <input id="f-vendedor-top" class="quote-header-input fw-semibold text-end border-0 bg-transparent" style="width:140px; border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(window.currentVendedor || vendedor_config || 'Jose Moreno Rangel')}" onchange="saveVendedorConfig('vendedor', this.value)"/>
+            </div>
+            <div class="text-center py-1 text-white fw-bold text-uppercase rounded-1 mb-2" style="background:#1e3a8a; font-size:14px; letter-spacing:1px;">
+              COTIZACION
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="fw-bold text-muted text-uppercase" style="font-size:10px">COTIZACION No.</span>
+              <input id="top-numero" class="quote-header-input fw-bold text-end border-0 bg-transparent" style="width:60%; border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(p.numero_proyecto||'')}" onchange="saveProjectField()"/>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="fw-bold text-muted text-uppercase" style="font-size:10px">FECHA</span>
+              <input id="f-fecha" type="date" class="quote-header-input text-end border-0 bg-transparent text-muted" style="width:60%; border-bottom:1px dashed #ccc !important; outline:none;" value="${p.fecha_creacion||''}" onchange="saveProjectField()"/>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="fw-bold text-muted text-uppercase" style="font-size:10px">VENCIMIENTO</span>
+              <input id="f-vencimiento" type="date" class="quote-header-input text-end border-0 bg-transparent" style="width:60%; border-bottom:1px dashed #ccc !important; outline:none;" value="${p.fecha_vencimiento||''}" onchange="saveProjectField()"/>
+            </div>
+            <div class="text-start mt-2 border-top pt-2">
+              <input id="f-referencia" class="quote-header-input fw-bold text-uppercase text-dark text-start border-0 bg-transparent" style="width:100%; border-bottom:1px dashed #ccc !important; outline:none; font-size:11px;" value="${esc(p.referencia||'')}" placeholder="COT - AQ 670 034..." onchange="saveProjectField()"/>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sheet Table -->
+        <table class="w-100 mb-4" style="border-collapse: collapse; font-size: 13px;">
+          <thead>
+            <tr style="background:#1e3a8a; color:white; font-weight:bold;">
+              <th style="padding: 10px 8px; border: 1px solid #1e3a8a; text-align:center; width: 60px;">Partida</th>
+              <th style="padding: 10px 8px; border: 1px solid #1e3a8a; text-align:left;">Descripción</th>
+              <th style="padding: 10px 8px; border: 1px solid #1e3a8a; text-align:right; width: 120px;">Precio</th>
+              <th style="padding: 10px 8px; border: 1px solid #1e3a8a; text-align:center; width: 80px;">Cantidad</th>
+              <th style="padding: 10px 8px; border: 1px solid #1e3a8a; text-align:right; width: 130px;">Sub Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tbody_rows || `<tr><td colspan="5" class="text-center py-4 text-muted">Sin partidas registradas</td></tr>`}
+          </tbody>
+        </table>
+        
+        <div class="mb-4 d-print-none text-start">
+          <button onclick="addReporteItem()" class="btn btn-sm btn-outline-primary fw-semibold d-flex align-items-center gap-2" type="button">
+            <i class="fa-solid fa-plus"></i> Agregar Partida
+          </button>
+        </div>
+
+        <!-- Sheet Bottom / Terms and Conditions -->
+        <div class="row">
+          <div class="col-7" style="font-size: 12px; line-height: 1.8;">
+            <div class="fw-bold text-uppercase mb-2 text-dark" style="font-size:12px; letter-spacing:0.5px">TERMINOS Y CONDICIONES:</div>
+            <div class="mb-1">
+              <strong>Condiciones de Pago:</strong>
+              <input id="f-condiciones-pago" class="quote-header-input border-0 bg-transparent font-weight-bold ms-1" style="width:60%; border-bottom:1px dashed #ccc !important; outline:none; font-weight:bold;" value="${esc(p.condiciones_pago || '90 DIAS')}" onchange="saveProjectField()"/>
+            </div>
+            <div class="mb-1">
+              <strong>Tiempo de Entrega:</strong>
+              <input id="f-tiempo-entrega" class="quote-header-input border-0 bg-transparent font-weight-bold ms-1" style="width:60%; border-bottom:1px dashed #ccc !important; outline:none; font-weight:bold;" value="${esc(p.tiempo_entrega || '8- DIAS HABILES')}" onchange="saveProjectField()"/>
+            </div>
+            <div class="mt-3 text-muted text-start" style="font-size: 11px; line-height:1.5;">
+              <input id="f-nota-aclaracion" class="quote-header-input border-0 bg-transparent text-muted mb-2 d-block" style="width:100%; border-bottom:1px dashed #ccc !important; outline:none; font-size:11px;" value="${esc(window.currentNotaAclaracion || nota_aclaracion || 'Para cualquier aclaración con respecto a esta cotización o para colocar su orden, favor de comunicarse al correo: integraqro07@outlook.com')}" onchange="saveVendedorConfig('nota_aclaracion', this.value)"/>
+              
+              <div id="reporte-condiciones-list">
+                ${(projectData.condiciones || []).map((cond, index) => `
+                  <div class="d-flex align-items-center gap-1 mb-1 position-relative" style="padding-right:20px;">
+                    <span style="font-size:10px; margin-top:2px;">•</span>
+                    <input class="quote-header-input border-0 bg-transparent text-muted flex-grow-1" style="border-bottom:1px dashed #ccc !important; outline:none; font-size:11px; padding:0 4px;" value="${esc(cond.contenido || '')}" onchange="saveReporteCondicion(${cond.id}, this.value)"/>
+                    <button onclick="deleteReporteCondicion(${cond.id})" class="btn btn-sm btn-link p-0 text-danger border-0 bg-transparent d-print-none" style="font-size:12px; text-decoration:none; position:absolute; right:0;" type="button" title="Eliminar nota">✕</button>
+                  </div>
+                `).join('')}
+              </div>
+              <button onclick="addReporteCondicion()" class="btn btn-sm btn-link p-0 text-primary mt-1 border-0 bg-transparent d-print-none fw-semibold" style="font-size:11px; text-decoration:none;" type="button">+ Agregar Nota</button>
+            </div>
+          </div>
+          <div class="col-5">
+            <table class="w-100 text-end" style="font-size: 13px; line-height: 2;">
+              <tr>
+                <td class="text-muted fw-semibold">SUB TOTAL</td>
+                <td style="width: 140px; font-weight: bold;">$ ${fmtCurrency(subtotal_val)}</td>
+              </tr>
+              <tr>
+                <td class="text-muted fw-semibold">IVA (16%)</td>
+                <td style="font-weight: bold;">$ ${fmtCurrency(iva_val)}</td>
+              </tr>
+              <tr style="border-top: 1.5px solid #000; font-size: 15px;">
+                <td class="fw-bold" style="color:#1e3a8a">TOTAL</td>
+                <td style="font-weight: bold; color:#1e3a8a">$ ${fmtCurrency(total_val)}</td>
+              </tr>
+            </table>
+            <div class="text-end mt-3 fw-bold text-muted text-uppercase" style="font-size:10px; line-height: 1.4;">
+              SON: ${numeroALetras(total_val, prevCurrency)}
+            </div>
+          </div>
+        </div>
+
+        <!-- Sheet Footer -->
+        <div class="border-top mt-5 pt-3 text-center text-muted" style="font-size: 11px;">
+          Atención:
+          <input id="f-vendedor" class="quote-header-input fw-bold text-center" style="width: 140px; border: none; border-bottom: 1px dashed #ccc; outline: none; background: transparent; font-size: 11px;" value="${esc(window.currentVendedor || vendedor_config || 'Jose Moreno Rangel')}" onchange="saveVendedorConfig('vendedor', this.value)"/>
+          &nbsp;&nbsp;&nbsp;&nbsp;
+          Tel:
+          <input id="f-vendedor-telefono" class="quote-header-input fw-bold text-center" style="width: 100px; border: none; border-bottom: 1px dashed #ccc; outline: none; background: transparent; font-size: 11px;" value="${esc(window.currentVendedorTel || vendedor_telefono || '442 7214891')}" onchange="saveVendedorConfig('vendedor_telefono', this.value)"/>
         </div>
       </div>
     </div>`;
@@ -757,7 +976,7 @@ function renderPrese(c) {
     <div class="card shadow-sm border-0 overflow-hidden max-width-900">
       <div class="p-3 text-white" style="background:linear-gradient(135deg,#475569,#334155)">
         <div class="text-uppercase" style="font-size:10px;opacity:0.8;letter-spacing:0.5px">Sección</div>
-        <div class="fs-5 fw-bold">Presentación / Alcance del Proyecto</div>
+        <div class="fs-5 fw-bold">Presentación / Alcance ${['mecanico', 'cotizacion'].includes(p.tipo_proyecto) ? 'de la Cotización' : 'del Proyecto'}</div>
       </div>
       <div class="p-4 bg-light border-bottom">
         <div class="row g-2">
@@ -778,11 +997,13 @@ function renderPrese(c) {
       <div class="p-4">
         <label class="form-label fw-bold text-muted text-uppercase mb-2" style="font-size:10px;letter-spacing:0.5px">DESCRIPCIÓN DE LA SOLUCIÓN</label>
         <textarea id="prese-desc" class="form-control mb-3" style="resize:vertical;min-height:80px;line-height:1.6" onblur="saveDesc(this.value)" placeholder="Descripción general de la solución propuesta...">${esc(p.descripcion_solucion||'')}</textarea>
+        ${!['mecanico', 'cotizacion'].includes(p.tipo_proyecto) ? `
         <div class="d-flex align-items-center justify-content-between mb-3">
           <div class="fw-bold text-dark" style="font-size:14px"><i class="fa-solid fa-list-ol text-primary me-2"></i>Subtemas de Alcance</div>
           <button onclick="addSubtema()" class="btn btn-sm btn-primary"><i class="fa-solid fa-plus me-1"></i>Agregar Subtema</button>
         </div>
         <div id="subtemas-container">${subtemasHTML || '<div class="text-center py-3 text-muted" style="font-size:13px">Sin subtemas. Agrega el primero.</div>'}</div>
+        ` : ''}
       </div>
     </div>`;
 }
@@ -975,23 +1196,65 @@ async function saveProject() {
 }
 
 async function saveProjectField(extra={}) {
-  const nombre_el = document.getElementById('f-nombre') || document.getElementById('top-nombre');
-  const nombre_val = (nombre_el?.tagName === 'INPUT') ? nombre_el.value : (nombre_el?.textContent || '');
+  const p = projectData?.proyecto || {};
+  const getVal = (id, fallback) => {
+    const el = document.getElementById(id);
+    if (!el) return fallback;
+    if (el.tagName === 'INPUT' || el.tagName === 'SELECT') return el.value;
+    return el.textContent || fallback;
+  };
+
+  const nombre_val = getVal('f-nombre', p.nombre_proyecto || '');
+  const num_val = getVal('top-numero', p.numero_proyecto || '');
+  const empresa_val = getVal('f-empresa', p.empresa_cliente || '');
+  const atencion_val = getVal('f-atencion', p.atencion || '');
+  const tel_val = getVal('f-telefono', p.telefono_cliente || '');
+  const email_val = getVal('f-email', p.email_cliente || '');
+  const fecha_val = getVal('f-fecha', p.fecha_creacion || '');
+  const venc_val = getVal('f-vencimiento', p.fecha_vencimiento || '');
+  const ref_val = getVal('f-referencia', p.referencia || '');
+  const tc_val = getVal('f-tc', p.tipo_cambio_usd || 20);
+  const carpeta_val = getVal('f-carpeta', p.carpeta_link || '');
+  const tiempo_val = getVal('f-tiempo-entrega', p.tiempo_entrega || '8- DIAS HABILES');
+  const cond_val = getVal('f-condiciones-pago', p.condiciones_pago || '90 DIAS');
+
   await api('/api/proyectos/update','POST',{
     id: PID,
     nombre_proyecto: nombre_val,
-    numero_proyecto: document.getElementById('top-numero')?.value||'',
-    empresa_cliente: document.getElementById('f-empresa')?.value||'',
-    atencion:        document.getElementById('f-atencion')?.value||'',
-    telefono_cliente:document.getElementById('f-telefono')?.value||'',
-    email_cliente:   document.getElementById('f-email')?.value||'',
-    fecha_creacion:  document.getElementById('f-fecha')?.value||'',
-    fecha_vencimiento:document.getElementById('f-vencimiento')?.value||'',
-    referencia:      document.getElementById('f-referencia')?.value||'',
-    tipo_cambio_usd: document.getElementById('f-tc')?.value||20,
-    carpeta_link:    document.getElementById('f-carpeta')?.value||'',
+    numero_proyecto: num_val,
+    empresa_cliente: empresa_val,
+    atencion:        atencion_val,
+    telefono_cliente:tel_val,
+    email_cliente:   email_val,
+    fecha_creacion:  fecha_val,
+    fecha_vencimiento:venc_val,
+    referencia:      ref_val,
+    tipo_cambio_usd: tc_val,
+    carpeta_link:    carpeta_val,
+    tiempo_entrega:  tiempo_val,
+    condiciones_pago:cond_val,
     ...extra,
   });
+
+  if (projectData && projectData.proyecto) {
+    Object.assign(projectData.proyecto, {
+      nombre_proyecto: nombre_val,
+      numero_proyecto: num_val,
+      empresa_cliente: empresa_val,
+      atencion:        atencion_val,
+      telefono_cliente:tel_val,
+      email_cliente:   email_val,
+      fecha_creacion:  fecha_val,
+      fecha_vencimiento:venc_val,
+      referencia:      ref_val,
+      tipo_cambio_usd: tc_val,
+      carpeta_link:    carpeta_val,
+      tiempo_entrega:  tiempo_val,
+      condiciones_pago:cond_val,
+      ...extra,
+    });
+  }
+
   setAutosave();
 }
 
@@ -1083,6 +1346,140 @@ function esc(s) { return String(s).replace(/"/g,'&quot;').replace(/</g,'&lt;').r
     el.addEventListener('input', () => scheduleSave(() => saveProjectField({})));
   }
 });
+
+async function saveReporteItem(id, tipo, field, val) {
+  let item = null;
+  for (const s of projectData.secciones) {
+    const found = (s.partidas||[]).find(p => p.id === id && s.tipo === tipo);
+    if (found) { item = found; break; }
+  }
+  if (!item) return;
+
+  const data = {
+    id: id,
+    tipo: tipo,
+    tipo_cambio: getTC(),
+    porcentaje_mgn: item.porcentaje_mgn || 0,
+    descripcion: field === 'descripcion' ? val : (item.descripcion || ''),
+  };
+
+  if (tipo === 'mano_obra') {
+    data.costo_hora_usd = field === 'precio' ? parseFloat(val)||0 : (item.costo_hora_usd || 0);
+    data.horas_mo = field === 'cantidad' ? parseFloat(val)||0 : (item.horas_mo || 0);
+    data.dias_trabajo = item.dias_trabajo || 1;
+  } else {
+    data.precio_lista = field === 'precio' ? parseFloat(val)||0 : (item.precio_lista || 0);
+    data.cantidad = field === 'cantidad' ? parseFloat(val)||0 : (item.cantidad || 0);
+    data.moneda = item.moneda || prevCurrency || 'MN';
+    data.modelo = item.modelo || '';
+    data.marca = item.marca || '';
+  }
+
+  try {
+    await api('/api/partidas/update', 'POST', data);
+    await loadProject();
+    showToast('Guardado', 'success');
+  } catch(e) {
+    showToast('Error al guardar', 'error');
+  }
+}
+
+async function deleteReporteItem(id, tipo) {
+  if (!confirm('¿Estás seguro de que deseas eliminar esta partida?')) return;
+  
+  let sid = null;
+  for (const s of projectData.secciones) {
+    if ((s.partidas||[]).some(p => p.id === id && s.tipo === tipo)) {
+      sid = s.id;
+      break;
+    }
+  }
+  if (!sid) return;
+
+  try {
+    await api('/api/partidas/delete', 'POST', { id, tipo, seccion_id: sid });
+    await loadProject();
+    showToast('Partida eliminada', 'success');
+  } catch(e) {
+    showToast('Error al eliminar partida', 'error');
+  }
+}
+
+async function addReporteItem() {
+  const targetSec = (projectData.secciones||[]).find(s => s.tipo === 'equipo');
+  if (!targetSec) {
+    showToast('No se encontró sección de equipos para agregar la partida', 'warning');
+    return;
+  }
+  
+  try {
+    const res = await api('/api/partidas/create', 'POST', {
+      seccion_id: targetSec.id,
+      tipo: 'equipo'
+    });
+    if (res && res.id) {
+      await loadProject();
+      showToast('Partida agregada', 'success');
+    }
+  } catch(e) {
+    showToast('Error al agregar partida', 'error');
+  }
+}
+
+async function saveVendedorConfig(clave, valor) {
+  if (clave === 'vendedor') window.currentVendedor = valor;
+  if (clave === 'vendedor_telefono') window.currentVendedorTel = valor;
+  
+  // Sync vendor input fields if both exist in the DOM
+  const topInput = document.getElementById('f-vendedor-top');
+  const footInput = document.getElementById('f-vendedor');
+  if (clave === 'vendedor') {
+    if (topInput) topInput.value = valor;
+    if (footInput) footInput.value = valor;
+  }
+
+  try {
+    await api('/api/configuracion/update', 'POST', { [clave]: valor });
+    showToast('Configuración guardada', 'success');
+  } catch(e) {
+    showToast('Error al guardar configuración', 'error');
+  }
+}
+
+async function saveReporteCondicion(id, valor) {
+  try {
+    await api('/api/condiciones/update', 'POST', { id, contenido: valor });
+    showToast('Nota guardada', 'success');
+  } catch(e) {
+    showToast('Error al guardar nota', 'error');
+  }
+}
+
+async function deleteReporteCondicion(id) {
+  if (!confirm('¿Estás seguro de que deseas eliminar esta nota?')) return;
+  try {
+    await api('/api/condiciones/delete', 'POST', { id });
+    await loadProject();
+    showToast('Nota eliminada', 'success');
+  } catch(e) {
+    showToast('Error al eliminar nota', 'error');
+  }
+}
+
+async function addReporteCondicion() {
+  try {
+    const nextNum = (projectData.condiciones || []).length + 1;
+    await api('/api/condiciones/create', 'POST', {
+      proyecto_id: PID,
+      codigo: 'A3.' + nextNum,
+      contenido: 'Nueva nota comercial...'
+    });
+    await loadProject();
+    showToast('Nota agregada', 'success');
+  } catch(e) {
+    showToast('Error al agregar nota', 'error');
+  }
+}
 
 initProject();
 </script>
