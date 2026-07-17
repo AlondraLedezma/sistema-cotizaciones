@@ -140,9 +140,13 @@ def proyecto(pid):
     vendedor_telefono = tel_row.get("valor") if tel_row else "442 7214891"
     nota_row = q("SELECT valor FROM configuracion WHERE clave='nota_aclaracion'", fetch="one")
     nota_aclaracion = nota_row.get("valor") if nota_row else "Para cualquier aclaración con respecto a esta cotización o para colocar su orden, favor de comunicarse al correo: integraqro07@outlook.com"
+    slogans_row = q("SELECT valor FROM configuracion WHERE clave='slogans'", fetch="one")
+    slogans = slogans_row.get("valor") if slogans_row else "Integracion de sistemas Automatizados\nProgramacion de PLC, HMI\nServicio de Diseño y Armado Tableros\nPolizas de Mantenimiento"
+    
     return render_template("proyecto.html", proyecto=p, vendedor_config=vendedor,
                            vendedor_telefono=vendedor_telefono,
                            nota_aclaracion=nota_aclaracion,
+                           slogans_config=slogans,
                            user_email=session.get("user_email"))
 
 @app.route("/api/stats")
@@ -809,12 +813,16 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
         # Draw Slogans next to logo
         pdf.set_text_color(*GRAY)
         pdf.set_font("Helvetica", "", 7.5)
-        slogans = [
-            "Integracion de sistemas Automatizados",
-            "Programacion de PLC, HMI",
-            "Servicio de Diseño y Armado Tableros",
-            "Polizas de Mantenimiento"
-        ]
+        slogans_row = q("SELECT valor FROM configuracion WHERE clave='slogans'", fetch="one")
+        if slogans_row and slogans_row.get("valor"):
+            slogans = slogans_row["valor"].split("\n")
+        else:
+            slogans = [
+                "Integracion de sistemas Automatizados",
+                "Programacion de PLC, HMI",
+                "Servicio de Diseño y Armado Tableros",
+                "Polizas de Mantenimiento"
+            ]
         y_slog = 8
         for sl in slogans:
             pdf.set_xy(70, y_slog)
@@ -931,82 +939,16 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
                     pdf.multi_cell(0, 5, line.strip())
                 pdf.ln(3)
 
-        # PAGE 2: DETAILED ECONOMIC PROPOSAL TABLE
-        pdf.add_page()
-        
-        # Page Title
-        pdf.set_font("Helvetica", "B", 12)
-        pdf.set_text_color(*BLUE)
-        pdf.cell(0, 8, "PROPUESTA ECONÓMICA", ln=True)
-        pdf.ln(2)
-        
-        # Table Header
-        pdf.set_fill_color(*BLUE)
-        pdf.set_text_color(255, 255, 255)
-        pdf.set_font("Helvetica", "B", 9)
-        
-        cw = [15, 105, 25, 20, 23]  # PDA, Descripción, Precio, Cantidad, Subtotal
-        headers = ["Partida", "Descripción", "Precio", "Cant.", "Subtotal"]
-        for w, h in zip(cw, headers):
-            align = "C"
-            if h == "Descripción": align = "L"
-            if h in ("Precio", "Subtotal"): align = "R"
-            pdf.cell(w, 7, h, border=1, fill=True, align=align)
-        pdf.ln()
-        
-        # Table Rows
-        pdf.set_text_color(*DARK)
-        pdf.set_font("Helvetica", "", 9)
-        
+        # Calculate totals from sections/partidas
         subtotal_mn = 0
         subtotal_usd = 0
-        partida_idx = 1
-        alt = False
-        
         for sec in secciones:
             if sec["codigo"] in ("PRESE", "REPORTE", "CONDICIONES", "LISTAS"):
                 continue
             partidas = sec.get("partidas", [])
             for p in partidas:
-                rowSub_mn = float(p.get("total_mn") or 0)
-                rowSub_usd = float(p.get("total_usd") or 0)
-                rowSub = rowSub_usd if moneda == "USD" else rowSub_mn
-                
-                rowQty = 1
-                rowPrice = 0
-                if sec["tipo"] == "mano_obra":
-                    rowQty = float(p.get("horas_mo") or 0) * float(p.get("dias_trabajo") or 0) or 1
-                    rowPrice = float(p.get("costo_hora_usd") or 0)
-                else:
-                    rowQty = float(p.get("cantidad") or 0) or 1
-                    rowPrice = float(p.get("precio_lista") or 0)
-                
-                subtotal_mn += rowSub_mn
-                subtotal_usd += rowSub_usd
-                
-                # Render Row
-                pdf.set_fill_color(248, 250, 252) if alt else pdf.set_fill_color(255, 255, 255)
-                
-                desc_text = str(p.get("descripcion") or "")
-                desc_lines = max(1, int(len(desc_text) / 50))
-                row_h = 5 * desc_lines
-                
-                x = pdf.get_x()
-                y = pdf.get_y()
-                
-                pdf.cell(cw[0], row_h, str(partida_idx), border=1, fill=True, align="C")
-                
-                pdf.set_xy(x + cw[0], y)
-                pdf.multi_cell(cw[1], 5, desc_text, border=1, fill=True, align="L")
-                
-                pdf.set_xy(x + cw[0] + cw[1], y)
-                pdf.cell(cw[2], row_h, f"$ {rowPrice:,.2f}", border=1, fill=True, align="R")
-                pdf.cell(cw[3], row_h, f"{rowQty:g}", border=1, fill=True, align="C")
-                pdf.cell(cw[4], row_h, f"$ {rowSub:,.2f}", border=1, fill=True, align="R")
-                pdf.ln()
-                
-                partida_idx += 1
-                alt = not alt
+                subtotal_mn += float(p.get("total_mn") or 0)
+                subtotal_usd += float(p.get("total_usd") or 0)
 
         # Economical totals
         sub_val = subtotal_usd if moneda == "USD" else subtotal_mn
@@ -1015,14 +957,14 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
         total_val = sub_val + iva_val
         suffix = "USD" if moneda == "USD" else "M.N."
         
-        pdf.ln(3)
+        pdf.ln(4)
         pdf.set_font("Helvetica", "", 9)
-        pdf.cell(cw[0] + cw[1] + cw[2] + cw[3], 6, "SUB TOTAL", border=1, align="R")
-        pdf.cell(cw[4], 6, f"$ {sub_val:,.2f}", border=1, align="R", ln=True)
+        pdf.cell(140, 6, "SUB TOTAL", border=1, align="R")
+        pdf.cell(46, 6, f"$ {sub_val:,.2f}", border=1, align="R", ln=True)
         
         # IVA
-        pdf.cell(cw[0] + cw[1] + cw[2] + cw[3], 6, f"IVA ({pct_iva:g}%)", border=1, align="R")
-        pdf.cell(cw[4], 6, f"$ {iva_val:,.2f}", border=1, align="R", ln=True)
+        pdf.cell(140, 6, f"IVA ({pct_iva:g}%)", border=1, align="R")
+        pdf.cell(46, 6, f"$ {iva_val:,.2f}", border=1, align="R", ln=True)
         
         # Price Total plus IVA label
         pdf.ln(1)
@@ -1035,8 +977,8 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
         pdf.set_fill_color(0, 188, 212)  # Cyan #00bcd4
         pdf.set_text_color(255, 255, 255)
         pdf.set_font("Helvetica", "B", 10)
-        pdf.cell(cw[0] + cw[1] + cw[2] + cw[3], 8, "  TOTAL", border=1, fill=True, align="L")
-        pdf.cell(cw[4], 8, f"$ {total_val:,.2f} {suffix}", border=1, fill=True, align="R", ln=True)
+        pdf.cell(140, 8, "  TOTAL", border=1, fill=True, align="L")
+        pdf.cell(46, 8, f"$ {total_val:,.2f} {suffix}", border=1, fill=True, align="R", ln=True)
         
         # Words total
         pdf.ln(2)
@@ -1051,7 +993,7 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
             pass
             
         pdf.set_text_color(*DARK)
-        pdf.ln(4)
+        pdf.ln(5)
         
         # Commercial Conditions
         if condiciones:

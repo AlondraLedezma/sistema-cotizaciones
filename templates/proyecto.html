@@ -116,6 +116,7 @@ const PID = {{ proyecto.id }};
 const vendedor_config = "{{ vendedor_config }}";
 const vendedor_telefono = "{{ vendedor_telefono }}";
 const nota_aclaracion = "{{ nota_aclaracion }}";
+const slogans_config = `{{ slogans_config|replace('\n', '\\n') }}`;
 const expandedSubtemas = new Set();
 const TABS = [
   {code:'PRESE',     label:'PRESE',        color:'#475569'},
@@ -128,7 +129,6 @@ const TABS = [
   {code:'T_ELECTRICO',label:'T. ELÉCTRICO',color:'#6366f1'},
   {code:'INSUMOS',   label:'INSUMOS',      color:'#dc2626'},
   {code:'LISTAS',    label:'LISTAS',       color:'#7c3aed'},
-  {code:'CONDICIONES',label:'CONDICIONES', color:'#475569'},
 ];
 
 let projectData = null;
@@ -1029,23 +1029,18 @@ function renderPrese(c) {
   c.innerHTML = `
     <div class="card shadow-sm border border-light-subtle bg-white max-width-900 mx-auto p-4" style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; color:#0f172a;">
       <!-- Header block -->
-      <div class="row align-items-start mb-4">
+      <div class="row align-items-center mb-4">
         <!-- Logo & Slogans -->
         <div class="col-7">
           <div class="d-flex align-items-center gap-3">
-            <img src="/static/img/logo.png" style="height:70px; width:auto; object-fit:contain;" alt="DEMATIQ"/>
-            <div style="font-size:10.5px; color:#475569; line-height:1.45;">
-              Integracion de sistemas Automatizados<br/>
-              Programacion de PLC, HMI<br/>
-              Servicio de Diseño y Armado Tableros<br/>
-              Polizas de Mantenimiento
-            </div>
+            <img src="/static/img/logo.png" style="height:90px; width:auto; object-fit:contain;" alt="DEMATIQ"/>
+            <textarea id="prese-slogans" class="quote-header-input border-0 bg-transparent text-muted" style="font-size:10.5px; color:#475569; line-height:1.45; width:220px; height:80px; resize:none; outline:none;" onchange="saveVendedorConfig('slogans', this.value)" placeholder="Escribe los slogans de la empresa aquí...">${esc(window.currentSlogans || slogans_config || 'Integracion de sistemas Automatizados\nProgramacion de PLC, HMI\nServicio de Diseño y Armado Tableros\nPolizas de Mantenimiento')}</textarea>
           </div>
         </div>
         <!-- Sales Manager & Quotation Details -->
         <div class="col-5 text-end" style="font-size:12px;">
-          <div class="mb-1 text-muted fw-semibold d-flex align-items-center justify-content-end">
-            Ventas: &nbsp;
+          <div class="mb-1 text-muted fw-semibold d-flex align-items-center justify-content-between">
+            <span>Ventas:</span>
             <input id="f-vendedor-prese" class="quote-header-input fw-semibold text-end border-0 bg-transparent" style="width:200px; border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(window.currentVendedor || vendedor_config || 'Jose Moreno Rangel')}" onchange="saveVendedorConfig('vendedor', this.value)"/>
           </div>
           <div class="text-center py-1 text-white fw-bold text-uppercase rounded-1 mb-2" style="background:#1e3a8a; font-size:14px; letter-spacing:1px;">
@@ -1134,6 +1129,27 @@ function renderPrese(c) {
               (${total_letras.toUpperCase()})
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Conditions Section (matching Image 3) -->
+      <div class="mt-4 pt-3 border-top">
+        <div class="p-2 rounded mb-2 text-dark fw-bold text-uppercase" style="font-size:12px; background:#e2e8f0; color:#1e3a8a !important; letter-spacing:0.5px;">
+          A3 - CONDICIONES COMERCIALES
+        </div>
+        <div id="prese-condiciones-list">
+          ${(projectData.condiciones || []).map((cond, index) => `
+            <div class="d-flex align-items-center gap-2 mb-2 position-relative pt-1">
+              <span class="fw-bold text-primary" style="font-size:12.5px; min-width:45px;">A3.${index + 1}</span>
+              <input class="form-control form-control-sm border-0 bg-light" style="font-size:13px; border-radius:4px;" value="${esc(cond.contenido || '')}" onchange="updatePreseCond(${cond.id}, this.value)" placeholder="Escribe la condición comercial aquí..."/>
+              <button onclick="deletePreseCondicion(${cond.id})" class="btn btn-sm btn-link p-0 text-danger border-0 bg-transparent" style="text-decoration:none;" type="button" title="Eliminar condición">✕</button>
+            </div>
+          `).join('')}
+        </div>
+        <div class="text-start mt-2">
+          <button onclick="addPreseCondicion()" class="btn btn-xs btn-outline-primary fw-semibold" style="font-size:11px; padding:2px 8px;" type="button">
+            <i class="fa-solid fa-plus me-1"></i> Agregar Condición
+          </button>
         </div>
       </div>
     </div>`;
@@ -1589,6 +1605,7 @@ async function addReporteItem() {
 async function saveVendedorConfig(clave, valor) {
   if (clave === 'vendedor') window.currentVendedor = valor;
   if (clave === 'vendedor_telefono') window.currentVendedorTel = valor;
+  if (clave === 'slogans') window.currentSlogans = valor;
   
   // Sync vendor input fields if they exist in the DOM
   const topInput = document.getElementById('f-vendedor-top');
@@ -1640,6 +1657,46 @@ async function addReporteCondicion() {
     showToast('Nota agregada', 'success');
   } catch(e) {
     showToast('Error al agregar nota', 'error');
+  }
+}
+
+async function addPreseCondicion() {
+  try {
+    const nextNum = (projectData.condiciones || []).length + 1;
+    await api('/api/condiciones/create', 'POST', {
+      proyecto_id: PID,
+      codigo: 'A3.' + nextNum,
+      contenido: ''
+    });
+    await loadProject();
+    switchTab('PRESE');
+    showToast('Condición agregada', 'success');
+  } catch(e) {
+    showToast('Error al agregar condición', 'error');
+  }
+}
+
+async function updatePreseCond(id, valor) {
+  try {
+    const conds = projectData.condiciones || [];
+    const idx = conds.findIndex(c => c.id === id);
+    const code = 'A3.' + (idx + 1);
+    await api('/api/condiciones/update', 'POST', { id, codigo: code, contenido: valor });
+    showToast('Condición guardada', 'success');
+  } catch(e) {
+    showToast('Error al guardar condición', 'error');
+  }
+}
+
+async function deletePreseCondicion(id) {
+  if (!confirm('¿Estás seguro de que deseas eliminar esta condición comercial?')) return;
+  try {
+    await api('/api/condiciones/delete', 'POST', { id });
+    await loadProject();
+    switchTab('PRESE');
+    showToast('Condición eliminada', 'success');
+  } catch(e) {
+    showToast('Error al eliminar condición', 'error');
   }
 }
 
