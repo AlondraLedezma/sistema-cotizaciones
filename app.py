@@ -1002,6 +1002,11 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
         
         # Commercial Conditions
         if condiciones:
+            # Calculate next index based on subtemas count
+            subtemas_list = list(subtemas or [])
+            next_idx = len(subtemas_list) + 1
+            cond_prefix = f"A{next_idx}"
+            
             # Load section title from configuration
             tit_row = q("SELECT valor FROM configuracion WHERE clave='condiciones_seccion_titulo'", fetch="one")
             tit_val = tit_row["valor"] if tit_row and tit_row.get("valor") else "CONDICIONES COMERCIALES"
@@ -1010,13 +1015,13 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
             pdf.set_fill_color(226, 232, 240)
             pdf.set_text_color(*BLUE)
             pdf.set_font("Helvetica", "B", 9.5)
-            pdf.cell(0, 7, f"  A3 - {tit_val.upper()}", ln=True, fill=True)
+            pdf.cell(0, 7, f"  {cond_prefix} - {tit_val.upper()}", ln=True, fill=True)
             pdf.ln(1)
             
             pdf.set_text_color(*DARK)
             for idx, c in enumerate(condiciones):
                 pdf.set_font("Helvetica", "B", 9)
-                pdf.cell(15, 5, f"A3.{idx + 1}", ln=False)
+                pdf.cell(15, 5, f"{cond_prefix}.{idx + 1}", ln=False)
                 pdf.set_font("Helvetica", "", 9)
                 pdf.multi_cell(0, 5, c.get("contenido", ""))
                 pdf.ln(1)
