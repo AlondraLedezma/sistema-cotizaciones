@@ -239,6 +239,8 @@ def api_delete_proyecto():
 def api_update_proyecto():
     d = request.json or {}
     pid = d.get("id")
+    curr = q("SELECT porcentaje_iva FROM proyectos WHERE id=%s", (pid,), fetch="one")
+    curr_iva = curr.get("porcentaje_iva") if curr else 16.00
     new_num = d.get("numero_proyecto")
     if new_num:
         conflict = q("SELECT id FROM proyectos WHERE numero_proyecto=%s AND id!=%s", (new_num, pid), fetch="one")
@@ -249,13 +251,15 @@ def api_update_proyecto():
           contacto_cliente=%s,telefono_cliente=%s,email_cliente=%s,
           atencion=%s,referencia=%s,descripcion_solucion=%s,
           fecha_creacion=%s,fecha_vencimiento=%s,tipo_cambio_usd=%s,
-          carpeta_link=%s,tiempo_entrega=%s,condiciones_pago=%s WHERE id=%s""",
+          carpeta_link=%s,tiempo_entrega=%s,condiciones_pago=%s,
+          porcentaje_iva=%s WHERE id=%s""",
        (d.get("nombre_proyecto"), d.get("empresa_cliente"),
         d.get("contacto_cliente"), d.get("telefono_cliente"),
         d.get("email_cliente"), d.get("atencion"), d.get("referencia"),
         d.get("descripcion_solucion"), d.get("fecha_creacion"),
         d.get("fecha_vencimiento"), d.get("tipo_cambio_usd") or 20,
-        d.get("carpeta_link"), d.get("tiempo_entrega"), d.get("condiciones_pago"), pid))
+        d.get("carpeta_link"), d.get("tiempo_entrega"), d.get("condiciones_pago"),
+        d.get("porcentaje_iva") if d.get("porcentaje_iva") is not None else curr_iva, pid))
     _recalc_totals(pid)
     return jsonify(ok=True)
 
@@ -860,11 +864,12 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN"):
         sub_val = Re_val = tmn_total
         label_cur = "MN"
         suffix = "M.N."
-    iva = sub_val * 0.16
+    porcentaje_iva = float(proyecto.get("porcentaje_iva") if proyecto.get("porcentaje_iva") is not None else 16.00)
+    iva = sub_val * (porcentaje_iva / 100.0)
     total_final = sub_val + iva
     pdf.set_font("Helvetica","",9)
     pdf.cell(80,6,f"Subtotal {label_cur}:",border=1); pdf.cell(0,6,f"$ {sub_val:,.2f}",border=1,align="R",ln=True)
-    pdf.cell(80,6,"IVA (16%):",border=1);   pdf.cell(0,6,f"$ {iva:,.2f}",border=1,align="R",ln=True)
+    pdf.cell(80,6,f"IVA ({porcentaje_iva:g}%):",border=1);   pdf.cell(0,6,f"$ {iva:,.2f}",border=1,align="R",ln=True)
     pdf.set_fill_color(*BLUE); pdf.set_text_color(255,255,255)
     pdf.set_font("Helvetica","B",10)
     pdf.cell(80,8,"TOTAL CON IVA:",border=1,fill=True)

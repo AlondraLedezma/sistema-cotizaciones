@@ -261,10 +261,12 @@ function switchTab(code) {
 }
 
 function updateStatusBar() {
+  const p = projectData?.proyecto || {};
+  const pct_iva = p.porcentaje_iva !== undefined ? parseFloat(p.porcentaje_iva) : 16.00;
   const secciones = (projectData?.secciones)||[];
   let tmn=0,tusd=0;
   secciones.forEach(s=>{ tmn+=parseFloat(s.subtotal_mn||0); tusd+=parseFloat(s.subtotal_usd||0); });
-  const iva=tmn*0.16;
+  const iva=tmn*(pct_iva/100.0);
   document.getElementById('sb-mn').textContent=fmt(tmn);
   document.getElementById('sb-usd').textContent=fmt(tusd);
   document.getElementById('sb-iva').textContent=fmt(iva);
@@ -342,7 +344,8 @@ function renderReporte(c) {
     const secs = (projectData.secciones||[]).filter(s=>!['PRESE','REPORTE','CONDICIONES','LISTAS'].includes(s.codigo));
     let tmn=0,tusd=0;
     secs.forEach(s=>{ tmn+=parseFloat(s.subtotal_mn||0); tusd+=parseFloat(s.subtotal_usd||0); });
-    const iva=tmn*0.16;
+    const pct_iva = p.porcentaje_iva !== undefined ? parseFloat(p.porcentaje_iva) : 16.00;
+    const iva = tmn * (pct_iva / 100.0);
 
     c.innerHTML = `
       <div class="row g-3 max-width-1100">
@@ -385,8 +388,13 @@ function renderReporte(c) {
                 <div class="d-flex gap-4 text-muted" style="font-size:13px">
                   <span>Subtotal MN:</span><strong>${fmt(tmn)}</strong>
                 </div>
-                <div class="d-flex gap-4 text-muted" style="font-size:13px">
-                  <span>IVA 16%:</span><strong>${fmt(iva)}</strong>
+                <div class="d-flex gap-4 align-items-center text-muted" style="font-size:13px">
+                  <span>IVA:</span>
+                  <div class="d-flex align-items-center">
+                    <input type="number" step="0.1" id="f-porcentaje-iva-reporte" class="f-porcentaje-iva-input form-control form-control-sm text-end fw-semibold px-2 py-0 border border-secondary-subtle" style="width:60px; height:24px; font-size:12px;" value="${pct_iva}" onchange="savePorcentajeIva(this.value)"/>
+                    <span class="ms-1 fw-semibold">%</span>
+                  </div>
+                  <strong>${fmt(iva)}</strong>
                 </div>
                 <div class="d-flex gap-4 text-dark fw-bold border-top pt-2 mt-2" style="font-size:15px">
                   <span>TOTAL CON IVA:</span><strong class="text-success">${fmt(tmn+iva)}</strong>
@@ -469,7 +477,8 @@ function renderReporte(c) {
   });
 
   const subtotal_val = prevCurrency === 'USD' ? subtotal_usd : subtotal_mn;
-  const iva_val = subtotal_val * 0.16;
+  const pct_iva = p.porcentaje_iva !== undefined ? parseFloat(p.porcentaje_iva) : 16.00;
+  const iva_val = subtotal_val * (pct_iva / 100.0);
   const total_val = subtotal_val + iva_val;
 
   c.innerHTML = `
@@ -598,7 +607,11 @@ function renderReporte(c) {
                 <td style="width: 140px; font-weight: bold;">$ ${fmtCurrency(subtotal_val)}</td>
               </tr>
               <tr>
-                <td class="text-muted fw-semibold">IVA (16%)</td>
+                <td class="text-muted fw-semibold d-flex align-items-center justify-content-end gap-1 border-0">
+                  <span>IVA</span>
+                  <input type="number" step="0.1" class="quote-header-input f-porcentaje-iva-input border-0 bg-transparent text-end fw-semibold text-muted" style="width:50px; border-bottom:1px dashed #ccc !important; outline:none; padding:0 2px;" value="${pct_iva}" onchange="savePorcentajeIva(this.value)"/>
+                  <span>%</span>
+                </td>
                 <td style="font-weight: bold;">$ ${fmtCurrency(iva_val)}</td>
               </tr>
               <tr style="border-top: 1.5px solid #000; font-size: 15px;">
@@ -959,18 +972,39 @@ async function deleteCondicion(id) {
 function renderPrese(c) {
   const p = projectData.proyecto||{};
   const subtemas = projectData.subtemas||[];
-  let subtemasHTML = subtemas.map((st,i) => `
-    <div class="mb-2">
-      <div class="d-flex align-items-center gap-2 p-2 rounded cursor-pointer" style="background:#e2e8f0;cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
-        <i class="fa-solid fa-chevron-right" style="font-size:10px;transition:0.2s"></i>
-        <input class="form-control form-control-sm fw-bold text-uppercase border-0 bg-transparent" value="${esc(st.titulo||'')}" style="font-size:13px" onblur="updateSubtema(${st.id},'titulo',this.value)" onclick="event.stopPropagation()"/>
-        <span class="badge bg-primary bg-opacity-10 text-primary" style="font-size:10px">${esc(st.indice)}</span>
-        <button onclick="event.stopPropagation();deleteSubtema(${st.id})" class="btn btn-sm btn-light text-danger border-0 ms-auto py-0"><i class="fa-solid fa-times"></i></button>
+  let subtemasHTML = subtemas.map((st,i) => {
+    const points = parseSubtemaPoints(st);
+    let pointsHTML = points.map((p, idx) => `
+      <div class="d-flex align-items-center gap-2 mb-2 position-relative pt-1">
+        <span class="fw-bold text-primary" style="font-size:12.5px; min-width:45px;">${st.indice}.${idx + 1}</span>
+        <input class="form-control form-control-sm border-0 bg-light" style="font-size:13px; border-radius:4px;" value="${esc(p)}" onchange="saveSubtemaPoint(${st.id}, ${idx}, this.value)" placeholder="Escribe el punto aquí..."/>
+        <button onclick="deleteSubtemaPoint(${st.id}, ${idx})" class="btn btn-sm btn-link p-0 text-danger border-0 bg-transparent" style="text-decoration:none;" type="button" title="Eliminar punto">✕</button>
       </div>
-      <div style="display:none" class="ps-4 pt-2 pb-2">
-        <textarea class="form-control form-control-sm" style="resize:vertical;min-height:80px;line-height:1.6;font-size:13px" onblur="updateSubtema(${st.id},'contenido',this.value)" placeholder="${st.indice}.1 Primer punto...&#10;${st.indice}.2 Segundo punto...">${esc(st.contenido||'')}</textarea>
+    `).join('');
+
+    if (!points.length) {
+      pointsHTML = `<div class="text-muted text-center py-2" style="font-size:12px;">Sin apartados. Haz clic en agregar.</div>`;
+    }
+
+    return `
+      <div class="card mb-3 border border-light-subtle shadow-sm">
+        <div class="d-flex align-items-center gap-2 p-2 rounded cursor-pointer bg-light" onclick="toggleSubtemaCollapse(this)">
+          <i class="fa-solid fa-chevron-right" style="font-size:10px; transition:0.2s"></i>
+          <span class="badge bg-primary text-white fw-bold" style="font-size:11px; min-width:30px;">${esc(st.indice)}</span>
+          <input class="form-control form-control-sm fw-bold text-uppercase border-0 bg-transparent flex-grow-1" value="${esc(st.titulo||'')}" style="font-size:13px;" onblur="updateSubtema(${st.id},'titulo',this.value)" onclick="event.stopPropagation()"/>
+          <button onclick="event.stopPropagation(); deleteSubtema(${st.id})" class="btn btn-sm btn-light text-danger border-0 ms-auto py-0"><i class="fa-solid fa-times"></i></button>
+        </div>
+        <div style="display:none;" class="ps-4 pe-3 pt-3 pb-3 collapse-content">
+          <div id="subtema-points-list-${st.id}">${pointsHTML}</div>
+          <div class="text-start mt-2">
+            <button onclick="addSubtemaPoint(${st.id})" class="btn btn-xs btn-outline-primary fw-semibold" style="font-size:11px; padding:2px 8px;" type="button">
+              <i class="fa-solid fa-plus me-1"></i> Agregar Apartado
+            </button>
+          </div>
+        </div>
       </div>
-    </div>`).join('');
+    `;
+  }).join('');
 
   c.innerHTML = `
     <div class="card shadow-sm border-0 overflow-hidden max-width-900">
@@ -1162,6 +1196,7 @@ async function cambiarClaveListas() {
 
 async function addPartida(seccionId, tipo) {
   try {
+    await flushPendingSave();
     await api('/api/partidas/create','POST',{seccion_id:seccionId,tipo});
     await reloadSections();
     switchTab(currentTab);
@@ -1172,6 +1207,7 @@ async function addPartida(seccionId, tipo) {
 async function deletePartida(pid, tipo, seccionId) {
   if(!confirm('¿Eliminar esta partida?')) return;
   try {
+    await flushPendingSave();
     await api('/api/partidas/delete','POST',{id:pid,tipo,tipo_cambio:getTC()});
     await reloadSections();
     switchTab(currentTab);
@@ -1217,6 +1253,9 @@ async function saveProjectField(extra={}) {
   const carpeta_val = getVal('f-carpeta', p.carpeta_link || '');
   const tiempo_val = getVal('f-tiempo-entrega', p.tiempo_entrega || '8- DIAS HABILES');
   const cond_val = getVal('f-condiciones-pago', p.condiciones_pago || '90 DIAS');
+  
+  const iva_pct_input = document.querySelector('.f-porcentaje-iva-input');
+  const iva_pct_val = iva_pct_input ? parseFloat(iva_pct_input.value) : (p.porcentaje_iva !== undefined ? p.porcentaje_iva : 16.00);
 
   await api('/api/proyectos/update','POST',{
     id: PID,
@@ -1233,6 +1272,7 @@ async function saveProjectField(extra={}) {
     carpeta_link:    carpeta_val,
     tiempo_entrega:  tiempo_val,
     condiciones_pago:cond_val,
+    porcentaje_iva:  iva_pct_val,
     ...extra,
   });
 
@@ -1251,6 +1291,7 @@ async function saveProjectField(extra={}) {
       carpeta_link:    carpeta_val,
       tiempo_entrega:  tiempo_val,
       condiciones_pago:cond_val,
+      porcentaje_iva:  iva_pct_val,
       ...extra,
     });
   }
@@ -1264,10 +1305,32 @@ function setAutosave() {
 }
 
 let _saveTimer=null;
+let pendingSaveFn=null;
 function scheduleSave(fn) {
   clearTimeout(_saveTimer);
+  pendingSaveFn = fn;
   document.getElementById('autosave-indicator').innerHTML='<span class="spinner-border spinner-border-sm text-primary" style="width:12px;height:12px;border-width:1.5px" role="status"></span>Guardando...';
-  _saveTimer = setTimeout(async()=>{ await fn(); setAutosave(); },900);
+  _saveTimer = setTimeout(async()=>{
+    if (pendingSaveFn) {
+      const currentFn = pendingSaveFn;
+      pendingSaveFn = null;
+      await currentFn();
+    }
+    setAutosave();
+  },900);
+}
+
+async function flushPendingSave() {
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
+  if (pendingSaveFn) {
+    clearTimeout(_saveTimer);
+    const fn = pendingSaveFn;
+    pendingSaveFn = null;
+    await fn();
+    setAutosave();
+  }
 }
 
 function downloadPDF() {
@@ -1478,6 +1541,116 @@ async function addReporteCondicion() {
     showToast('Nota agregada', 'success');
   } catch(e) {
     showToast('Error al agregar nota', 'error');
+  }
+}
+
+function parseSubtemaPoints(st) {
+  const rawLines = st.contenido ? st.contenido.split('\n') : [];
+  return rawLines.map(line => {
+    const regex = new RegExp('^' + st.indice + '\\.\\d+\\s*');
+    return line.replace(regex, '').trim();
+  }).filter(x => x);
+}
+
+function serializeSubtemaPoints(st, points) {
+  return points.map((p, idx) => `${st.indice}.${idx + 1} ${p}`).join('\n');
+}
+
+async function saveSubtemaPoint(subtemaId, idx, val) {
+  const st = (projectData.subtemas||[]).find(x => x.id === subtemaId);
+  if (!st) return;
+  
+  const points = parseSubtemaPoints(st);
+  points[idx] = val.trim();
+  
+  const serialized = serializeSubtemaPoints(st, points);
+  try {
+    await api('/api/subtemas_prese/update', 'POST', {
+      id: subtemaId,
+      titulo: st.titulo,
+      indice: st.indice,
+      contenido: serialized
+    });
+    st.contenido = serialized;
+    showToast('Guardado', 'success');
+  } catch(e) {
+    showToast('Error al guardar', 'error');
+  }
+}
+
+async function deleteSubtemaPoint(subtemaId, idx) {
+  const st = (projectData.subtemas||[]).find(x => x.id === subtemaId);
+  if (!st) return;
+  
+  const points = parseSubtemaPoints(st);
+  points.splice(idx, 1);
+  
+  const serialized = serializeSubtemaPoints(st, points);
+  try {
+    await api('/api/subtemas_prese/update', 'POST', {
+      id: subtemaId,
+      titulo: st.titulo,
+      indice: st.indice,
+      contenido: serialized
+    });
+    await loadProject();
+    showToast('Punto eliminado', 'success');
+  } catch(e) {
+    showToast('Error al eliminar', 'error');
+  }
+}
+
+async function addSubtemaPoint(subtemaId) {
+  const st = (projectData.subtemas||[]).find(x => x.id === subtemaId);
+  if (!st) return;
+  
+  const points = parseSubtemaPoints(st);
+  points.push('Nuevo apartado...');
+  
+  const serialized = serializeSubtemaPoints(st, points);
+  try {
+    await api('/api/subtemas_prese/update', 'POST', {
+      id: subtemaId,
+      titulo: st.titulo,
+      indice: st.indice,
+      contenido: serialized
+    });
+    await loadProject();
+    showToast('Apartado agregado', 'success');
+  } catch(e) {
+    showToast('Error al agregar', 'error');
+  }
+}
+
+function toggleSubtemaCollapse(headerEl) {
+  const content = headerEl.nextElementSibling;
+  const chevron = headerEl.querySelector('.fa-chevron-down, .fa-chevron-right');
+  if (content.style.display === 'none') {
+    content.style.display = 'block';
+    if (chevron) { chevron.classList.replace('fa-chevron-right', 'fa-chevron-down'); }
+  } else {
+    content.style.display = 'none';
+    if (chevron) { chevron.classList.replace('fa-chevron-down', 'fa-chevron-right'); }
+  }
+}
+
+async function savePorcentajeIva(val) {
+  const pct = parseFloat(val);
+  if (isNaN(pct) || pct < 0) return;
+  
+  if (projectData && projectData.proyecto) {
+    projectData.proyecto.porcentaje_iva = pct;
+  }
+  
+  try {
+    await api('/api/proyectos/update', 'POST', {
+      id: PID,
+      porcentaje_iva: pct
+    });
+    await loadProject();
+    showToast('IVA guardado', 'success');
+  } catch(e) {
+    showToast('Error al guardar IVA', 'error');
   }
 }
 
