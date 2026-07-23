@@ -137,6 +137,7 @@ CREATE TABLE `proyectos` (
   `fecha_creacion` date NOT NULL,
   `fecha_vencimiento` date DEFAULT NULL,
   `tipo_cambio_usd` decimal(10,2) DEFAULT 20.00,
+  `factor_insumos` decimal(10,2) DEFAULT 1.20,
   `subtotal_mn` decimal(15,2) DEFAULT 0.00,
   `iva` decimal(15,2) DEFAULT 0.00,
   `total_mn` decimal(15,2) DEFAULT 0.00,

@@ -984,7 +984,7 @@
   }
 
   async function duplicateProject(id) {
-    if (!confirm('¿Deseas duplicar este proyecto con todas sus partidas?')) return;
+    if (!(await askConfirm('¿Deseas duplicar este proyecto con todas sus partidas?'))) return;
     try {
       const r = await api('/api/proyectos/duplicar','POST',{id});
       showToast(`Proyecto duplicado: ${r.numero}`,'success');

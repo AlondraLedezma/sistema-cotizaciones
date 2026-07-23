@@ -79,7 +79,7 @@
       </div>
       <div class="col-6 col-sm-4 col-md-1">
         <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">T/C USD</label>
-        <input id="f-tc" type="number" class="form-control form-control-sm fw-bold text-primary" step="0.01" value="{{ proyecto.tipo_cambio_usd or '20.00' }}"/>
+        <input id="f-tc" oninput="saveProjectField()" type="number" class="form-control form-control-sm fw-bold text-primary" step="0.01" value="{{ proyecto.tipo_cambio_usd or '20.00' }}"/>
       </div>
       <div class="col-6 col-sm-4 col-md-1">
         <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Carpeta</label>
@@ -343,664 +343,608 @@ function numeroALetras(num, currency='MN') {
 }
 
 function renderReporte(c) {
-  const p = projectData.proyecto||{};
-  if (!['mecanico', 'cotizacion'].includes(p.tipo_proyecto)) {
-    const secs = (projectData.secciones||[]).filter(s=>!['PRESE','REPORTE','CONDICIONES','LISTAS'].includes(s.codigo));
-    let tmn=0,tusd=0;
-    secs.forEach(s=>{ tmn+=parseFloat(s.subtotal_mn||0); tusd+=parseFloat(s.subtotal_usd||0); });
-    const pct_iva = p.porcentaje_iva !== undefined ? parseFloat(p.porcentaje_iva) : 16.00;
-    const iva = tmn * (pct_iva / 100.0);
-
-    c.innerHTML = `
-      <div class="row g-3 max-width-1100">
-        <div class="col-lg-8">
-          <div class="card shadow-sm border-0 overflow-hidden">
-            <div class="p-3 text-white" style="background:linear-gradient(135deg,#1e40af,#2563eb,#7c3aed)">
-              <div class="text-uppercase" style="font-size:10px; opacity:0.8; letter-spacing:0.5px">Resumen de Cotización</div>
-              <div class="fs-5 fw-bold">No. ${p.numero_proyecto||'---'}</div>
-            </div>
-            <div class="d-flex align-items-center gap-2 p-3 bg-light border-bottom" style="font-size:13px">
-              <span class="fw-semibold text-dark">Tipo de Cambio USD:</span>
-              <input type="number" id="tc-inline" value="${getTC().toFixed(2)}" step="0.01" class="form-control form-control-sm fw-bold text-primary" style="width:90px" oninput="document.getElementById('f-tc').value=this.value"/>
-              <span class="text-muted">MXN por USD</span>
-            </div>
-            <table class="excel-table">
-              <thead><tr>
-                <th>SECCIÓN</th>
-                <th class="text-end" style="width:130px">TOTAL MN</th>
-                <th class="text-end" style="width:130px">TOTAL USD</th>
-              </tr></thead>
-              <tbody>
-                ${secs.map((s,i)=>`
-                  <tr style="${i%2===1?'background:#f8fafc':''}">
-                    <td class="fw-semibold">
-                      <span class="d-inline-block rounded-circle" style="width:8px;height:8px;background:${s.color||'#2563eb'};margin-right:10px;vertical-align:middle"></span>
-                      ${s.titulo||s.codigo}
-                    </td>
-                    <td class="text-end fw-bold text-dark">${fmt(s.subtotal_mn)}</td>
-                    <td class="text-end text-primary">${fmt(s.subtotal_usd)}</td>
-                  </tr>`).join('')}
-                <tr class="total-row">
-                  <td class="p-3">TOTAL GENERAL</td>
-                  <td class="text-end p-3">${fmt(tmn)}</td>
-                  <td class="text-end p-3">${fmt(tusd)}</td>
-                </tr>
-              </tbody>
-            </table>
-            <div class="p-3 bg-light border-top">
-              <div class="d-flex flex-column align-items-end gap-1">
-                <div class="d-flex gap-4 text-muted" style="font-size:13px">
-                  <span>Subtotal MN:</span><strong>${fmt(tmn)}</strong>
-                </div>
-                <div class="d-flex gap-4 align-items-center text-muted" style="font-size:13px">
-                  <span>IVA:</span>
-                  <div class="d-flex align-items-center">
-                    <input type="number" step="0.1" id="f-porcentaje-iva-reporte" class="f-porcentaje-iva-input form-control form-control-sm text-end fw-semibold px-2 py-0 border border-secondary-subtle" style="width:60px; height:24px; font-size:12px;" value="${pct_iva}" onchange="savePorcentajeIva(this.value)"/>
-                    <span class="ms-1 fw-semibold">%</span>
-                  </div>
-                  <strong>${fmt(iva)}</strong>
-                </div>
-                <div class="d-flex gap-4 text-dark fw-bold border-top pt-2 mt-2" style="font-size:15px">
-                  <span>TOTAL CON IVA:</span><strong class="text-success">${fmt(tmn+iva)}</strong>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="col-lg-4">
-          <div class="card shadow-sm border-0 overflow-hidden mb-3">
-            <div class="p-3 border-bottom fw-bold text-dark" style="font-size:14px">
-              <i class="fa-solid fa-building text-primary me-2"></i>Datos del Cliente
-            </div>
-            ${[['Empresa',p.empresa_cliente],['Atención',p.atencion],['Proyecto',p.nombre_proyecto],['Cotización No.',p.numero_proyecto],['Fecha',str(p.fecha_creacion)],['Referencia',p.referencia]].map(([l,v])=>`
-              <div class="px-3 py-2 border-bottom d-flex flex-column">
-                <span class="text-uppercase fw-bold text-muted" style="font-size:9px;letter-spacing:0.5px">${l}</span>
-                <span class="text-dark fw-semibold" style="font-size:13px;margin-top:2px">${v||'—'}</span>
-              </div>`).join('')}
-          </div>
-          <div class="card shadow-sm border-0 p-3 bg-light" style="border:1.5px solid #dbeafe!important">
-            <div class="fw-bold text-primary mb-2" style="font-size:13px"><i class="fa-solid fa-circle-info me-2"></i>Referencia del proyecto</div>
-            <textarea id="r-referencia" class="form-control form-control-sm mb-2" style="resize:vertical;min-height:80px" placeholder="Descripción general / notas del proyecto...">${p.referencia||''}</textarea>
-            <button onclick="saveRef()" class="btn btn-sm btn-primary w-100 fw-semibold">Guardar referencia</button>
-          </div>
-        </div>
-      </div>`;
-    return;
+  if (!c) {
+    if (typeof activeTabCode !== 'undefined' && activeTabCode !== 'REPORTE') return;
+    c = document.getElementById('tab-content');
+    if (!c) return;
   }
-
-  const secs = (projectData.secciones||[]).filter(s=>!['PRESE','REPORTE','CONDICIONES','LISTAS'].includes(s.codigo));
-  let subtotal_mn=0, subtotal_usd=0;
-  let tbody_rows = '';
-  let partidaIndex = 1;
-
-  secs.forEach(sec => {
-    const partidas = sec.partidas||[];
-    if (partidas.length === 0) return;
-    
-
-
-    partidas.forEach(p => {
-      let rowSub_mn = parseFloat(p.total_mn||0);
-      let rowSub_usd = parseFloat(p.total_usd||0);
-      let rowSub = prevCurrency === 'USD' ? rowSub_usd : rowSub_mn;
-      
-      let rowQty = 1;
-      let rowPrice = 0;
-      if (sec.tipo === 'mano_obra') {
-        rowQty = parseFloat(p.horas_mo||0) * parseFloat(p.dias_trabajo||0) || 1;
-        rowPrice = parseFloat(p.costo_hora_usd||0);
-      } else {
-        rowQty = parseFloat(p.cantidad||0) || 1;
-        rowPrice = parseFloat(p.precio_lista||0);
-      }
-
-      tbody_rows += `
-        <tr style="border-bottom: 1px solid #e2e8f0;">
-          <td style="padding: 8px; border: 1px solid #e2e8f0; text-align:center; font-weight:500; background: #fafafa;">
-            ${partidaIndex}
-          </td>
-          <td style="padding: 0; border: 1px solid #e2e8f0;">
-            <input class="excel-input" value="${esc(p.descripcion||'')}" style="border:none; width:100%; padding:8px; outline:none; font-family:inherit; font-size:inherit;" onchange="saveReporteItem(${p.id}, '${sec.tipo}', 'descripcion', this.value)"/>
-          </td>
-          <td style="padding: 0; border: 1px solid #e2e8f0; text-align:right;">
-            <input class="excel-input text-end" type="number" step="0.01" value="${rowPrice||''}" style="border:none; width:100%; padding:8px; outline:none; font-family:inherit; font-size:inherit;" onchange="saveReporteItem(${p.id}, '${sec.tipo}', 'precio', this.value)"/>
-          </td>
-          <td style="padding: 0; border: 1px solid #e2e8f0; text-align:center;">
-            <input class="excel-input text-center" type="number" step="1" value="${rowQty||''}" style="border:none; width:100%; padding:8px; outline:none; font-family:inherit; font-size:inherit;" onchange="saveReporteItem(${p.id}, '${sec.tipo}', 'cantidad', this.value)"/>
-          </td>
-          <td style="padding: 8px; border: 1px solid #e2e8f0; text-align:right; font-weight:bold; position:relative; padding-right: 28px;">
-            $ ${fmtCurrency(rowSub)}
-            <button onclick="deleteReporteItem(${p.id}, '${sec.tipo}')" class="btn btn-sm btn-link p-0 text-danger border-0 bg-transparent" style="position:absolute; right:6px; top:50%; transform:translateY(-50%); font-size:12px; text-decoration:none;" type="button" title="Eliminar partida">✕</button>
-          </td>
-        </tr>`;
-
-      partidaIndex++;
-      subtotal_mn += rowSub_mn;
-      subtotal_usd += rowSub_usd;
-    });
+  const p = projectData.proyecto||{};
+  const tc = getTC();
+  
+  // Filter out obsolete non-section codes like PRESE, REPORTE, CONDICIONES, LISTAS, IO, I/O
+  const secs = (projectData.secciones||[]).filter(s => !['PRESE','REPORTE','CONDICIONES','LISTAS','IO','I/O'].includes(s.codigo));
+  
+  let tmn = 0, tusd = 0;
+  secs.forEach(s => {
+    let s_mn = parseFloat(s.subtotal_mn||0);
+    let s_usd = parseFloat(s.subtotal_usd||0);
+    if (s.codigo === 'INSUMOS' || (s_usd === 0 && s_mn > 0)) {
+      s_usd = s_mn / tc;
+      s.subtotal_usd = s_usd;
+    }
+    tmn += s_mn;
+    tusd += s_usd;
   });
 
-  const subtotal_val = prevCurrency === 'USD' ? subtotal_usd : subtotal_mn;
   const pct_iva = p.porcentaje_iva !== undefined ? parseFloat(p.porcentaje_iva) : 16.00;
-  const iva_val = subtotal_val * (pct_iva / 100.0);
-  const total_val = subtotal_val + iva_val;
+  const iva = tmn * (pct_iva / 100.0);
 
   c.innerHTML = `
-    <div class="card shadow border-0 overflow-hidden max-width-1000 mx-auto bg-white p-4" style="font-family:'Outfit', sans-serif;">
-      <!-- Toggle Currency -->
-      <div class="d-flex justify-content-between align-items-center mb-3 bg-light p-2 rounded">
-        <span class="fw-bold text-muted" style="font-size:12px"><i class="fa-solid fa-file-invoice-dollar me-1"></i>VISTA PREVIA DE COTIZACIÓN</span>
-        <div class="btn-group btn-group-sm">
-          <button class="btn btn-outline-primary ${prevCurrency==='MN'?'active':''}" id="btn-prev-mn" onclick="togglePrevCurrency('MN')">Moneda Nacional (MN)</button>
-          <button class="btn btn-outline-primary ${prevCurrency==='USD'?'active':''}" id="btn-prev-usd" onclick="togglePrevCurrency('USD')">Dólares (USD)</button>
+    <div class="row g-3 max-width-1100">
+      <div class="col-lg-8">
+        <div class="card shadow-sm border-0 overflow-hidden">
+          <div class="p-3 text-white" style="background:linear-gradient(135deg,#1e40af,#2563eb,#7c3aed)">
+            <div class="text-uppercase" style="font-size:10px; opacity:0.8; letter-spacing:0.5px">Resumen de Cotización</div>
+            <div class="fs-5 fw-bold">No. ${p.numero_proyecto||'---'}</div>
+          </div>
+          <div class="d-flex align-items-center gap-2 p-3 bg-light border-bottom" style="font-size:13px">
+            <span class="fw-semibold text-dark">Tipo de Cambio USD:</span>
+            <input type="number" id="tc-inline" value="${tc.toFixed(2)}" step="0.01" class="form-control form-control-sm fw-bold text-primary" style="width:90px" oninput="document.getElementById('f-tc').value=this.value;if(typeof saveProjectField==='function')saveProjectField();"/>
+            <span class="text-muted">MXN por USD</span>
+          </div>
+          <table class="excel-table">
+            <thead><tr>
+              <th>SECCIÓN</th>
+              <th class="text-end" style="width:140px">TOTAL MN</th>
+              <th class="text-end" style="width:140px">TOTAL USD</th>
+            </tr></thead>
+            <tbody>
+              ${secs.map((s,i)=>{
+                let s_mn = parseFloat(s.subtotal_mn||0);
+                let s_usd = s.subtotal_usd !== undefined ? parseFloat(s.subtotal_usd) : (s_mn / tc);
+                return `
+                <tr style="${i%2===1?'background:#f8fafc':''}">
+                  <td class="fw-semibold">
+                    <span class="d-inline-block rounded-circle" style="width:8px;height:8px;background:${s.color||'#2563eb'};margin-right:10px;vertical-align:middle"></span>
+                    ${s.titulo||s.codigo}
+                  </td>
+                  <td class="text-end fw-bold text-dark">${fmt(s_mn)}</td>
+                  <td class="text-end text-primary fw-bold">${fmt(s_usd)}</td>
+                </tr>`;
+              }).join('')}
+              <tr class="total-row" style="background:#0e233d;color:#fff;">
+                <td class="p-3 fw-bold">TOTAL GENERAL</td>
+                <td class="text-end p-3 fw-bold" style="color:#fff;">${fmt(tmn)}</td>
+                <td class="text-end p-3 fw-bold" style="color:#93c5fd;">${fmt(tusd)}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="p-3 bg-light border-top">
+            <div class="d-flex flex-column align-items-end gap-1">
+              <div class="d-flex gap-4 text-muted" style="font-size:13px">
+                <span>Subtotal MN:</span><strong>${fmt(tmn)}</strong>
+              </div>
+              <div class="d-flex gap-4 align-items-center text-muted" style="font-size:13px">
+                <span>IVA:</span>
+                <div class="d-flex align-items-center">
+                  <input type="number" step="0.1" id="f-porcentaje-iva-reporte" class="f-porcentaje-iva-input form-control form-control-sm text-end fw-semibold px-2 py-0 border border-secondary-subtle" style="width:60px; height:24px; font-size:12px;" value="${pct_iva}" onchange="savePorcentajeIva(this.value)"/>
+                  <span class="ms-1 fw-semibold">%</span>
+                </div>
+                <strong>${fmt(iva)}</strong>
+              </div>
+              <div class="d-flex gap-4 text-dark fw-bold border-top pt-2 mt-2" style="font-size:15px">
+                <span>TOTAL CON IVA:</span><strong class="text-success">${fmt(tmn+iva)}</strong>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-
-      <!-- Sheet Container -->
-      <div class="p-5 border border-light-subtle rounded bg-white shadow-sm" style="min-width: 800px; color: #000; position:relative; overflow-x:auto;">
-        <!-- Sheet Header -->
-        <div class="row mb-4">
-          <div class="col-7" style="font-size: 13px; line-height: 1.8;">
-            <div class="mb-2">
-              <strong>Atencion:</strong>
-              <input id="f-atencion" class="quote-header-input fw-semibold ms-1" style="width:75%; border:none; border-bottom:1px dashed #ccc; outline:none;" value="${esc(p.atencion||'')}" placeholder="Persona(s) a quien se dirige..." onchange="saveProjectField()"/>
-            </div>
-            <div class="mb-2">
-              <strong>TEL:</strong>
-              <input id="f-telefono" class="quote-header-input ms-1" style="width:30%; border:none; border-bottom:1px dashed #ccc; outline:none;" value="${esc(p.telefono_cliente||'')}" placeholder="Teléfono..." onchange="saveProjectField()"/>
-              &nbsp;&nbsp;&nbsp;&nbsp;
-              <strong>Empresa:</strong>
-              <input id="f-empresa" class="quote-header-input fw-semibold ms-1" style="width:35%; border:none; border-bottom:1px dashed #ccc; outline:none;" value="${esc(p.empresa_cliente||'')}" placeholder="Empresa..." onchange="saveProjectField()"/>
-            </div>
-            <div>
-              <strong>E-mail:</strong>
-              <input id="f-email" class="quote-header-input text-primary ms-1" style="width:80%; border:none; border-bottom:1px dashed #ccc; outline:none;" value="${esc(p.email_cliente||'')}" placeholder="correo@cliente.com..." onchange="saveProjectField()"/>
-            </div>
-            <!-- Dynamic fields: Carpeta and T/C inside sheet left panel -->
-            <div class="mt-3 pt-3 border-top border-light" style="font-size: 11px; color:#555; line-height: 2;">
-              <div class="d-flex align-items-center mb-1">
-                <strong>Carpeta de Guardado:</strong> &nbsp;
-                <input id="f-carpeta" class="quote-header-input flex-grow-1 border-0 bg-transparent text-truncate" value="${esc(p.carpeta_link||'')}" placeholder="Selecciona la ruta..." style="font-size:11px; border-bottom:1px dashed #ccc !important; outline:none;" onchange="saveProjectField()"/>
-                <button onclick="seleccionarCarpeta()" class="btn btn-sm btn-link p-0 text-primary border-0 bg-transparent ms-1" type="button"><i class="fa-solid fa-folder-open"></i></button>
-              </div>
-              <div class="d-flex align-items-center">
-                <strong>Tipo de Cambio USD:</strong> &nbsp;
-                <input id="f-tc" type="number" step="0.01" class="quote-header-input border-0 bg-transparent" value="${p.tipo_cambio_usd||20}" style="width:70px; font-weight:bold; color:#2563eb; font-size:11px; border-bottom:1px dashed #ccc !important; outline:none;" onchange="saveProjectField()"/>
-              </div>
-            </div>
+      <div class="col-lg-4">
+        <div class="card shadow-sm border-0 overflow-hidden mb-3">
+          <div class="p-3 border-bottom fw-bold text-dark" style="font-size:14px">
+            <i class="fa-solid fa-building text-primary me-2"></i>Datos del Cliente
           </div>
-          <div class="col-5 text-end" style="font-size: 13px;">
-            <div class="mb-1 text-muted fw-semibold d-flex align-items-center justify-content-end">
-              Ventas: &nbsp;
-              <input id="f-vendedor-top" class="quote-header-input fw-semibold text-end border-0 bg-transparent" style="width:200px; border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(window.currentVendedor || vendedor_config || 'Jose Moreno Rangel')}" onchange="saveVendedorConfig('vendedor', this.value)"/>
-            </div>
-            <div class="text-center py-1 text-white fw-bold text-uppercase rounded-1 mb-2" style="background:#1e3a8a; font-size:14px; letter-spacing:1px;">
-              COTIZACION
-            </div>
-            <div class="d-flex justify-content-between align-items-center mb-1">
-              <span class="fw-bold text-muted text-uppercase" style="font-size:10px">COTIZACION No.</span>
-              <input id="top-numero" class="quote-header-input fw-bold text-end border-0 bg-transparent" style="width:60%; border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(p.numero_proyecto||'')}" onchange="saveProjectField()"/>
-            </div>
-            <div class="d-flex justify-content-between align-items-center mb-1">
-              <span class="fw-bold text-muted text-uppercase" style="font-size:10px">FECHA</span>
-              <input id="f-fecha" type="date" class="quote-header-input text-end border-0 bg-transparent text-muted" style="width:60%; border-bottom:1px dashed #ccc !important; outline:none;" value="${p.fecha_creacion||''}" onchange="saveProjectField()"/>
-            </div>
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <span class="fw-bold text-muted text-uppercase" style="font-size:10px">VENCIMIENTO</span>
-              <input id="f-vencimiento" type="date" class="quote-header-input text-end border-0 bg-transparent" style="width:60%; border-bottom:1px dashed #ccc !important; outline:none;" value="${p.fecha_vencimiento||''}" onchange="saveProjectField()"/>
-            </div>
-            <div class="text-start mt-2 border-top pt-2">
-              <input id="f-referencia" class="quote-header-input fw-bold text-uppercase text-dark text-start border-0 bg-transparent" style="width:100%; border-bottom:1px dashed #ccc !important; outline:none; font-size:11px;" value="${esc(p.referencia||'')}" placeholder="COT - AQ 670 034..." onchange="saveProjectField()"/>
-            </div>
-          </div>
+          ${[['Empresa',p.empresa_cliente],['Atención',p.atencion],['Proyecto',p.nombre_proyecto],['Cotización No.',p.numero_proyecto],['Fecha',p.fecha_creacion||''],['Referencia',p.referencia]].map(([l,v])=>`
+            <div class="px-3 py-2 border-bottom d-flex flex-column">
+              <span class="text-uppercase fw-bold text-muted" style="font-size:9px;letter-spacing:0.5px">${l}</span>
+              <span class="text-dark fw-semibold" style="font-size:13px;margin-top:2px">${v||'—'}</span>
+            </div>`).join('')}
         </div>
-
-        <!-- Sheet Table -->
-        <table class="w-100 mb-4" style="border-collapse: collapse; font-size: 13px;">
-          <thead>
-            <tr style="background:#1e3a8a; color:white; font-weight:bold;">
-              <th style="padding: 10px 8px; border: 1px solid #1e3a8a; text-align:center; width: 60px;">Partida</th>
-              <th style="padding: 10px 8px; border: 1px solid #1e3a8a; text-align:left;">Descripción</th>
-              <th style="padding: 10px 8px; border: 1px solid #1e3a8a; text-align:right; width: 120px;">Precio</th>
-              <th style="padding: 10px 8px; border: 1px solid #1e3a8a; text-align:center; width: 80px;">Cantidad</th>
-              <th style="padding: 10px 8px; border: 1px solid #1e3a8a; text-align:right; width: 130px;">Sub Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${tbody_rows || `<tr><td colspan="5" class="text-center py-4 text-muted">Sin partidas registradas</td></tr>`}
-          </tbody>
-        </table>
-        
-        <div class="mb-4 d-print-none text-start">
-          <button onclick="addReporteItem()" class="btn btn-sm btn-outline-primary fw-semibold d-flex align-items-center gap-2" type="button">
-            <i class="fa-solid fa-plus"></i> Agregar Partida
-          </button>
-        </div>
-
-        <!-- Sheet Bottom / Terms and Conditions -->
-        <div class="row">
-          <div class="col-7" style="font-size: 12px; line-height: 1.8;">
-            <div class="fw-bold text-uppercase mb-2 text-dark" style="font-size:12px; letter-spacing:0.5px">TERMINOS Y CONDICIONES:</div>
-            <div class="mb-1">
-              <strong>Condiciones de Pago:</strong>
-              <input id="f-condiciones-pago" class="quote-header-input border-0 bg-transparent font-weight-bold ms-1" style="width:60%; border-bottom:1px dashed #ccc !important; outline:none; font-weight:bold;" value="${esc(p.condiciones_pago || '90 DIAS')}" onchange="saveProjectField()"/>
-            </div>
-            <div class="mb-1">
-              <strong>Tiempo de Entrega:</strong>
-              <input id="f-tiempo-entrega" class="quote-header-input border-0 bg-transparent font-weight-bold ms-1" style="width:60%; border-bottom:1px dashed #ccc !important; outline:none; font-weight:bold;" value="${esc(p.tiempo_entrega || '8- DIAS HABILES')}" onchange="saveProjectField()"/>
-            </div>
-            <div class="mt-3 text-muted text-start" style="font-size: 11px; line-height:1.5;">
-              <input id="f-nota-aclaracion" class="quote-header-input border-0 bg-transparent text-muted mb-2 d-block" style="width:100%; border-bottom:1px dashed #ccc !important; outline:none; font-size:11px;" value="${esc(window.currentNotaAclaracion || nota_aclaracion || 'Para cualquier aclaración con respecto a esta cotización o para colocar su orden, favor de comunicarse al correo: integraqro07@outlook.com')}" onchange="saveVendedorConfig('nota_aclaracion', this.value)"/>
-              
-              <div id="reporte-condiciones-list">
-                ${(projectData.condiciones || []).map((cond, index) => `
-                  <div class="d-flex align-items-center gap-1 mb-1 position-relative" style="padding-right:20px;">
-                    <span style="font-size:10px; margin-top:2px;">•</span>
-                    <input class="quote-header-input border-0 bg-transparent text-muted flex-grow-1" style="border-bottom:1px dashed #ccc !important; outline:none; font-size:11px; padding:0 4px;" value="${esc(cond.contenido || '')}" onchange="saveReporteCondicion(${cond.id}, this.value)"/>
-                    <button onclick="deleteReporteCondicion(${cond.id})" class="btn btn-sm btn-link p-0 text-danger border-0 bg-transparent d-print-none" style="font-size:12px; text-decoration:none; position:absolute; right:0;" type="button" title="Eliminar nota">✕</button>
-                  </div>
-                `).join('')}
-              </div>
-              <button onclick="addReporteCondicion()" class="btn btn-sm btn-link p-0 text-primary mt-1 border-0 bg-transparent d-print-none fw-semibold" style="font-size:11px; text-decoration:none;" type="button">+ Agregar Nota</button>
-            </div>
-          </div>
-          <div class="col-5">
-            <table class="w-100 text-end" style="font-size: 13px; line-height: 2;">
-              <tr>
-                <td class="text-muted fw-semibold">SUB TOTAL</td>
-                <td style="width: 140px; font-weight: bold;">$ ${fmtCurrency(subtotal_val)}</td>
-              </tr>
-              <tr>
-                <td class="text-muted fw-semibold d-flex align-items-center justify-content-end gap-1 border-0">
-                  <span>IVA</span>
-                  <input type="number" step="0.1" class="quote-header-input f-porcentaje-iva-input border-0 bg-transparent text-end fw-semibold text-muted" style="width:50px; border-bottom:1px dashed #ccc !important; outline:none; padding:0 2px;" value="${pct_iva}" onchange="savePorcentajeIva(this.value)"/>
-                  <span>%</span>
-                </td>
-                <td style="font-weight: bold;">$ ${fmtCurrency(iva_val)}</td>
-              </tr>
-              <tr style="border-top: 1.5px solid #000; font-size: 15px;">
-                <td class="fw-bold" style="color:#1e3a8a">TOTAL</td>
-                <td style="font-weight: bold; color:#1e3a8a">$ ${fmtCurrency(total_val)}</td>
-              </tr>
-            </table>
-            <div class="text-end mt-3 fw-bold text-muted text-uppercase" style="font-size:10px; line-height: 1.4;">
-              SON: ${numeroALetras(total_val, prevCurrency)}
-            </div>
-          </div>
-        </div>
-
-        <!-- Sheet Footer -->
-        <div class="border-top mt-5 pt-3 text-center text-muted" style="font-size: 11px;">
-          Atención:
-          <input id="f-vendedor" class="quote-header-input fw-bold text-center" style="width: 200px; border: none; border-bottom: 1px dashed #ccc; outline: none; background: transparent; font-size: 11px;" value="${esc(window.currentVendedor || vendedor_config || 'Jose Moreno Rangel')}" onchange="saveVendedorConfig('vendedor', this.value)"/>
-          &nbsp;&nbsp;&nbsp;&nbsp;
-          Tel:
-          <input id="f-vendedor-telefono" class="quote-header-input fw-bold text-center" style="width: 100px; border: none; border-bottom: 1px dashed #ccc; outline: none; background: transparent; font-size: 11px;" value="${esc(window.currentVendedorTel || vendedor_telefono || '442 7214891')}" onchange="saveVendedorConfig('vendedor_telefono', this.value)"/>
+        <div class="card shadow-sm border-0 p-3 bg-light" style="border:1.5px solid #dbeafe!important">
+          <div class="fw-bold text-primary mb-2" style="font-size:13px"><i class="fa-solid fa-circle-info me-2"></i>Referencia del proyecto</div>
+          <textarea id="r-referencia" class="form-control form-control-sm mb-2" style="resize:vertical;min-height:80px" placeholder="Descripción general / notas del proyecto...">${p.referencia||''}</textarea>
+          <button onclick="saveRef()" class="btn btn-sm btn-primary w-100 fw-semibold">Guardar referencia</button>
         </div>
       </div>
     </div>`;
 }
 
-function str(v) { return v ? String(v).substring(0,10) : ''; }
+function recalcInsumoRow(tbl, id) {
+  const fm = (n) => parseFloat(n||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const getNum = (fld) => {
+    const el = document.querySelector(`input[data-tbl="${tbl}"][data-id="${id}"][data-fld="${fld}"]`);
+    return el ? parseFloat(el.value)||0 : 0;
+  };
 
-async function saveRef() {
-  const ref = document.getElementById('r-referencia')?.value||'';
-  await saveProjectField({referencia: ref});
-  showToast('Referencia guardada','success');
-}
-
-function getDescField(p, sec) {
-  if (sec.codigo !== 'ING_MO') {
-    return `<input class="excel-input" value="${esc(p.descripcion||'')}" onchange="updateMO(${p.id},'descripcion',this.value)" style="min-width:180px"/>`;
+  if (tbl === 'viaticos_cd') {
+    const p = getNum('personas'), v = getNum('viajes_cd'), a = getNum('autobus'), t = getNum('taxis');
+    const ac = getNum('autocasetas'), g = getNum('gasolina');
+    const sub1 = p * v * (a + t);
+    const sub2 = v * (ac + g);
+    const el1 = document.getElementById(`sub1_cd_${id}`);
+    const el2 = document.getElementById(`sub2_cd_${id}`);
+    if (el1) el1.innerText = '$ ' + fm(sub1);
+    if (el2) el2.innerText = '$ ' + fm(sub2);
+  } else if (tbl === 'viaticos_en_cd') {
+    const p = getNum('personas'), di = getNum('dias'), al = getNum('alimentos'), h = getNum('hotel'), tr = getNum('transporte');
+    const rc = getNum('renta_coche'), g = getNum('gasolina'), da = getNum('dias_auto'), m = getNum('meses'), ca = getNum('renta_casa');
+    const sub1 = p * di * (al + h + tr);
+    const stAuto = (rc + g) * da;
+    const stCasa = ca * m;
+    const el1 = document.getElementById(`sub1_en_${id}`);
+    const elAuto = document.getElementById(`stAuto_en_${id}`);
+    const elCasa = document.getElementById(`stCasa_en_${id}`);
+    if (el1) el1.innerText = '$ ' + fm(sub1);
+    if (elAuto) elAuto.innerText = '$ ' + fm(stAuto);
+    if (elCasa) elCasa.innerText = '$ ' + fm(stCasa);
+  } else if (tbl === 'transporte') {
+    const c = getNum('transporte_costo'), n = getNum('no_veces');
+    const sub = c * n;
+    const el = document.getElementById(`sub_tr_${id}`);
+    if (el) el.innerText = '$ ' + fm(sub);
+  } else if (tbl === 'gastos_admin') {
+    const c = getNum('costo');
+    const el = document.getElementById(`sub_ga_${id}`);
+    if (el) el.innerText = '$ ' + fm(c);
+  } else if (tbl === 'imss') {
+    const p = getNum('personas'), c = getNum('costo_dia'), di = getNum('dias');
+    const sub = p * c * di;
+    const el = document.getElementById(`sub_imss_${id}`);
+    if (el) el.innerText = '$ ' + fm(sub);
   }
-  const listas = projectData.listas||[];
-  const opts = listas.filter(l => l.seccion_codigo === 'ING_MO');
-  const selected = p.descripcion||'';
-  return `<select class="excel-select" onchange="updateMO(${p.id},'descripcion',this.value)" style="min-width:180px">
-    <option value="">— Seleccionar —</option>
-    ${opts.map(o => `<option value="${esc(o.valor)}" ${o.valor===selected?'selected':''}>${esc(o.valor)}</option>`).join('')}
-  </select>`;
+  recalcInsumosGrandTotals();
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  INSUMOS RENDERER
-// ═══════════════════════════════════════════════════════════════
-function fmtN(n) { return (parseFloat(n)||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function recalcInsumosGrandTotals() {
+  const listas = projectData.listas || [];
+  const getFactor = (name) => {
+    const f = listas.find(x => x.seccion_codigo === 'INSUMOS' && x.valor === name);
+    return f ? parseFloat(f.factor) || 1 : 1;
+  };
+  const f_cd   = getFactor('FACTOR VIATICOS A CD');
+  const f_af   = getFactor('FACTOR AUTO FORANEO');
+  const f_en   = getFactor('FACTOR VIATICOS EN CD');
+  const f_al   = getFactor('FACTOR AUTO LOCAL');
+  const f_ho   = getFactor('FACTOR HOSPEDAJE');
+  const f_tr   = getFactor('FACTOR TRANSPORTE');
+  const f_ga   = getFactor('FACTOR GASTOS ADMIN');
+  const f_imss = getFactor('FACTOR IMSS');
 
-async function saveInsumosCd(id, field, val) {
-  const row = document.getElementById(`icd-row-${id}`);
-  if (!row) return;
-  const getData = f => parseFloat(row.querySelector(`[data-f="${f}"]`)?.value||0);
-  const p = getData('personas'), v = getData('viajes_cd'), a = getData('autobus'), t = getData('taxis');
-  const ac = getData('autocasetas'), g = getData('gasolina');
-  const persona = row.querySelector('[data-f="persona"]')?.value||'';
-  const sub1 = p * v * (a + t);
-  const sub2 = p * v * (ac + g);
-  // Update display
-  const s1El = document.getElementById(`icd-sub1-${id}`);
-  const s2El = document.getElementById(`icd-sub2-${id}`);
-  if (s1El) s1El.textContent = '$ ' + fmtN(sub1);
-  if (s2El) s2El.textContent = '$ ' + fmtN(sub2);
-  updateInsumosTotals();
-  scheduleSave(() => api('/api/insumos/update_cd','POST',{id,proyecto_id:PID,persona,personas:p,viajes_cd:v,autobus:a,taxis:t,autocasetas:ac,gasolina:g}));
-}
+  const fm = (n) => parseFloat(n||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
 
-async function saveInsumosEnCd(id, field, val) {
-  const row = document.getElementById(`iec-row-${id}`);
-  if (!row) return;
-  const getData = f => parseFloat(row.querySelector(`[data-f="${f}"]`)?.value||0);
-  const p = getData('personas'), di = getData('dias'), al = getData('alimentos'), h = getData('hotel'), tr = getData('transporte');
-  const rc = getData('renta_coche'), m = getData('meses'), ca = getData('renta_casa');
-  const persona = row.querySelector('[data-f="persona"]')?.value||'';
-  const sub1 = p * di * (al + h + tr);
-  const sub2 = (rc * m) + (ca * m);
-  const s1El = document.getElementById(`iec-sub1-${id}`);
-  const s2El = document.getElementById(`iec-sub2-${id}`);
-  if (s1El) s1El.textContent = '$ ' + fmtN(sub1);
-  if (s2El) s2El.textContent = '$ ' + fmtN(sub2);
-  updateInsumosTotals();
-  scheduleSave(() => api('/api/insumos/update_en_cd','POST',{id,proyecto_id:PID,persona,personas:p,dias:di,alimentos:al,hotel:h,transporte:tr,renta_coche:rc,meses:m,renta_casa:ca}));
-}
+  let cdSum1 = 0, cdSum2 = 0;
+  (projectData.insumos_cd||[]).forEach(r => {
+    const p = parseFloat(document.querySelector(`input[data-tbl="viaticos_cd"][data-id="${r.id}"][data-fld="personas"]`)?.value ?? r.personas)||0;
+    const v = parseFloat(document.querySelector(`input[data-tbl="viaticos_cd"][data-id="${r.id}"][data-fld="viajes_cd"]`)?.value ?? r.viajes_cd)||0;
+    const a = parseFloat(document.querySelector(`input[data-tbl="viaticos_cd"][data-id="${r.id}"][data-fld="autobus"]`)?.value ?? r.autobus)||0;
+    const t = parseFloat(document.querySelector(`input[data-tbl="viaticos_cd"][data-id="${r.id}"][data-fld="taxis"]`)?.value ?? r.taxis)||0;
+    const ac = parseFloat(document.querySelector(`input[data-tbl="viaticos_cd"][data-id="${r.id}"][data-fld="autocasetas"]`)?.value ?? r.autocasetas)||0;
+    const g = parseFloat(document.querySelector(`input[data-tbl="viaticos_cd"][data-id="${r.id}"][data-fld="gasolina"]`)?.value ?? r.gasolina)||0;
+    cdSum1 += (p * v * (a + t));
+    cdSum2 += (v * (ac + g));
+  });
 
-async function saveInsumosTransporte(id) {
-  const row = document.getElementById(`itr-row-${id}`);
-  if (!row) return;
-  const desc = row.querySelector('[data-f="descripcion"]')?.value||'';
-  const c = parseFloat(row.querySelector('[data-f="costo"]')?.value||0);
-  const n = parseFloat(row.querySelector('[data-f="no_veces"]')?.value||0);
-  const sub = c * n;
-  const sEl = document.getElementById(`itr-sub-${id}`);
-  if (sEl) sEl.textContent = fmtN(sub);
-  updateInsumosTotals();
-  scheduleSave(() => api('/api/insumos/update_transporte','POST',{id,proyecto_id:PID,descripcion:desc,costo:c,no_veces:n}));
-}
+  let enSum1 = 0, stAutoSum = 0, stCasaSum = 0;
+  (projectData.insumos_en_cd||[]).forEach(r => {
+    const p = parseFloat(document.querySelector(`input[data-tbl="viaticos_en_cd"][data-id="${r.id}"][data-fld="personas"]`)?.value ?? r.personas)||0;
+    const di = parseFloat(document.querySelector(`input[data-tbl="viaticos_en_cd"][data-id="${r.id}"][data-fld="dias"]`)?.value ?? r.dias)||0;
+    const al = parseFloat(document.querySelector(`input[data-tbl="viaticos_en_cd"][data-id="${r.id}"][data-fld="alimentos"]`)?.value ?? r.alimentos)||0;
+    const h = parseFloat(document.querySelector(`input[data-tbl="viaticos_en_cd"][data-id="${r.id}"][data-fld="hotel"]`)?.value ?? r.hotel)||0;
+    const tr = parseFloat(document.querySelector(`input[data-tbl="viaticos_en_cd"][data-id="${r.id}"][data-fld="transporte"]`)?.value ?? r.transporte)||0;
+    const rc = parseFloat(document.querySelector(`input[data-tbl="viaticos_en_cd"][data-id="${r.id}"][data-fld="renta_coche"]`)?.value ?? r.renta_coche)||0;
+    const g = parseFloat(document.querySelector(`input[data-tbl="viaticos_en_cd"][data-id="${r.id}"][data-fld="gasolina"]`)?.value ?? r.gasolina)||0;
+    const da = parseFloat(document.querySelector(`input[data-tbl="viaticos_en_cd"][data-id="${r.id}"][data-fld="dias_auto"]`)?.value ?? r.dias_auto)||0;
+    const m = parseFloat(document.querySelector(`input[data-tbl="viaticos_en_cd"][data-id="${r.id}"][data-fld="meses"]`)?.value ?? r.meses)||0;
+    const ca = parseFloat(document.querySelector(`input[data-tbl="viaticos_en_cd"][data-id="${r.id}"][data-fld="renta_casa"]`)?.value ?? r.renta_casa)||0;
+    enSum1 += (p * di * (al + h + tr));
+    stAutoSum += ((rc + g) * da);
+    stCasaSum += (ca * m);
+  });
 
-function updateInsumosTotals() {
-  const FACTOR = 1.2;
-  // CD totals
-  let cd1Sum = 0, cd2Sum = 0;
-  document.querySelectorAll('[id^="icd-sub1-"]').forEach(el => { cd1Sum += parseFloat(el.textContent.replace(/[^0-9.-]/g,''))||0; });
-  document.querySelectorAll('[id^="icd-sub2-"]').forEach(el => { cd2Sum += parseFloat(el.textContent.replace(/[^0-9.-]/g,''))||0; });
-  const cdTot1 = cd1Sum, cdTot2 = cd2Sum;
-  const elCdTot1 = document.getElementById('icd-total1'); if(elCdTot1) elCdTot1.textContent = '$ ' + fmtN(cdTot1 * FACTOR);
-  const elCdTot2 = document.getElementById('icd-total2'); if(elCdTot2) elCdTot2.textContent = '$ ' + fmtN(cdTot2 * FACTOR);
-  const elCdSum1 = document.getElementById('icd-sum1'); if(elCdSum1) elCdSum1.textContent = '$ ' + fmtN(cdTot1);
-  const elCdSum2 = document.getElementById('icd-sum2'); if(elCdSum2) elCdSum2.textContent = '$ ' + fmtN(cdTot2);
-  // EN CD totals
-  let en1Sum = 0, en2Sum = 0;
-  document.querySelectorAll('[id^="iec-sub1-"]').forEach(el => { en1Sum += parseFloat(el.textContent.replace(/[^0-9.-]/g,''))||0; });
-  document.querySelectorAll('[id^="iec-sub2-"]').forEach(el => { en2Sum += parseFloat(el.textContent.replace(/[^0-9.-]/g,''))||0; });
-  const elEnSum1 = document.getElementById('iec-sum1'); if(elEnSum1) elEnSum1.textContent = '$ ' + fmtN(en1Sum);
-  const elEnSum2 = document.getElementById('iec-sum2'); if(elEnSum2) elEnSum2.textContent = '$ ' + fmtN(en2Sum);
-  const elEnTot1 = document.getElementById('iec-total1'); if(elEnTot1) elEnTot1.textContent = '$ ' + fmtN(en1Sum * FACTOR);
-  const elEnTot2 = document.getElementById('iec-total2'); if(elEnTot2) elEnTot2.textContent = '$ ' + fmtN(en2Sum * FACTOR);
-  // Transporte totals
   let trSum = 0;
-  document.querySelectorAll('[id^="itr-sub-"]').forEach(el => { trSum += parseFloat(el.textContent.replace(/[^0-9.-]/g,''))||0; });
-  const elTrSum = document.getElementById('itr-sum'); if(elTrSum) elTrSum.textContent = fmtN(trSum);
-  const elTrTot = document.getElementById('itr-total'); if(elTrTot) elTrTot.textContent = '$ ' + fmtN(trSum * FACTOR);
-  // Grand total for header
-  const totalMN = (cdTot1 + cdTot2) * FACTOR + (en1Sum + en2Sum) * FACTOR + trSum * FACTOR;
-  const elGrandMN = document.getElementById('ins-total-mn'); if(elGrandMN) elGrandMN.textContent = fmt(totalMN);
-}
+  (projectData.insumos_transporte||[]).forEach(r => {
+    const c = parseFloat(document.querySelector(`input[data-tbl="transporte"][data-id="${r.id}"][data-fld="transporte_costo"]`)?.value ?? r.costo)||0;
+    const n = parseFloat(document.querySelector(`input[data-tbl="transporte"][data-id="${r.id}"][data-fld="no_veces"]`)?.value ?? r.no_veces)||0;
+    trSum += (c * n);
+  });
 
-async function addInsumosRow(tabla) {
-  const r = await api('/api/insumos/add_row','POST',{proyecto_id:PID, tabla});
-  await reloadSections();
-  switchTab('INSUMOS');
-}
+  let gaSum = 0;
+  (projectData.insumos_gastos_admin||[]).forEach(r => {
+    const c = parseFloat(document.querySelector(`input[data-tbl="gastos_admin"][data-id="${r.id}"][data-fld="costo"]`)?.value ?? r.costo)||0;
+    gaSum += c;
+  });
 
-async function deleteInsumosRow(id, tabla) {
-  if(!await askConfirm('¿Eliminar esta fila?')) return;
-  await api('/api/insumos/delete_row','POST',{id, tabla, proyecto_id:PID});
-  await reloadSections();
-  switchTab('INSUMOS');
+  let imssSum = 0;
+  (projectData.insumos_imss||[]).forEach(r => {
+    const p = parseFloat(document.querySelector(`input[data-tbl="imss"][data-id="${r.id}"][data-fld="personas"]`)?.value ?? r.personas)||0;
+    const c = parseFloat(document.querySelector(`input[data-tbl="imss"][data-id="${r.id}"][data-fld="costo_dia"]`)?.value ?? r.costo_dia)||0;
+    const di = parseFloat(document.querySelector(`input[data-tbl="imss"][data-id="${r.id}"][data-fld="dias"]`)?.value ?? r.dias)||0;
+    imssSum += (p * c * di);
+  });
+
+  // Update table blue footers
+  const elCdSub1 = document.getElementById('subtotal_cd_sum1');
+  const elCdTot1 = document.getElementById('total_cd_sum1');
+  const elCdSub2 = document.getElementById('subtotal_cd_sum2');
+  const elCdTot2 = document.getElementById('total_cd_sum2');
+  if (elCdSub1) elCdSub1.innerText = '$ ' + fm(cdSum1);
+  if (elCdTot1) elCdTot1.innerText = '$ ' + fm(cdSum1 * f_cd);
+  if (elCdSub2) elCdSub2.innerText = '$ ' + fm(cdSum2);
+  if (elCdTot2) elCdTot2.innerText = '$ ' + fm(cdSum2 * f_af);
+
+  const elEnSub1 = document.getElementById('subtotal_en_sum1');
+  const elEnTot1 = document.getElementById('total_en_sum1');
+  const elEnSubAuto = document.getElementById('subtotal_en_auto');
+  const elEnTotAuto = document.getElementById('total_en_auto');
+  const elEnSubCasa = document.getElementById('subtotal_en_casa');
+  const elEnTotCasa = document.getElementById('total_en_casa');
+
+  if (elEnSub1) elEnSub1.innerText = '$ ' + fm(enSum1);
+  if (elEnTot1) elEnTot1.innerText = '$ ' + fm(enSum1 * f_en);
+  if (elEnSubAuto) elEnSubAuto.innerText = '$ ' + fm(stAutoSum);
+  if (elEnTotAuto) elEnTotAuto.innerText = '$ ' + fm(stAutoSum * f_al);
+  if (elEnSubCasa) elEnSubCasa.innerText = '$ ' + fm(stCasaSum);
+  if (elEnTotCasa) elEnTotCasa.innerText = '$ ' + fm(stCasaSum * f_ho);
+
+  const elTrSub = document.getElementById('subtotal_tr_sum');
+  const elTrTot = document.getElementById('total_tr_sum');
+  if (elTrSub) elTrSub.innerText = '$ ' + fm(trSum);
+  if (elTrTot) elTrTot.innerText = '$ ' + fm(trSum * f_tr);
+
+  const elGaSub = document.getElementById('subtotal_ga_sum');
+  const elGaTot = document.getElementById('total_ga_sum');
+  if (elGaSub) elGaSub.innerText = '$ ' + fm(gaSum);
+  if (elGaTot) elGaTot.innerText = '$ ' + fm(gaSum * f_ga);
+
+  const elImssSub = document.getElementById('subtotal_imss_sum');
+  const elImssTot = document.getElementById('total_imss_sum');
+  if (elImssSub) elImssSub.innerText = '$ ' + fm(imssSum);
+  if (elImssTot) elImssTot.innerText = '$ ' + fm(imssSum * f_imss);
+
+  // Grand total formula with all factors
+  const totalMn = (cdSum1 * f_cd) + (cdSum2 * f_af) + (enSum1 * f_en) + (stAutoSum * f_al) + (stCasaSum * f_ho) + (trSum * f_tr) + (gaSum * f_ga) + (imssSum * f_imss);
+  const p = projectData.proyecto || {};
+  const totalUsd = totalMn / (parseFloat(p.tipo_cambio_usd) || 20);
+
+  const elTotMnHdr = document.getElementById('insumos-tot-mn-hdr');
+  const elTotUsdHdr = document.getElementById('insumos-tot-usd-hdr');
+  const elTotMn2 = document.getElementById('insumos-tot-mn');
+  const elTotUsd = document.getElementById('insumos-tot-usd');
+
+  if (elTotMnHdr) elTotMnHdr.innerText = '$ ' + fm(totalMn);
+  if (elTotUsdHdr) elTotUsdHdr.innerText = '$ ' + fm(totalUsd);
+  if (elTotMn2) elTotMn2.innerText = '$ ' + fm(totalMn);
+  if (elTotUsd) elTotUsd.innerText = '$ ' + fm(totalUsd);
 }
 
 function renderInsumos(c, sec) {
-  const FACTOR = 1.2;
+  const p = projectData.proyecto || {};
+  const listas = projectData.listas || [];
+
+  const getFactor = (name) => {
+    const f = listas.find(x => x.seccion_codigo === 'INSUMOS' && x.valor === name);
+    return f ? parseFloat(f.factor) || 1 : 1;
+  };
+
+  const f_cd   = getFactor('FACTOR VIATICOS A CD');
+  const f_af   = getFactor('FACTOR AUTO FORANEO');
+  const f_en   = getFactor('FACTOR VIATICOS EN CD');
+  const f_al   = getFactor('FACTOR AUTO LOCAL');
+  const f_ho   = getFactor('FACTOR HOSPEDAJE');
+  const f_tr   = getFactor('FACTOR TRANSPORTE');
+  const f_ga   = getFactor('FACTOR GASTOS ADMIN');
+  const f_imss = getFactor('FACTOR IMSS');
+
   const cdRows = projectData.insumos_cd || [];
   const enRows = projectData.insumos_en_cd || [];
   const trRows = projectData.insumos_transporte || [];
+  const gaRows = projectData.insumos_gastos_admin || [];
+  const imssRows = projectData.insumos_imss || [];
 
-  // Calculate totals
-  const cdSum1 = cdRows.reduce((s,r)=>s+parseFloat(r.subtotal_mn||0),0);
-  const cdSum2 = cdRows.reduce((s,r)=>s+parseFloat(r.subtotal_mn2||0),0);
-  const enSum1 = enRows.reduce((s,r)=>s+parseFloat(r.subtotal_mn||0),0);
-  const enSum2 = enRows.reduce((s,r)=>s+parseFloat(r.subtotal_mn2||0),0);
-  const trSum  = trRows.reduce((s,r)=>s+parseFloat(r.subtotal||0),0);
-  const totalMN = (cdSum1+cdSum2)*FACTOR + (enSum1+enSum2)*FACTOR + trSum*FACTOR;
-
-  // Input helper
-  const inp = (f, val, type='number', w='60px', extra='') =>
-    `<input class="excel-input" type="${type}" value="${esc(String(val||''))}" data-f="${f}" oninput="${extra}" style="width:${w};padding:3px 5px;font-size:11px;" step="any"/>`;
-
-  // ── Viáticos a CD rows ──────────────────────────────────────────
-  const cdHeaderStyle = 'background:#0d3c61;color:white;font-size:11px;font-weight:700;text-align:center;padding:5px 4px;border:1px solid #1a5276;';
-  const cdCellStyle   = 'background:#d4e9f7;font-size:11px;padding:3px;border:1px solid #aed6f1;';
-  const cdDarkCell    = 'background:#1a5276;border:1px solid #1a5276;';
-  const cdBlueCell    = 'background:#1e8bc3;color:white;font-size:11px;font-weight:700;padding:4px;text-align:center;border:1px solid #1a5276;';
-
-  let cdRowsHtml = '';
+  let cdSum1 = 0, cdSum2 = 0;
   cdRows.forEach(r => {
-    const sub1 = parseFloat(r.subtotal_mn||0), sub2 = parseFloat(r.subtotal_mn2||0);
-    cdRowsHtml += `<tr id="icd-row-${r.id}">
-      <td style="${cdCellStyle}">${inp('persona',r.persona,'text','100%','saveInsumosCd('+r.id+',"persona",this.value)')}</td>
-      <td style="${cdCellStyle}">${inp('personas',r.personas,'number','45px','saveInsumosCd('+r.id+',"personas",this.value)')}</td>
-      <td style="${cdCellStyle}">${inp('viajes_cd',r.viajes_cd,'number','45px','saveInsumosCd('+r.id+',"viajes_cd",this.value)')}</td>
-      <td style="${cdCellStyle}">$ ${inp('autobus',r.autobus,'number','55px','saveInsumosCd('+r.id+',"autobus",this.value)')}</td>
-      <td style="${cdCellStyle}">$ ${inp('taxis',r.taxis,'number','55px','saveInsumosCd('+r.id+',"taxis",this.value)')}</td>
-      <td style="${cdCellStyle};text-align:right;" id="icd-sub1-${r.id}">$ ${fmtN(sub1)}</td>
-      <td style="${cdDarkCell}"></td>
-      <td style="${cdCellStyle}">${inp('autocasetas',r.autocasetas,'number','55px','saveInsumosCd('+r.id+',"autocasetas",this.value)')}</td>
-      <td style="${cdCellStyle}">${inp('gasolina',r.gasolina,'number','55px','saveInsumosCd('+r.id+',"gasolina",this.value)')}</td>
-      <td style="${cdCellStyle};text-align:right;" id="icd-sub2-${r.id}">$ ${fmtN(sub2)}</td>
-      <td style="background:transparent;border:none;width:28px;"><button onclick="deleteInsumosRow(${r.id},'cd')" class="btn btn-sm btn-light text-danger border-0 py-0 px-1" style="font-size:12px;"><i class="fa-solid fa-times"></i></button></td>
-    </tr>`;
+    const p = parseFloat(r.personas)||0, v = parseFloat(r.viajes_cd)||0, a = parseFloat(r.autobus)||0, t = parseFloat(r.taxis)||0;
+    const ac = parseFloat(r.autocasetas)||0, g = parseFloat(r.gasolina)||0;
+    r.subtotal_mn = p * v * (a + t);
+    r.subtotal_mn2 = v * (ac + g);
+    cdSum1 += r.subtotal_mn;
+    cdSum2 += r.subtotal_mn2;
   });
 
-  // ── Viáticos en CD rows ─────────────────────────────────────────
-  const enCellStyle = 'background:#d0eaff;font-size:11px;padding:3px;border:1px solid #aed6f1;';
-  const enDarkCell  = 'background:#1a5276;border:1px solid #1a5276;';
-
-  let enRowsHtml = '';
+  let enSum1 = 0, stAutoSum = 0, stCasaSum = 0;
   enRows.forEach(r => {
-    const sub1 = parseFloat(r.subtotal_mn||0), sub2 = parseFloat(r.subtotal_mn2||0);
-    enRowsHtml += `<tr id="iec-row-${r.id}">
-      <td style="${enCellStyle}">${inp('persona',r.persona,'text','100%','saveInsumosEnCd('+r.id+',"persona",this.value)')}</td>
-      <td style="${enCellStyle}">${inp('personas',r.personas,'number','42px','saveInsumosEnCd('+r.id+',"personas",this.value)')}</td>
-      <td style="${enCellStyle}">${inp('dias',r.dias,'number','42px','saveInsumosEnCd('+r.id+',"dias",this.value)')}</td>
-      <td style="${enCellStyle}">$ ${inp('alimentos',r.alimentos,'number','55px','saveInsumosEnCd('+r.id+',"alimentos",this.value)')}</td>
-      <td style="${enCellStyle}">$ ${inp('hotel',r.hotel,'number','55px','saveInsumosEnCd('+r.id+',"hotel",this.value)')}</td>
-      <td style="${enCellStyle}">$ ${inp('transporte',r.transporte,'number','55px','saveInsumosEnCd('+r.id+',"transporte",this.value)')}</td>
-      <td style="${enCellStyle};text-align:right;" id="iec-sub1-${r.id}">$ ${fmtN(sub1)}</td>
-      <td style="${enDarkCell}"></td>
-      <td style="${enCellStyle}">$ ${inp('renta_coche',r.renta_coche,'number','55px','saveInsumosEnCd('+r.id+',"renta_coche",this.value)')}</td>
-      <td style="${enCellStyle}">${inp('meses',r.meses,'number','42px','saveInsumosEnCd('+r.id+',"meses",this.value)')}</td>
-      <td style="${enCellStyle}">$ ${inp('renta_casa',r.renta_casa,'number','55px','saveInsumosEnCd('+r.id+',"renta_casa",this.value)')}</td>
-      <td style="${enCellStyle};text-align:right;" id="iec-sub2-${r.id}">$ ${fmtN(sub2)}</td>
-      <td style="background:transparent;border:none;width:28px;"><button onclick="deleteInsumosRow(${r.id},'en_cd')" class="btn btn-sm btn-light text-danger border-0 py-0 px-1" style="font-size:12px;"><i class="fa-solid fa-times"></i></button></td>
-    </tr>`;
+    const p = parseFloat(r.personas)||0, di = parseFloat(r.dias)||0, al = parseFloat(r.alimentos)||0, h = parseFloat(r.hotel)||0, tr = parseFloat(r.transporte)||0;
+    const rc = parseFloat(r.renta_coche)||0, g = parseFloat(r.gasolina)||0, da = parseFloat(r.dias_auto)||0;
+    const m = parseFloat(r.meses)||0, ca = parseFloat(r.renta_casa)||0;
+    r.subtotal_mn = p * di * (al + h + tr);
+    r.stAuto = (rc + g) * da;
+    r.stCasa = ca * m;
+    r.subtotal_mn2 = r.stAuto + r.stCasa;
+    enSum1 += r.subtotal_mn;
+    stAutoSum += r.stAuto;
+    stCasaSum += r.stCasa;
   });
 
-  // ── Transporte rows ─────────────────────────────────────────────
-  const trCellStyle = 'background:#d4e9f7;font-size:11px;padding:3px;border:1px solid #aed6f1;';
-  let trRowsHtml = '';
+  let trSum = 0;
   trRows.forEach(r => {
-    const sub = parseFloat(r.subtotal||0);
-    trRowsHtml += `<tr id="itr-row-${r.id}">
-      <td style="${trCellStyle}">${inp('descripcion',r.descripcion,'text','100%','saveInsumosTransporte('+r.id+')')}</td>
-      <td style="${trCellStyle}">${inp('costo',r.costo,'number','70px','saveInsumosTransporte('+r.id+')')}</td>
-      <td style="${trCellStyle}">${inp('no_veces',r.no_veces,'number','55px','saveInsumosTransporte('+r.id+')')}</td>
-      <td style="${trCellStyle};text-align:right;font-weight:700;" id="itr-sub-${r.id}">${fmtN(sub)}</td>
-      <td style="background:transparent;border:none;width:28px;"><button onclick="deleteInsumosRow(${r.id},'transporte')" class="btn btn-sm btn-light text-danger border-0 py-0 px-1" style="font-size:12px;"><i class="fa-solid fa-times"></i></button></td>
+    r.subtotal = (parseFloat(r.costo)||0) * (parseFloat(r.no_veces)||0);
+    trSum += r.subtotal;
+  });
+
+  let gaSum = 0;
+  gaRows.forEach(r => {
+    r.subtotal = parseFloat(r.costo)||0;
+    gaSum += r.subtotal;
+  });
+
+  let imssSum = 0;
+  imssRows.forEach(r => {
+    r.subtotal = (parseFloat(r.personas)||0) * (parseFloat(r.costo_dia)||0) * (parseFloat(r.dias)||0);
+    imssSum += r.subtotal;
+  });
+
+  let totalMn = (cdSum1 * f_cd) + (cdSum2 * f_af) + (enSum1 * f_en) + (stAutoSum * f_al) + (stCasaSum * f_ho) + (trSum * f_tr) + (gaSum * f_ga) + (imssSum * f_imss);
+  let totalUsd = totalMn / (parseFloat(p.tipo_cambio_usd) || 20);
+
+  const fm = (n) => parseFloat(n||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+  // Inputs helper with full width or fixed width
+  const inp = (type, val, id, tbl, fld, w, align='center', step='any') => `<input type="${type}" step="${step}" class="excel-input insumos-no-spin" data-tbl="${tbl}" data-id="${id}" data-fld="${fld}" style="width:${w};max-width:${w};box-sizing:border-box;text-align:${align};${align==='left'?'padding-left:8px;':''}" value="${val||''}" data-orig="${val||''}" oninput="recalcInsumoRow('${tbl}',${id})" onblur="if(this.value!==this.dataset.orig){updateInsumosGeneric('${tbl}',${id},'${fld}',this.value);this.dataset.orig=this.value;}">`;
+
+  // Currency helper locking '$' and input box side-by-side
+  const curInp = (val, id, tbl, fld, w) => `<div style="display:flex;align-items:center;justify-content:center;gap:3px;white-space:nowrap;"><span style="font-weight:600;color:#334155;font-size:12px;">$</span>${inp('number',val,id,tbl,fld,w)}</div>`;
+
+  const S = {
+    hdr: 'background:#0e233d;color:#fff;text-align:center;font-weight:700;padding:10px 8px;border:1px solid #1a3a5c;font-size:12px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;',
+    sub: 'background:#17406d;color:#e0ecf8;text-align:center;font-weight:600;padding:8px 6px;border:1px solid #1a3a5c;font-size:11px;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap;',
+    cell: 'padding:5px 6px;text-align:center;border-bottom:1px solid #e2e8f0;background:#fff;vertical-align:middle;font-size:12px;white-space:nowrap;',
+    sum: 'padding:6px 12px;text-align:center;border-bottom:1px solid #bcd4e6;font-weight:700;color:#0e233d;background:#dbeafe;font-size:12px;white-space:nowrap;',
+    sep: 'background:linear-gradient(180deg,#2081C3,#1565a0);width:5px;border:none;',
+    dark: 'background:#0e233d;color:#fff;font-weight:700;text-align:center;padding:8px;border:1px solid #1a3a5c;font-size:12px;white-space:nowrap;',
+    blue: 'background:#2081C3;color:#fff;font-weight:700;text-align:center;padding:9px 12px;border:1px solid #1670a8;font-size:13px;white-space:nowrap;',
+    del: 'border:none;width:28px;text-align:center;vertical-align:middle;padding:0;'
+  };
+  const xBtn = (tbl, id) => `<td style="${S.del}"><span onclick="deleteInsumosRow(${id},'${tbl}')" style="color:#dc2626;cursor:pointer;font-size:16px;font-weight:700;line-height:1;" title="Eliminar">✕</span></td>`;
+
+  let html = '';
+
+  // Header Banner
+  html += `
+    <div class="card shadow-sm border-0 overflow-hidden mb-4">
+      <div class="p-3 d-flex align-items-center justify-content-between text-white" style="background:${sec.color||'#dc2626'}">
+        <div>
+          <div class="text-uppercase" style="font-size:10px;opacity:0.8;letter-spacing:0.5px">Sección</div>
+          <div class="fs-5 fw-bold">${sec.titulo||sec.codigo||'INSUMOS'}</div>
+        </div>
+        <div class="text-end text-white text-opacity-90" style="font-size:13px">
+          <div>Total USD: <strong id="insumos-tot-usd-hdr">$ ${fm(totalUsd)}</strong></div>
+          <div>Total MN: <strong id="insumos-tot-mn-hdr">$ ${fm(totalMn)}</strong></div>
+        </div>
+      </div>
+    </div>`;
+
+  // Total summary table
+  html += `<table style="border-collapse:collapse;max-width:480px;font-family:sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.1);border-radius:6px;overflow:hidden;margin-bottom:24px;">
+    <tr><th style="${S.hdr}"></th><th style="${S.hdr}">TOTAL MN</th><th style="${S.hdr}">TOTAL USD</th></tr>
+    <tr><td style="${S.blue};text-align:left;padding-left:16px;">TOTAL DE INSUMOS</td><td style="${S.blue};font-size:15px;" id="insumos-tot-mn">$ ${fm(totalMn)}</td><td style="${S.blue};font-size:15px;" id="insumos-tot-usd">$ ${fm(totalUsd)}</td></tr>
+  </table>`;
+
+  // VIÁTICOS A CD: Full width 100%, responsive column distribution (No white gap on right!)
+  html += `<div style="margin-bottom:32px;overflow-x:auto;box-shadow:0 2px 10px rgba(0,0,0,.08);border-radius:8px;border:1px solid #e2e8f0;background:#fff;">
+    <table style="border-collapse:collapse;width:100%;min-width:980px;font-family:sans-serif;">
+      <tr><th colspan="6" style="${S.hdr}">VIÁTICOS A CD</th><td style="${S.sep}"></td><th colspan="3" style="${S.hdr}">AUTO FORÁNEO</th><th style="${S.del}"></th></tr>
+      <tr>
+        <th style="${S.sub};text-align:left;padding-left:12px;">PUESTO / CONCEPTO</th>
+        <th style="${S.sub};width:70px;">PERSONAS</th>
+        <th style="${S.sub};width:85px;">VIAJES A CD</th>
+        <th style="${S.sub};width:100px;">AUTOBUS</th>
+        <th style="${S.sub};width:100px;">TAXIS</th>
+        <th style="${S.sub};width:125px;">SUB TOTAL MN</th>
+        <td style="${S.sep}"></td>
+        <th style="${S.sub};width:100px;">CASETAS</th>
+        <th style="${S.sub};width:100px;">GASOLINA</th>
+        <th style="${S.sub};width:125px;">SUB TOTAL MN</th>
+        <th style="${S.del}"></th>
+      </tr>`;
+  cdRows.forEach(r => {
+    html += `<tr>
+      <td style="${S.cell};text-align:left;">${inp('text',r.persona||'',r.id,'viaticos_cd','persona','100%','left')}</td>
+      <td style="${S.cell}">${inp('number',r.personas||0,r.id,'viaticos_cd','personas','100%')}</td>
+      <td style="${S.cell}">${inp('number',r.viajes_cd||0,r.id,'viaticos_cd','viajes_cd','100%')}</td>
+      <td style="${S.cell}">${curInp(r.autobus||0,r.id,'viaticos_cd','autobus','80px')}</td>
+      <td style="${S.cell}">${curInp(r.taxis||0,r.id,'viaticos_cd','taxis','80px')}</td>
+      <td style="${S.sum}" id="sub1_cd_${r.id}">$ ${fm(r.subtotal_mn)}</td>
+      <td style="${S.sep}"></td>
+      <td style="${S.cell}">${curInp(r.autocasetas||0,r.id,'viaticos_cd','autocasetas','80px')}</td>
+      <td style="${S.cell}">${curInp(r.gasolina||0,r.id,'viaticos_cd','gasolina','80px')}</td>
+      <td style="${S.sum}" id="sub2_cd_${r.id}">$ ${fm(r.subtotal_mn2)}</td>
+      ${xBtn('viaticos_cd',r.id)}
+    </tr>`;
+  });
+  html += `<tr><td colspan="5" style="${S.dark}"></td><td style="${S.blue}" id="subtotal_cd_sum1">$ ${fm(cdSum1)}</td><td style="${S.sep}"></td><td colspan="2" style="${S.dark}"></td><td style="${S.blue}" id="subtotal_cd_sum2">$ ${fm(cdSum2)}</td><td style="${S.del}"></td></tr>
+    <tr><td colspan="4" style="border:none;"></td><td style="${S.blue}">FACTOR</td><td style="${S.blue}">${f_cd}</td><td style="border:none;"></td><td style="border:none;"></td><td style="${S.blue}">FACTOR</td><td style="${S.blue}">${f_af}</td><td style="${S.del}"></td></tr>
+    <tr><td colspan="4" style="border:none;"></td><td style="${S.blue}">TOTAL</td><td style="${S.blue}" id="total_cd_sum1">$ ${fm(cdSum1*f_cd)}</td><td style="border:none;"></td><td style="border:none;"></td><td style="${S.blue}">TOTAL</td><td style="${S.blue}" id="total_cd_sum2">$ ${fm(cdSum2*f_af)}</td><td style="${S.del}"></td></tr>
+  </table>
+  <div style="padding:10px 16px;background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom-left-radius:8px;border-bottom-right-radius:8px;"><button class="btn btn-sm" style="background:#0e233d;color:#fff;font-weight:600;font-size:12px;padding:6px 14px;box-shadow:0 1px 3px rgba(0,0,0,.2);" onclick="addInsumosRow('cd')"><i class="fas fa-plus"></i> Agregar Fila</button></div></div>`;
+
+  // VIÁTICOS EN CD: Scrollable 100% visible, no cut-offs on the right or bottom!
+  html += `<div style="margin-bottom:32px;overflow-x:auto;box-shadow:0 2px 10px rgba(0,0,0,.08);border-radius:8px;border:1px solid #e2e8f0;background:#fff;">
+    <table style="border-collapse:collapse;width:100%;min-width:1420px;font-family:sans-serif;">
+      <tr><th colspan="7" style="${S.hdr}">VIÁTICOS EN CD</th><td style="${S.sep}"></td><th colspan="4" style="${S.hdr}">AUTO LOCAL</th><td style="${S.sep}"></td><th colspan="3" style="${S.hdr}">HOSPEDAJE LOCAL</th><th style="${S.del}"></th></tr>
+      <tr>
+        <th style="${S.sub};min-width:200px;text-align:left;padding-left:12px;">PUESTO / CONCEPTO</th>
+        <th style="${S.sub};width:65px;">PERSONAS</th>
+        <th style="${S.sub};width:65px;">DÍAS</th>
+        <th style="${S.sub};width:95px;">ALIMENTOS</th>
+        <th style="${S.sub};width:95px;">HOTEL</th>
+        <th style="${S.sub};width:95px;">TRANSPORTE</th>
+        <th style="${S.sub};width:120px;">SUB TOTAL MN</th>
+        <td style="${S.sep}"></td>
+        <th style="${S.sub};width:95px;">RENTA COCHE</th>
+        <th style="${S.sub};width:95px;">GASOLINA</th>
+        <th style="${S.sub};width:65px;">DÍAS</th>
+        <th style="${S.sub};width:120px;">SUB TOTAL AUTO</th>
+        <td style="${S.sep}"></td>
+        <th style="${S.sub};width:65px;">MESES</th>
+        <th style="${S.sub};width:95px;">RENTA CASA</th>
+        <th style="${S.sub};width:120px;">SUB TOTAL CASA</th>
+        <th style="${S.del}"></th>
+      </tr>`;
+  enRows.forEach(r => {
+    let dias_auto = parseFloat(r.dias_auto)||0;
+    let rc = parseFloat(r.renta_coche)||0;
+    let gas = parseFloat(r.gasolina)||0;
+    let stAuto = (rc + gas) * dias_auto;
+    let stCasa = (parseFloat(r.renta_casa)||0) * (parseFloat(r.meses)||0);
+    html += `<tr>
+      <td style="${S.cell};text-align:left;">${inp('text',r.persona||'',r.id,'viaticos_en_cd','persona','100%','left')}</td>
+      <td style="${S.cell}">${inp('number',r.personas||0,r.id,'viaticos_en_cd','personas','100%')}</td>
+      <td style="${S.cell}">${inp('number',r.dias||0,r.id,'viaticos_en_cd','dias','100%')}</td>
+      <td style="${S.cell}">${curInp(r.alimentos||0,r.id,'viaticos_en_cd','alimentos','75px')}</td>
+      <td style="${S.cell}">${curInp(r.hotel||0,r.id,'viaticos_en_cd','hotel','75px')}</td>
+      <td style="${S.cell}">${curInp(r.transporte||0,r.id,'viaticos_en_cd','transporte','75px')}</td>
+      <td style="${S.sum}" id="sub1_en_${r.id}">$ ${fm(r.subtotal_mn)}</td>
+      <td style="${S.sep}"></td>
+      <td style="${S.cell}">${curInp(r.renta_coche||0,r.id,'viaticos_en_cd','renta_coche','75px')}</td>
+      <td style="${S.cell}">${curInp(r.gasolina||0,r.id,'viaticos_en_cd','gasolina','75px')}</td>
+      <td style="${S.cell}">${inp('number',r.dias_auto||0,r.id,'viaticos_en_cd','dias_auto','100%')}</td>
+      <td style="${S.sum};background:#e0f2fe;" id="stAuto_en_${r.id}">$ ${fm(stAuto)}</td>
+      <td style="${S.sep}"></td>
+      <td style="${S.cell}">${inp('number',r.meses||0,r.id,'viaticos_en_cd','meses','100%')}</td>
+      <td style="${S.cell}">${curInp(r.renta_casa||0,r.id,'viaticos_en_cd','renta_casa','75px')}</td>
+      <td style="${S.sum};background:#e0f2fe;" id="stCasa_en_${r.id}">$ ${fm(stCasa)}</td>
+      ${xBtn('viaticos_en_cd',r.id)}
     </tr>`;
   });
 
-  c.innerHTML = `
-  <div class="card shadow-sm border-0 overflow-hidden mb-3">
-    <div class="p-3 d-flex align-items-center justify-content-between text-white" style="background:#dc2626">
-      <div>
-        <div class="text-uppercase" style="font-size:10px;opacity:0.8;letter-spacing:0.5px">Sección</div>
-        <div class="fs-5 fw-bold">INSUMOS</div>
-      </div>
-      <div class="text-end text-white text-opacity-90" style="font-size:13px">
-        <div>Total MN: <strong id="ins-total-mn">${fmt(totalMN)}</strong></div>
-      </div>
-    </div>
-  </div>
+  html += `<tr>
+      <td colspan="5" style="${S.dark}">SUBTOTAL VIÁTICOS</td><td style="${S.blue}" id="subtotal_en_sum1">$ ${fm(enSum1)}</td>
+      <td style="${S.sep}"></td>
+      <td colspan="3" style="${S.dark}">SUBTOTAL AUTO LOCAL</td><td style="${S.blue}" id="subtotal_en_auto">$ ${fm(stAutoSum)}</td>
+      <td style="${S.sep}"></td>
+      <td colspan="2" style="${S.dark}">SUBTOTAL HOSPEDAJE</td><td style="${S.blue}" id="subtotal_en_casa">$ ${fm(stCasaSum)}</td>
+      <td style="${S.del}"></td>
+    </tr>
+    <tr>
+      <td colspan="4" style="border:none;"></td><td style="${S.blue}">FACTOR</td><td style="${S.blue}">${f_en}</td>
+      <td style="border:none;"></td>
+      <td colspan="2" style="border:none;"></td><td style="${S.blue}">FACTOR</td><td style="${S.blue}">${f_al}</td>
+      <td style="border:none;"></td>
+      <td style="border:none;"></td><td style="${S.blue}">FACTOR</td><td style="${S.blue}">${f_ho}</td>
+      <td style="${S.del}"></td>
+    </tr>
+    <tr>
+      <td colspan="4" style="border:none;"></td><td style="${S.blue}">TOTAL</td><td style="${S.blue}" id="total_en_sum1">$ ${fm(enSum1*f_en)}</td>
+      <td style="border:none;"></td>
+      <td colspan="2" style="border:none;"></td><td style="${S.blue}">TOTAL AUTO</td><td style="${S.blue}" id="total_en_auto">$ ${fm(stAutoSum*f_al)}</td>
+      <td style="border:none;"></td>
+      <td style="border:none;"></td><td style="${S.blue}">TOTAL HOSPEDAJE</td><td style="${S.blue}" id="total_en_casa">$ ${fm(stCasaSum*f_ho)}</td>
+      <td style="${S.del}"></td>
+    </tr>
+  </table>
+  <div style="padding:10px 16px;background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom-left-radius:8px;border-bottom-right-radius:8px;"><button class="btn btn-sm" style="background:#0e233d;color:#fff;font-weight:600;font-size:12px;padding:6px 14px;box-shadow:0 1px 3px rgba(0,0,0,.2);" onclick="addInsumosRow('en_cd')"><i class="fas fa-plus"></i> Agregar Fila</button></div></div>`;
 
-  <!-- ═══ VIÁTICOS A CD ═══ -->
-  <div class="card shadow-sm border-0 mb-3 overflow-hidden">
-    <div class="p-2 px-3 fw-bold text-white" style="background:#0d3c61;font-size:13px;">VIÁTICOS A CD</div>
-    <div class="table-responsive">
-      <table style="border-collapse:collapse;width:100%;min-width:700px;">
-        <thead><tr>
-          <th style="${cdHeaderStyle};min-width:110px;">VIÁTICOS A CD</th>
-          <th style="${cdHeaderStyle};width:55px;">PERSONAS</th>
-          <th style="${cdHeaderStyle};width:65px;">VIAJES A CD</th>
-          <th style="${cdHeaderStyle};width:80px;">AUTOBÚS</th>
-          <th style="${cdHeaderStyle};width:80px;">TAXIS</th>
-          <th style="${cdHeaderStyle};width:90px;">SUBTOTAL MN</th>
-          <th style="${cdDarkCell};width:14px;"></th>
-          <th style="${cdHeaderStyle};width:90px;">AUTO-CASETAS</th>
-          <th style="${cdHeaderStyle};width:80px;">GASOLINA</th>
-          <th style="${cdHeaderStyle};width:90px;">SUB TOTAL MN</th>
-          <th style="background:transparent;border:none;width:28px;"></th>
-        </tr></thead>
-        <tbody>${cdRowsHtml}</tbody>
-        <tfoot>
-          <tr style="background:#1a5276;">
-            <td colspan="5" style="background:#1a5276;border:1px solid #0d3c61;"></td>
-            <td style="${cdBlueCell}" id="icd-sum1">$ ${fmtN(cdSum1)}</td>
-            <td style="${cdDarkCell}"></td>
-            <td colspan="2" style="background:#1a5276;border:1px solid #0d3c61;"></td>
-            <td style="${cdBlueCell}" id="icd-sum2">$ ${fmtN(cdSum2)}</td>
-            <td style="background:transparent;border:none;"></td>
-          </tr>
-          <tr>
-            <td colspan="4" style="background:#d4e9f7;border:1px solid #aed6f1;"></td>
-            <td style="${cdBlueCell}">FACTOR</td>
-            <td style="${cdBlueCell}" id="icd-total1">$ ${fmtN(cdSum1*FACTOR)}</td>
-            <td style="${cdDarkCell}"></td>
-            <td style="${cdBlueCell}">FACTOR</td>
-            <td style="background:#d4e9f7;border:1px solid #aed6f1;"></td>
-            <td style="${cdBlueCell}" id="icd-total2">$ ${fmtN(cdSum2*FACTOR)}</td>
-            <td style="background:transparent;border:none;"></td>
-          </tr>
-          <tr>
-            <td colspan="4" style="background:#d4e9f7;border:1px solid #aed6f1;"></td>
-            <td style="${cdBlueCell}">TOTAL</td>
-            <td style="${cdBlueCell}">$ -</td>
-            <td style="${cdDarkCell}"></td>
-            <td style="${cdBlueCell}">TOTAL</td>
-            <td style="background:#d4e9f7;border:1px solid #aed6f1;"></td>
-            <td style="${cdBlueCell}">$ -</td>
-            <td style="background:transparent;border:none;"></td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-    <div class="p-2 border-top bg-light">
-      <button onclick="addInsumosRow('cd')" class="btn btn-sm d-flex align-items-center gap-1 fw-semibold" style="background:#0d3c61;color:white;font-size:12px;">
-        <i class="fa-solid fa-plus"></i> Agregar Fila
-      </button>
-    </div>
-  </div>
+  // Row 1: TRANSPORTE & GASTOS ADMIN
+  html += `<div style="display:flex;flex-wrap:wrap;gap:24px;margin-bottom:32px;">`;
 
-  <!-- ═══ VIÁTICOS EN CD ═══ -->
-  <div class="card shadow-sm border-0 mb-3 overflow-hidden">
-    <div class="p-2 px-3 fw-bold text-white" style="background:#0d3c61;font-size:13px;">VIÁTICOS EN CD</div>
-    <div class="table-responsive">
-      <table style="border-collapse:collapse;width:100%;min-width:800px;">
-        <thead><tr>
-          <th style="${cdHeaderStyle};min-width:110px;">VIÁTICOS EN CD</th>
-          <th style="${cdHeaderStyle};width:55px;">PERSONAS</th>
-          <th style="${cdHeaderStyle};width:50px;">DÍAS</th>
-          <th style="${cdHeaderStyle};width:80px;">ALIMENTOS</th>
-          <th style="${cdHeaderStyle};width:75px;">HOTEL</th>
-          <th style="${cdHeaderStyle};width:80px;">TRANSPORTE</th>
-          <th style="${cdHeaderStyle};width:90px;">SUB TOTAL MN</th>
-          <th style="${cdDarkCell};width:14px;"></th>
-          <th style="${cdHeaderStyle};width:90px;">RENTA COCHE</th>
-          <th style="${cdHeaderStyle};width:55px;">MESES</th>
-          <th style="${cdHeaderStyle};width:80px;">RENTA CASA</th>
-          <th style="${cdHeaderStyle};width:90px;">SUB TOTAL MN2</th>
-          <th style="background:transparent;border:none;width:28px;"></th>
-        </tr></thead>
-        <tbody>${enRowsHtml}</tbody>
-        <tfoot>
-          <tr style="background:#1a5276;">
-            <td colspan="6" style="background:#1a5276;border:1px solid #0d3c61;"></td>
-            <td style="${cdBlueCell}" id="iec-sum1">$ ${fmtN(enSum1)}</td>
-            <td style="${cdDarkCell}"></td>
-            <td colspan="3" style="background:#1a5276;border:1px solid #0d3c61;"></td>
-            <td style="${cdBlueCell}" id="iec-sum2">$ ${fmtN(enSum2)}</td>
-            <td style="background:transparent;border:none;"></td>
-          </tr>
-          <tr>
-            <td colspan="5" style="background:#d0eaff;border:1px solid #aed6f1;"></td>
-            <td style="${cdBlueCell}">FACTOR</td>
-            <td style="${cdBlueCell}" id="iec-total1">$ ${fmtN(enSum1*FACTOR)}</td>
-            <td style="${cdDarkCell}"></td>
-            <td style="${cdBlueCell}">FACTOR</td>
-            <td colspan="2" style="background:#d0eaff;border:1px solid #aed6f1;"></td>
-            <td style="${cdBlueCell}" id="iec-total2">$ ${fmtN(enSum2*FACTOR)}</td>
-            <td style="background:transparent;border:none;"></td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-    <div class="p-2 border-top bg-light">
-      <button onclick="addInsumosRow('en_cd')" class="btn btn-sm d-flex align-items-center gap-1 fw-semibold" style="background:#0d3c61;color:white;font-size:12px;">
-        <i class="fa-solid fa-plus"></i> Agregar Fila
-      </button>
-    </div>
-  </div>
+  // TRANSPORTE
+  html += `<div style="flex:1;min-width:440px;box-shadow:0 2px 10px rgba(0,0,0,.08);border-radius:8px;border:1px solid #e2e8f0;background:#fff;overflow-x:auto;">
+    <table style="border-collapse:collapse;width:100%;font-family:sans-serif;">
+      <tr><th colspan="4" style="${S.hdr}">TRANSPORTE</th><th style="${S.del}"></th></tr>
+      <tr><th style="${S.sub};min-width:200px;text-align:left;padding-left:12px;">TRANSPORTE</th><th style="${S.sub};width:100px;">COSTO</th><th style="${S.sub};width:70px;">NO. VECES</th><th style="${S.sub};width:110px;">SUB TOTAL</th><th style="${S.del}"></th></tr>`;
+  trRows.forEach(r => {
+    html += `<tr>
+      <td style="${S.cell};text-align:left;">${inp('text',r.descripcion||'',r.id,'transporte','descripcion','100%','left')}</td>
+      <td style="${S.cell}">${curInp(r.costo||0,r.id,'transporte','transporte_costo','75px')}</td>
+      <td style="${S.cell}">${inp('number',r.no_veces||0,r.id,'transporte','no_veces','100%')}</td>
+      <td style="${S.sum}" id="sub_tr_${r.id}">$ ${fm(r.subtotal)}</td>
+      ${xBtn('transporte',r.id)}
+    </tr>`;
+  });
+  html += `<tr><td colspan="2" style="border:none;"></td><td style="${S.blue}">SUBTOTAL</td><td style="${S.blue}" id="subtotal_tr_sum">$ ${fm(trSum)}</td><td style="${S.del}"></td></tr>
+    <tr><td colspan="2" style="border:none;"></td><td style="${S.blue}">FACTOR</td><td style="${S.blue}">${f_tr}</td><td style="${S.del}"></td></tr>
+    <tr><td colspan="2" style="border:none;"></td><td style="${S.blue}">TOTAL</td><td style="${S.blue}" id="total_tr_sum">$ ${fm(trSum*f_tr)}</td><td style="${S.del}"></td></tr>
+  </table>
+  <div style="padding:10px 16px;background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom-left-radius:8px;border-bottom-right-radius:8px;"><button class="btn btn-sm" style="background:#0e233d;color:#fff;font-weight:600;font-size:12px;padding:6px 14px;box-shadow:0 1px 3px rgba(0,0,0,.2);" onclick="addInsumosRow('transporte')"><i class="fas fa-plus"></i> Agregar Fila</button></div></div>`;
 
-  <!-- ═══ TRANSPORTE ═══ -->
-  <div class="card shadow-sm border-0 mb-3 overflow-hidden" style="max-width:450px;">
-    <div class="p-2 px-3 fw-bold text-white" style="background:#0d3c61;font-size:13px;">TRANSPORTE</div>
-    <div class="table-responsive">
-      <table style="border-collapse:collapse;width:100%;">
-        <thead><tr>
-          <th style="${cdHeaderStyle};min-width:150px;">TRANSPORTE</th>
-          <th style="${cdHeaderStyle};width:85px;">COSTO</th>
-          <th style="${cdHeaderStyle};width:75px;">NO. VECES</th>
-          <th style="${cdHeaderStyle};width:90px;">SUB TOTAL</th>
-          <th style="background:transparent;border:none;width:28px;"></th>
-        </tr></thead>
-        <tbody>${trRowsHtml}</tbody>
-        <tfoot>
-          <tr style="background:#1a5276;">
-            <td colspan="2" style="background:#1a5276;border:1px solid #0d3c61;"></td>
-            <td colspan="1" style="${cdBlueCell}">SUBTOTAL</td>
-            <td style="${cdBlueCell};text-align:right;" id="itr-sum">${fmtN(trSum)}</td>
-            <td style="background:transparent;border:none;"></td>
-          </tr>
-          <tr>
-            <td colspan="2" style="background:#d4e9f7;border:1px solid #aed6f1;"></td>
-            <td style="${cdBlueCell}">FACTOR</td>
-            <td style="${cdBlueCell}">1.2</td>
-            <td style="background:transparent;border:none;"></td>
-          </tr>
-          <tr>
-            <td colspan="2" style="background:#d4e9f7;border:1px solid #aed6f1;"></td>
-            <td style="${cdBlueCell}">TOTAL</td>
-            <td style="${cdBlueCell}" id="itr-total">$ ${fmtN(trSum*FACTOR)}</td>
-            <td style="background:transparent;border:none;"></td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-    <div class="p-2 border-top bg-light">
-      <button onclick="addInsumosRow('transporte')" class="btn btn-sm d-flex align-items-center gap-1 fw-semibold" style="background:#0d3c61;color:white;font-size:12px;">
-        <i class="fa-solid fa-plus"></i> Agregar Fila
-      </button>
-    </div>
-  </div>`;
+  // GASTOS ADMINISTRATIVOS
+  html += `<div style="flex:1;min-width:440px;box-shadow:0 2px 10px rgba(0,0,0,.08);border-radius:8px;border:1px solid #e2e8f0;background:#fff;overflow-x:auto;">
+    <table style="border-collapse:collapse;width:100%;font-family:sans-serif;">
+      <tr><th colspan="3" style="${S.hdr}">GASTOS ADMINISTRATIVOS</th><th style="${S.del}"></th></tr>
+      <tr><th style="${S.sub};min-width:220px;text-align:left;padding-left:12px;">MATERIALES / SERVICIOS</th><th style="${S.sub};width:100px;">COSTO</th><th style="${S.sub};width:110px;">SUB TOTAL</th><th style="${S.del}"></th></tr>`;
+  gaRows.forEach(r => {
+    html += `<tr>
+      <td style="${S.cell};text-align:left;">${inp('text',r.descripcion||'',r.id,'gastos_admin','descripcion','100%','left')}</td>
+      <td style="${S.cell}">${curInp(r.costo||0,r.id,'gastos_admin','costo','80px')}</td>
+      <td style="${S.sum}" id="sub_ga_${r.id}">$ ${fm(r.subtotal)}</td>
+      ${xBtn('gastos_admin',r.id)}
+    </tr>`;
+  });
+  html += `<tr><td style="border:none;"></td><td style="${S.blue}">SUBTOTAL</td><td style="${S.blue}" id="subtotal_ga_sum">$ ${fm(gaSum)}</td><td style="${S.del}"></td></tr>
+    <tr><td style="border:none;"></td><td style="${S.blue}">FACTOR</td><td style="${S.blue}">${f_ga}</td><td style="${S.del}"></td></tr>
+    <tr><td style="border:none;"></td><td style="${S.blue}">TOTAL</td><td style="${S.blue}" id="total_ga_sum">$ ${fm(gaSum*f_ga)}</td><td style="${S.del}"></td></tr>
+  </table>
+  <div style="padding:10px 16px;background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom-left-radius:8px;border-bottom-right-radius:8px;"><button class="btn btn-sm" style="background:#0e233d;color:#fff;font-weight:600;font-size:12px;padding:6px 14px;box-shadow:0 1px 3px rgba(0,0,0,.2);" onclick="addInsumosRow('gastos_admin')"><i class="fas fa-plus"></i> Agregar Fila</button></div></div>`;
+
+  html += `</div>`; // End Row 1
+
+  // Row 2: IMSS table on its own row below
+  html += `<div style="max-width:550px;box-shadow:0 2px 10px rgba(0,0,0,.08);border-radius:8px;border:1px solid #e2e8f0;background:#fff;overflow-x:auto;">
+    <table style="border-collapse:collapse;width:100%;font-family:sans-serif;">
+      <tr><th colspan="4" style="${S.hdr}">IMSS</th><th style="${S.del}"></th></tr>
+      <tr><th style="${S.sub};width:70px;">PERSONAS</th><th style="${S.sub};width:100px;">COSTO / DÍA</th><th style="${S.sub};width:70px;">DÍAS</th><th style="${S.sub};width:110px;">SUB TOTAL</th><th style="${S.del}"></th></tr>`;
+  imssRows.forEach(r => {
+    html += `<tr>
+      <td style="${S.cell}">${inp('number',r.personas||0,r.id,'imss','personas','100%')}</td>
+      <td style="${S.cell}">${curInp(r.costo_dia||0,r.id,'imss','costo_dia','75px')}</td>
+      <td style="${S.cell}">${inp('number',r.dias||0,r.id,'imss','dias','100%')}</td>
+      <td style="${S.sum}" id="sub_imss_${r.id}">$ ${fm(r.subtotal)}</td>
+      ${xBtn('imss',r.id)}
+    </tr>`;
+  });
+  html += `<tr><td colspan="2" style="border:none;"></td><td style="${S.blue}">SUBTOTAL</td><td style="${S.blue}" id="subtotal_imss_sum">$ ${fm(imssSum)}</td><td style="${S.del}"></td></tr>
+    <tr><td colspan="2" style="border:none;"></td><td style="${S.blue}">FACTOR</td><td style="${S.blue}">${f_imss}</td><td style="${S.del}"></td></tr>
+    <tr><td colspan="2" style="border:none;"></td><td style="${S.blue}">TOTAL</td><td style="${S.blue}" id="total_imss_sum">$ ${fm(imssSum*f_imss)}</td><td style="${S.del}"></td></tr>
+  </table>
+  <div style="padding:10px 16px;background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom-left-radius:8px;border-bottom-right-radius:8px;"><button class="btn btn-sm" style="background:#0e233d;color:#fff;font-weight:600;font-size:12px;padding:6px 14px;box-shadow:0 1px 3px rgba(0,0,0,.2);" onclick="addInsumosRow('imss')"><i class="fas fa-plus"></i> Agregar Fila</button></div></div>`;
+
+  c.innerHTML = html;
 }
-// ═══════════════════════════════════════════════════════════════
+
+// Global update - saves ONE field without re-rendering (no data loss)
+window.updateInsumosGeneric = async function(tabla, id, field, val) {
+  try {
+    let fld = field === 'transporte_costo' ? 'costo' : field;
+    let arrKey = '';
+    if (tabla.includes('cd') && !tabla.includes('en_cd')) arrKey = 'insumos_cd';
+    else if (tabla.includes('en_cd')) arrKey = 'insumos_en_cd';
+    else if (tabla.includes('transporte')) arrKey = 'insumos_transporte';
+    else if (tabla.includes('gastos_admin')) arrKey = 'insumos_gastos_admin';
+    else if (tabla.includes('imss')) arrKey = 'insumos_imss';
+
+    if (arrKey && projectData[arrKey]) {
+      const item = projectData[arrKey].find(x => x.id === id);
+      if (item) {
+        let numVal = parseFloat(val);
+        item[fld] = isNaN(numVal) ? val : numVal;
+      }
+    }
+    await api('/api/insumos/update_row', 'POST', {tabla, id, field: fld, val});
+  } catch(e) { console.error('Update failed:', e); }
+};
+
+function getDescField(p, sec) {
+  const listas = projectData.listas || [];
+  const opts = listas.filter(l => l.seccion_codigo === sec.codigo || l.seccion_codigo === 'MO');
+  if (opts.length > 0) {
+    const selected = p.descripcion || '';
+    return `<select class="excel-select" data-field="descripcion" onchange="updateMO(${p.id}, 'descripcion', this.value)" style="width:100%;min-width:180px;">
+      <option value="">— Seleccionar —</option>
+      ${opts.map(o => `<option value="${esc(o.valor)}" ${o.valor===selected?'selected':''}>${esc(o.valor)}</option>`).join('')}
+    </select>`;
+  }
+  return `<input class="excel-input" value="${esc(p.descripcion||'')}" data-field="descripcion" onchange="updateMO(${p.id}, 'descripcion', this.value)" style="width:100%;min-width:180px;"/>`;
+}
 
 function renderManoObra(c, sec) {
 
@@ -1430,7 +1374,7 @@ function renderPrese(c) {
           <div class="d-flex flex-column h-100 justify-content-end pb-1">
             <div class="d-flex align-items-center mb-2">
               <strong style="min-width:130px; color:#475569;">Tipo de Cambio USD:</strong>
-              <input id="f-tc" type="number" step="0.01" class="quote-header-input border-0 bg-transparent fw-bold text-primary" style="width:70px; border-bottom:1px dashed #ccc !important; outline:none;" value="${p.tipo_cambio_usd||20}" onchange="saveProjectField()"/>
+              <input id="f-tc" oninput="saveProjectField()" type="number" step="0.01" class="quote-header-input border-0 bg-transparent fw-bold text-primary" style="width:70px; border-bottom:1px dashed #ccc !important; outline:none;" value="${p.tipo_cambio_usd||20}" onchange="saveProjectField()"/>
             </div>
           </div>
         </div>
@@ -1602,31 +1546,54 @@ async function verificarClaveListas() {
 
 async function renderListas(c) {
   const listas = projectData.listas||[];
-  const categorias = ['E_CONTROL','E_ELECTRICO','ING_MO','E_NEUMATICO','E_MECANICO','T_ELECTRICO'];
-  const nombres = {E_CONTROL:'MARCAS E. CONTROL',E_ELECTRICO:'MARCAS E. ELÉCTRICO',ING_MO:'INGENIERÍA MO',E_NEUMATICO:'E. NEUMÁTICO HIDRÁULICO',E_MECANICO:'E. MECÁNICO',T_ELECTRICO:'TABLERO ELÉCTRICO'};
+  const categorias = ['E_CONTROL','E_ELECTRICO','ING_MO','E_NEUMATICO','E_MECANICO','T_ELECTRICO', 'INSUMOS'];
+  const nombres = {E_CONTROL:'MARCAS E. CONTROL',E_ELECTRICO:'MARCAS E. ELÉCTRICO',ING_MO:'INGENIERÍA MO',E_NEUMATICO:'E. NEUMÁTICO HIDRÁULICO',E_MECANICO:'E. MECÁNICO',T_ELECTRICO:'TABLERO ELÉCTRICO', INSUMOS: 'FACTORES INSUMOS'};
   let html = `
     <div class="card shadow-sm border-0 overflow-hidden">
       <div class="p-3 d-flex align-items-center justify-content-between text-white" style="background:#7c3aed">
-        <div><div class="fs-5 fw-bold">Administrador de Listas</div></div>
+        <div><div class="fs-5 fw-bold">Administrador de Listas y Factores</div></div>
         <button onclick="cambiarClaveListas()" class="btn btn-sm btn-light fw-semibold" style="font-size:11px"><i class="fa-solid fa-key me-1"></i>Cambiar Contraseña</button>
       </div>
       <div class="p-4">
         <div class="row g-3">`;
   categorias.forEach(cat => {
     const items = listas.filter(l => l.seccion_codigo === cat);
+    const isInsumo = cat === 'INSUMOS';
     html += `
       <div class="col-md-4 col-lg-3">
-        <div class="card h-100 border">
-          <div class="card-header py-2 fw-bold text-uppercase" style="font-size:11px;background:#f8fafc">${nombres[cat]||cat}</div>
-          <div class="card-body p-2" style="max-height:250px;overflow-y:auto" id="lista-${cat}">
+        <div class="card h-100 border shadow-sm">
+          <div class="card-header py-2 fw-bold text-uppercase d-flex justify-content-between align-items-center" style="font-size:11px;background:#f8fafc">
+            <span>${nombres[cat]||cat}</span>
+          </div>
+          <div class="card-body p-2" style="max-height:280px;overflow-y:auto" id="lista-${cat}">
             ${items.map(it => `
               <div class="d-flex align-items-center gap-1 py-1 px-2 border-bottom" style="font-size:12px">
-                <input class="form-control form-control-sm border-0 p-0 bg-transparent" value="${esc(it.valor)}" onblur="updateListaItem(${it.id},this.value)" style="font-size:12px" />
-                <button onclick="deleteListaItem(${it.id},'${cat}')" class="btn btn-sm p-0 text-danger border-0" style="font-size:10px"><i class="fa-solid fa-times"></i></button>
+                <input class="form-control form-control-sm border-0 p-0 bg-transparent flex-grow-1" value="${esc(it.valor)}" onblur="updateListaItem(${it.id},this.value)" style="font-size:12px; font-weight:500;" title="Nombre del concepto / factor" />
+                ${isInsumo ? `<input type="number" step="0.01" class="form-control form-control-sm p-1 text-center" value="${it.factor||1.2}" onblur="updateListaFactor(${it.id},this.value)" style="font-size:11px; width:60px;" title="Factor Multiplicador" />` : ''}
+                <button onclick="deleteListaItem(${it.id},'${cat}')" class="btn btn-sm p-0 text-danger border-0 ms-1" style="font-size:10px" title="Eliminar"><i class="fa-solid fa-times"></i></button>
               </div>`).join('')}
           </div>
           <div class="card-footer p-2">
-            <button onclick="addListaItem('${cat}')" class="btn btn-sm btn-outline-primary w-100" style="font-size:11px"><i class="fa-solid fa-plus me-1"></i>Agregar</button>
+            <div id="add-box-${cat}" style="display:none;" class="mb-2 p-2 bg-light border rounded">
+              ${isInsumo ? `
+                <div class="mb-2">
+                  <input id="add-val-${cat}" class="form-control form-control-sm mb-1" placeholder="Nombre del factor (ej: FACTOR HOSPEDAJE)" style="font-size:11px;" />
+                  <div class="d-flex align-items-center gap-1">
+                    <span style="font-size:11px; font-weight:600; color:#475569;">Factor:</span>
+                    <input id="add-fac-${cat}" type="number" step="0.01" class="form-control form-control-sm p-1 text-center" value="1.20" style="font-size:11px; width:65px;" />
+                    <button onclick="submitInlineAdd('${cat}')" class="btn btn-sm btn-primary py-1 px-2 ms-auto" style="font-size:11px;"><i class="fa-solid fa-check me-1"></i>Guardar</button>
+                    <button onclick="hideInlineAdd('${cat}')" class="btn btn-sm btn-outline-secondary py-1 px-2" style="font-size:11px;"><i class="fa-solid fa-times"></i></button>
+                  </div>
+                </div>
+              ` : `
+                <div class="d-flex align-items-center gap-1">
+                  <input id="add-val-${cat}" class="form-control form-control-sm flex-grow-1" placeholder="Nuevo valor / marca" style="font-size:11px;" onkeydown="if(event.key==='Enter')submitInlineAdd('${cat}')" />
+                  <button onclick="submitInlineAdd('${cat}')" class="btn btn-sm btn-primary py-1 px-2" style="font-size:11px;"><i class="fa-solid fa-check me-1"></i>Guardar</button>
+                  <button onclick="hideInlineAdd('${cat}')" class="btn btn-sm btn-outline-secondary py-1 px-2" style="font-size:11px;"><i class="fa-solid fa-times"></i></button>
+                </div>
+              `}
+            </div>
+            <button id="add-btn-${cat}" onclick="showInlineAdd('${cat}')" class="btn btn-sm btn-outline-primary w-100" style="font-size:11px;"><i class="fa-solid fa-plus me-1"></i>Agregar Concepto / Factor</button>
           </div>
         </div>
       </div>`;
@@ -1635,16 +1602,70 @@ async function renderListas(c) {
   c.innerHTML = html;
 }
 
+window.showInlineAdd = function(cat) {
+  const box = document.getElementById(`add-box-${cat}`);
+  const btn = document.getElementById(`add-btn-${cat}`);
+  if (box) box.style.display = 'block';
+  if (btn) btn.style.display = 'none';
+  const input = document.getElementById(`add-val-${cat}`);
+  if (input) input.focus();
+};
+
+window.hideInlineAdd = function(cat) {
+  const box = document.getElementById(`add-box-${cat}`);
+  const btn = document.getElementById(`add-btn-${cat}`);
+  if (box) box.style.display = 'none';
+  if (btn) btn.style.display = 'block';
+};
+
+window.submitInlineAdd = async function(cat) {
+  const valEl = document.getElementById(`add-val-${cat}`);
+  const facEl = document.getElementById(`add-fac-${cat}`);
+  const val = valEl ? valEl.value.trim() : '';
+  if (!val) { showToast('Ingresa un nombre','warning'); return; }
+  let factor = 1.2;
+  if (facEl) factor = parseFloat(facEl.value) || 1.2;
+
+  try {
+    await api('/api/listas_predefinidas/create','POST',{seccion_codigo:cat, valor:val, factor});
+    await reloadSections();
+    switchTab('LISTAS');
+    showToast('Agregado correctamente','success');
+  } catch(e) {
+    showToast('Error al agregar','error');
+  }
+};
+
+async function updateListaFactor(id, val) {
+  if(!val.toString().trim()) return;
+  const factor = parseFloat(val);
+  if (isNaN(factor)) return;
+  try {
+    const res = await api('/api/listas_predefinidas/update', 'POST', {id, factor});
+    if(res) {
+      const item = (projectData.listas||[]).find(x => x.id === id);
+      if (item) item.factor = factor;
+      await api('/api/insumos/recalc', 'POST', {proyecto_id: PID});
+      await loadProject();
+      showToast('Factor actualizado','success');
+    }
+  } catch(e) {
+    showToast('Error al actualizar factor','error');
+  }
+}
+
 async function addListaItem(cat) {
-  const val = prompt('Nuevo valor para la lista:');
-  if (!val || !val.trim()) return;
-  await api('/api/listas_predefinidas/create','POST',{seccion_codigo:cat,valor:val.trim()});
-  await reloadSections();
-  switchTab('LISTAS');
+  showInlineAdd(cat);
 }
 
 async function updateListaItem(id, val) {
   await api('/api/listas_predefinidas/update','POST',{id, valor:val});
+  const item = (projectData.listas||[]).find(x => x.id === id);
+  if (item) item.valor = val;
+  if (currentTab === 'INSUMOS') {
+    await api('/api/insumos/recalc', 'POST', {proyecto_id: PID});
+    await loadProject();
+  }
 }
 
 async function deleteListaItem(id, cat) {
@@ -1802,12 +1823,19 @@ async function saveProjectField(extra={}) {
     });
   }
 
+  if (typeof recalcInsumosGrandTotals === 'function') {
+    recalcInsumosGrandTotals();
+  }
+  if (typeof renderReporte === 'function') {
+    renderReporte();
+  }
+
   setAutosave();
 }
 
 function setAutosave() {
   const el = document.getElementById('autosave-indicator');
-  el.innerHTML = '<i class="fa-solid fa-circle-check text-success" style="font-size:11px"></i>Guardado';
+  if (el) el.innerHTML = '<i class="fa-solid fa-circle-check text-success" style="font-size:11px"></i>Guardado';
 }
 
 let _saveTimer=null;
@@ -1815,7 +1843,7 @@ let pendingSaveFn=null;
 function scheduleSave(fn) {
   clearTimeout(_saveTimer);
   pendingSaveFn = fn;
-  document.getElementById('autosave-indicator').innerHTML='<span class="spinner-border spinner-border-sm text-primary" style="width:12px;height:12px;border-width:1.5px" role="status"></span>Guardando...';
+  const elInd = document.getElementById('autosave-indicator'); if (elInd) elInd.innerHTML='<span class="spinner-border spinner-border-sm text-primary" style="width:12px;height:12px;border-width:1.5px" role="status"></span>Guardando...';
   _saveTimer = setTimeout(async()=>{
     if (pendingSaveFn) {
       const currentFn = pendingSaveFn;
