@@ -268,7 +268,8 @@ def api_update_proyecto():
         d.get("fecha_vencimiento"), d.get("tipo_cambio_usd") or 20,
         d.get("carpeta_link"), d.get("tiempo_entrega"), d.get("condiciones_pago"),
         d.get("porcentaje_iva") if d.get("porcentaje_iva") is not None else curr_iva, pid))
-    _recalc_totals(pid)
+    tc_new = float(d.get("tipo_cambio_usd") or 20)
+    recalc_project_currency_conversions(pid, tc_new)
     return jsonify(ok=True)
 
 @app.route("/api/proyectos/seleccionar_carpeta", methods=["POST"])
@@ -1112,6 +1113,61 @@ def _recalc_section(sid, tipo, tc=20):
     tmn  = sum(float(r.get("total_mn") or 0) for r in rows)
     tusd = sum(float(r.get("total_usd") or 0) for r in rows)
     ex("UPDATE secciones SET subtotal_mn=%s,subtotal_usd=%s WHERE id=%s",(tmn,tusd,sid))
+
+def recalc_project_currency_conversions(pid, tc=None):
+    if not pid:
+        return
+    if tc is None:
+        p = q("SELECT tipo_cambio_usd FROM proyectos WHERE id=%s", (pid,), fetch="one")
+        tc = float(p.get("tipo_cambio_usd") or 20) if p else 20.0
+    tc = float(tc) if tc and float(tc) > 0 else 20.0
+
+    mo_partidas = q("""SELECT p.id, p.horas_mo, p.dias_trabajo, p.costo_hora_usd, p.porcentaje_mgn
+                       FROM partidas_mano_obra p
+                       JOIN secciones s ON p.seccion_id = s.id
+                       WHERE s.proyecto_id=%s""", (pid,))
+    for r in mo_partidas:
+        h = float(r.get("horas_mo") or 0)
+        di = float(r.get("dias_trabajo") or 0)
+        c = float(r.get("costo_hora_usd") or 0)
+        m = float(r.get("porcentaje_mgn") or 0)
+        sub = h * di * c
+        t_usd = sub * (1 + m / 100.0)
+        t_mn = t_usd * tc
+        ex("UPDATE partidas_mano_obra SET subtotal=%s, total_usd=%s, total_mn=%s WHERE id=%s", (sub, t_usd, t_mn, r["id"]))
+
+    eq_partidas = q("""SELECT p.id, p.cantidad, p.precio_lista, p.moneda, p.porcentaje_mgn
+                       FROM partidas_equipo p
+                       JOIN secciones s ON p.seccion_id = s.id
+                       WHERE s.proyecto_id=%s""", (pid,))
+    for r in eq_partidas:
+        qty = float(r.get("cantidad") or 0)
+        precio = float(r.get("precio_lista") or 0)
+        m = float(r.get("porcentaje_mgn") or 0)
+        moneda = r.get("moneda") or "MN"
+        sub = qty * precio
+        if moneda == "USD":
+            t_usd = sub * (1 + m / 100.0)
+            t_mn = t_usd * tc
+        else:
+            t_mn = sub * (1 + m / 100.0)
+            t_usd = t_mn / tc if tc else 0
+        ex("UPDATE partidas_equipo SET subtotal=%s, total_mn=%s, total_usd=%s WHERE id=%s", (sub, t_mn, t_usd, r["id"]))
+
+    secciones = q("SELECT id, tipo, codigo FROM secciones WHERE proyecto_id=%s", (pid,))
+    for s in secciones:
+        if s["codigo"] == "INSUMOS":
+            continue
+        if s["tipo"] == "mano_obra":
+            rows = q("SELECT total_mn, total_usd FROM partidas_mano_obra WHERE seccion_id=%s", (s["id"],))
+        else:
+            rows = q("SELECT total_mn, total_usd FROM partidas_equipo WHERE seccion_id=%s", (s["id"],))
+        tmn = sum(float(r.get("total_mn") or 0) for r in rows)
+        tusd = sum(float(r.get("total_usd") or 0) for r in rows)
+        ex("UPDATE secciones SET subtotal_mn=%s, subtotal_usd=%s WHERE id=%s", (tmn, tusd, s["id"]))
+
+    _update_insumos_total(pid)
+    _recalc_totals(pid)
 
 def _recalc_totals(pid):
     rows = q("SELECT subtotal_mn,subtotal_usd FROM secciones WHERE proyecto_id=%s",(pid,))

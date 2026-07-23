@@ -79,7 +79,7 @@
       </div>
       <div class="col-6 col-sm-4 col-md-1">
         <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">T/C USD</label>
-        <input id="f-tc" oninput="saveProjectField()" type="number" class="form-control form-control-sm fw-bold text-primary" step="0.01" value="{{ proyecto.tipo_cambio_usd or '20.00' }}"/>
+        <input id="f-tc" oninput="onTcChange(this.value)" type="number" class="form-control form-control-sm fw-bold text-primary" step="0.01" value="{{ proyecto.tipo_cambio_usd or '20.00' }}"/>
       </div>
       <div class="col-6 col-sm-4 col-md-1">
         <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Carpeta</label>
@@ -136,6 +136,99 @@ let projectData = null;
 let currentTab = 'REPORTE';
 let saveTimer = null;
 let prevCurrency = 'MN';
+
+
+function onTcChange(val) {
+  const numVal = parseFloat(val) || 20;
+  document.querySelectorAll('#f-tc, #tc-inline').forEach(el => {
+    if (el && el !== document.activeElement) el.value = numVal.toFixed(2);
+  });
+  if (projectData && projectData.proyecto) {
+    projectData.proyecto.tipo_cambio_usd = numVal;
+  }
+  recalcAllProjectDataTC();
+  scheduleSave(() => saveProjectField());
+}
+
+function recalcAllProjectDataTC() {
+  if (!projectData) return;
+  const tc = getTC();
+
+  (projectData.secciones || []).forEach(sec => {
+    if (sec.tipo === 'mano_obra') {
+      let secUSD = 0, secMN = 0;
+      (sec.partidas || []).forEach(p => {
+        const h = parseFloat(p.horas_mo || 0), d = parseFloat(p.dias_trabajo || 0),
+              co = parseFloat(p.costo_hora_usd || 0), m = parseFloat(p.porcentaje_mgn || 0);
+        const sub = h * d * co;
+        p.total_usd = sub * (1 + m / 100);
+        p.total_mn = p.total_usd * tc;
+        secUSD += p.total_usd;
+        secMN += p.total_mn;
+
+        const elTusd = document.getElementById(`mo-tusd-${p.id}`);
+        const elTmn = document.getElementById(`mo-tmn-${p.id}`);
+        if (elTusd) elTusd.textContent = fmt(p.total_usd);
+        if (elTmn) elTmn.textContent = fmt(p.total_mn);
+      });
+      sec.subtotal_usd = secUSD;
+      sec.subtotal_mn = secMN;
+
+      const hUSD = document.getElementById(`sec-header-usd-${sec.id}`);
+      const hMN = document.getElementById(`sec-header-mn-${sec.id}`);
+      const fUSD = document.getElementById(`sec-footer-usd-${sec.id}`);
+      const fMN = document.getElementById(`sec-footer-mn-${sec.id}`);
+      if (hUSD) hUSD.textContent = fmt(secUSD);
+      if (hMN) hMN.textContent = fmt(secMN);
+      if (fUSD) fUSD.textContent = fmt(secUSD);
+      if (fMN) fMN.textContent = fmt(secMN);
+
+    } else if (sec.tipo === 'equipo' || sec.tipo === 'maquinaria') {
+      let secUSD = 0, secMN = 0;
+      (sec.partidas || []).forEach(p => {
+        const qty = parseFloat(p.cantidad || 0), pr = parseFloat(p.precio_lista || 0),
+              m = parseFloat(p.porcentaje_mgn || 0), mon = p.moneda || 'MN';
+        const sub = qty * pr;
+        if (mon === 'USD') {
+          p.total_usd = sub * (1 + m / 100);
+          p.total_mn = p.total_usd * tc;
+        } else {
+          p.total_mn = sub * (1 + m / 100);
+          p.total_usd = tc ? p.total_mn / tc : 0;
+        }
+        secUSD += p.total_usd;
+        secMN += p.total_mn;
+
+        const elTusd = document.getElementById(`eq-tusd-${p.id}`);
+        const elTmn = document.getElementById(`eq-tmn-${p.id}`);
+        if (elTusd) elTusd.textContent = fmt(p.total_usd);
+        if (elTmn) elTmn.textContent = fmt(p.total_mn);
+      });
+      sec.subtotal_usd = secUSD;
+      sec.subtotal_mn = secMN;
+
+      const hUSD = document.getElementById(`sec-header-usd-${sec.id}`);
+      const hMN = document.getElementById(`sec-header-mn-${sec.id}`);
+      const fUSD = document.getElementById(`sec-footer-usd-${sec.id}`);
+      const fMN = document.getElementById(`sec-footer-mn-${sec.id}`);
+      if (hUSD) hUSD.textContent = fmt(secUSD);
+      if (hMN) hMN.textContent = fmt(secMN);
+      if (fUSD) fUSD.textContent = fmt(secUSD);
+      if (fMN) fMN.textContent = fmt(secMN);
+
+    } else if (sec.codigo === 'INSUMOS') {
+      if (typeof recalcInsumosGrandTotals === 'function') {
+        recalcInsumosGrandTotals();
+      }
+    }
+  });
+
+  updateStatusBar();
+
+  if (currentTab === 'REPORTE' && typeof renderReporte === 'function') {
+    renderReporte();
+  }
+}
 
 function getTC() {
   const el = document.getElementById('f-tc');
@@ -379,7 +472,7 @@ function renderReporte(c) {
           </div>
           <div class="d-flex align-items-center gap-2 p-3 bg-light border-bottom" style="font-size:13px">
             <span class="fw-semibold text-dark">Tipo de Cambio USD:</span>
-            <input type="number" id="tc-inline" value="${tc.toFixed(2)}" step="0.01" class="form-control form-control-sm fw-bold text-primary" style="width:90px" oninput="document.getElementById('f-tc').value=this.value;if(typeof saveProjectField==='function')saveProjectField();"/>
+            <input type="number" id="tc-inline" value="${tc.toFixed(2)}" step="0.01" class="form-control form-control-sm fw-bold text-primary" style="width:90px" oninput="onTcChange(this.value)"/>
             <span class="text-muted">MXN por USD</span>
           </div>
           <table class="excel-table">
@@ -1374,7 +1467,7 @@ function renderPrese(c) {
           <div class="d-flex flex-column h-100 justify-content-end pb-1">
             <div class="d-flex align-items-center mb-2">
               <strong style="min-width:130px; color:#475569;">Tipo de Cambio USD:</strong>
-              <input id="f-tc" oninput="saveProjectField()" type="number" step="0.01" class="quote-header-input border-0 bg-transparent fw-bold text-primary" style="width:70px; border-bottom:1px dashed #ccc !important; outline:none;" value="${p.tipo_cambio_usd||20}" onchange="saveProjectField()"/>
+              <input id="f-tc" oninput="onTcChange(this.value)" type="number" step="0.01" class="quote-header-input border-0 bg-transparent fw-bold text-primary" style="width:70px; border-bottom:1px dashed #ccc !important; outline:none;" value="${p.tipo_cambio_usd||20}" onchange="saveProjectField()"/>
             </div>
           </div>
         </div>
@@ -1823,12 +1916,7 @@ async function saveProjectField(extra={}) {
     });
   }
 
-  if (typeof recalcInsumosGrandTotals === 'function') {
-    recalcInsumosGrandTotals();
-  }
-  if (typeof renderReporte === 'function') {
-    renderReporte();
-  }
+  recalcAllProjectDataTC();
 
   setAutosave();
 }
