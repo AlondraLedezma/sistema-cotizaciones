@@ -313,6 +313,7 @@ async function _load() {
   } else {
     projectData = await r.json();
   }
+  recalcAllProjectDataTC();
   updateStatusBar();
   renderTabs();
   switchTab(currentTab);
@@ -323,6 +324,7 @@ async function initProject() {
     const res = await fetch(`/api/proyecto/${PID}`);
     if (!res.ok) throw new Error('Error al cargar');
     projectData = await res.json();
+    recalcAllProjectDataTC();
     updateStatusBar();
     renderTabs();
     switchTab(currentTab);
@@ -708,6 +710,14 @@ function recalcInsumosGrandTotals() {
   if (elTotUsdHdr) elTotUsdHdr.innerText = '$ ' + fm(totalUsd);
   if (elTotMn2) elTotMn2.innerText = '$ ' + fm(totalMn);
   if (elTotUsd) elTotUsd.innerText = '$ ' + fm(totalUsd);
+
+  if (projectData && projectData.secciones) {
+    const sec = projectData.secciones.find(s => s.codigo === 'INSUMOS');
+    if (sec) {
+      sec.subtotal_mn = totalMn;
+      sec.subtotal_usd = totalUsd;
+    }
+  }
 }
 
 function renderInsumos(c, sec) {
@@ -778,6 +788,10 @@ function renderInsumos(c, sec) {
 
   let totalMn = (cdSum1 * f_cd) + (cdSum2 * f_af) + (enSum1 * f_en) + (stAutoSum * f_al) + (stCasaSum * f_ho) + (trSum * f_tr) + (gaSum * f_ga) + (imssSum * f_imss);
   let totalUsd = totalMn / (parseFloat(p.tipo_cambio_usd) || 20);
+  if (sec) {
+    sec.subtotal_mn = totalMn;
+    sec.subtotal_usd = totalUsd;
+  }
 
   const fm = (n) => parseFloat(n||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
 

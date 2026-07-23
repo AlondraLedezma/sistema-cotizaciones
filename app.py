@@ -317,6 +317,7 @@ def api_get_proyecto(pid):
             subtemas = []
     _ensure_insumos_tables()
     listas = q("SELECT * FROM listas_predefinidas ORDER BY seccion_codigo, orden")
+    _update_insumos_total(pid)
     # Load INSUMOS data
     insumos_cd, insumos_en_cd, insumos_transporte, insumos_ga, insumos_imss = [], [], [], [], []
     try:
