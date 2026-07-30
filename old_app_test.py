@@ -93,14 +93,6 @@ def logout():
     session.clear()
     return redirect(url_for("login"))
 
-@app.route("/api/auth/check")
-def api_auth_check():
-    if "user_id" in session:
-        return jsonify(success=True, authenticated=True,
-                       user={"id": session["user_id"], "email": session.get("user_email"),
-                             "nombre": session.get("user_nombre")})
-    return jsonify(success=True, authenticated=False)
-
 @app.route("/registro", methods=["GET", "POST"])
 def registro():
     error = None
@@ -153,10 +145,6 @@ def proyecto(pid):
     
     titulo_cond_row = q("SELECT valor FROM configuracion WHERE clave='condiciones_seccion_titulo'", fetch="one")
     titulo_cond = titulo_cond_row.get("valor") if titulo_cond_row else "CONDICIONES COMERCIALES"
-    
-    tipo = p.get("tipo_proyecto", "")
-    if tipo in ("cotizacion", "mecanico"):
-        return render_template("proyecto_cotizacion.html", proyecto=p)
     
     return render_template("proyecto.html", proyecto=p, vendedor_config=vendedor,
                            vendedor_telefono=vendedor_telefono,
@@ -299,7 +287,6 @@ def api_seleccionar_carpeta():
 @app.route("/api/proyecto/<int:pid>")
 @login_required
 def api_get_proyecto(pid):
-    _update_insumos_total(pid)
     proyecto = q("SELECT * FROM proyectos WHERE id=%s", (pid,), fetch="one")
     if not proyecto:
         return jsonify(error="No encontrado"), 404
@@ -753,11 +740,9 @@ def api_update_insumos_row():
         a = float(row.get("autobus") or 0)
         t = float(row.get("taxis") or 0)
         sub1 = p * v * (a + t)
-        ra = float(row.get("renta_auto") or 0)
         ac = float(row.get("autocasetas") or 0)
         g = float(row.get("gasolina") or 0)
-        dias = float(row.get("dias") or 0)
-        sub2 = (ra + ac + g) * dias
+        sub2 = v * (ac + g)
         ex("UPDATE insumos_viaticos_cd SET subtotal_mn=%s, subtotal_mn2=%s WHERE id=%s", (sub1, sub2, iid))
     elif table_name == 'insumos_viaticos_en_cd':
         p = float(row.get("personas") or 0)
@@ -848,7 +833,7 @@ def _update_insumos_total(pid):
     # Delete obsolete IO / I/O sections from DB
     ex("DELETE FROM secciones WHERE proyecto_id=%s AND codigo IN ('IO', 'I/O')", (pid,))
 
-    cd_rows = q("SELECT personas, viajes_cd, autobus, taxis, autocasetas, gasolina, renta_auto, dias FROM insumos_viaticos_cd WHERE proyecto_id=%s", (pid,))
+    cd_rows = q("SELECT personas, viajes_cd, autobus, taxis, autocasetas, gasolina FROM insumos_viaticos_cd WHERE proyecto_id=%s", (pid,))
     en_rows = q("SELECT personas, dias, alimentos, hotel, transporte, renta_coche, gasolina, dias_auto, meses, renta_casa FROM insumos_viaticos_en_cd WHERE proyecto_id=%s", (pid,))
     tr_rows = q("SELECT costo, no_veces FROM insumos_transporte WHERE proyecto_id=%s", (pid,))
     ga_rows = q("SELECT costo FROM insumos_gastos_admin WHERE proyecto_id=%s", (pid,))
@@ -867,7 +852,7 @@ def _update_insumos_total(pid):
     f_imss = fm.get("FACTOR IMSS", 1.2)
 
     sum_cd1 = sum((float(r.get("personas") or 0) * float(r.get("viajes_cd") or 0) * (float(r.get("autobus") or 0) + float(r.get("taxis") or 0))) for r in cd_rows)
-    sum_cd2 = sum(((float(r.get("renta_auto") or 0) + float(r.get("autocasetas") or 0) + float(r.get("gasolina") or 0)) * float(r.get("dias") or 0)) for r in cd_rows)
+    sum_cd2 = sum((float(r.get("viajes_cd") or 0) * (float(r.get("autocasetas") or 0) + float(r.get("gasolina") or 0))) for r in cd_rows)
     
     sum_en1 = sum((float(r.get("personas") or 0) * float(r.get("dias") or 0) * (float(r.get("alimentos") or 0) + float(r.get("hotel") or 0) + float(r.get("transporte") or 0))) for r in en_rows)
     sum_auto = sum(((float(r.get("renta_coche") or 0) + float(r.get("gasolina") or 0)) * float(r.get("dias_auto") or 0)) for r in en_rows)
@@ -1277,8 +1262,7 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
         pdf.set_font("Helvetica", "B", 9)
         pdf.cell(25, 5, "FECHA")
         pdf.set_font("Helvetica", "", 9)
-        import datetime
-        pdf.cell(33, 5, datetime.date.today().strftime("%Y-%m-%d"), align="R")
+        pdf.cell(33, 5, str(proyecto.get("fecha_creacion") or "")[:10], align="R")
         
         # Row 2: TEL / Empresa & VENCIMIENTO
         pdf.set_xy(12, 49)
@@ -1294,12 +1278,9 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
         
         pdf.set_xy(140, 49)
         pdf.set_font("Helvetica", "B", 9)
-        pdf.cell(25, 5, "VIGENCIA")
+        pdf.cell(25, 5, "VENCIMIENTO")
         pdf.set_font("Helvetica", "", 9)
-        dias_vigencia = proyecto.get("dias_vigencia")
-        if dias_vigencia is None:
-            dias_vigencia = 30
-        pdf.cell(33, 5, f"{dias_vigencia} DÍAS", align="R")
+        pdf.cell(33, 5, str(proyecto.get("fecha_vencimiento") or "")[:10], align="R")
         
         # Row 3: E-mail
         pdf.set_xy(12, 55)
@@ -1345,19 +1326,13 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
                 pdf.set_font("Helvetica", "", 9)
                 
                 raw_lines = st.get("contenido", "").split("\n")
-                points = [ln for ln in raw_lines if ln.strip()]
-                for idx, line in enumerate(points):
-                    point_label = f"{st.get('indice')}.{idx + 1}"
-                    pdf.set_font("Helvetica", "B", 9)
-                    pdf.set_x(10)
-                    current_y = pdf.get_y()
-                    pdf.cell(16, 5, point_label)
-                    
-                    pdf.set_font("Helvetica", "", 9)
-                    pdf.set_xy(26, current_y)
+                for line in raw_lines:
+                    if not line.strip():
+                        continue
+                    # Print the point with a left margin
+                    pdf.set_x(18)
                     pdf.multi_cell(0, 5, line.strip())
-                    pdf.ln(2)
-                pdf.ln(1)
+                pdf.ln(3)
 
         # Calculate totals from sections/partidas
         subtotal_mn = 0
@@ -1371,28 +1346,20 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
                 subtotal_usd += float(p.get("total_usd") or 0)
 
         # Economical totals
+        sub_val = subtotal_usd if moneda == "USD" else subtotal_mn
         pct_iva = float(proyecto.get("porcentaje_iva") if proyecto.get("porcentaje_iva") is not None else 16.00)
-        
-        iva_usd = subtotal_usd * (pct_iva / 100.0)
-        total_usd = subtotal_usd + iva_usd
-        
-        iva_mn = subtotal_mn * (pct_iva / 100.0)
-        total_mn = subtotal_mn + iva_mn
+        iva_val = sub_val * (pct_iva / 100.0)
+        total_val = sub_val + iva_val
+        suffix = "USD" if moneda == "USD" else "M.N."
         
         pdf.ln(4)
         pdf.set_font("Helvetica", "", 9)
         pdf.cell(140, 6, "SUB TOTAL", border=1, align="R")
-        if moneda == "USD":
-            pdf.cell(46, 6, f"$ {subtotal_usd:,.2f} USD", border=1, align="R", ln=True)
-        else:
-            pdf.cell(46, 6, f"$ {subtotal_mn:,.2f} M.N.", border=1, align="R", ln=True)
+        pdf.cell(46, 6, f"$ {sub_val:,.2f}", border=1, align="R", ln=True)
         
         # IVA
         pdf.cell(140, 6, f"IVA ({pct_iva:g}%)", border=1, align="R")
-        if moneda == "USD":
-            pdf.cell(46, 6, f"$ {iva_usd:,.2f} USD", border=1, align="R", ln=True)
-        else:
-            pdf.cell(46, 6, f"$ {iva_mn:,.2f} M.N.", border=1, align="R", ln=True)
+        pdf.cell(46, 6, f"$ {iva_val:,.2f}", border=1, align="R", ln=True)
         
         # Price Total plus IVA label
         pdf.ln(1)
@@ -1405,28 +1372,18 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
         pdf.set_fill_color(0, 188, 212)  # Cyan #00bcd4
         pdf.set_text_color(255, 255, 255)
         pdf.set_font("Helvetica", "B", 10)
+        pdf.cell(140, 8, "  TOTAL", border=1, fill=True, align="L")
+        pdf.cell(46, 8, f"$ {total_val:,.2f} {suffix}", border=1, fill=True, align="R", ln=True)
         
-        if moneda == "USD":
-            pdf.cell(140, 8, "  TOTAL USD", border=1, fill=True, align="L")
-            pdf.cell(46, 8, f"$ {total_usd:,.2f} USD", border=1, fill=True, align="R", ln=True)
-            pdf.cell(140, 8, "  TOTAL M.N.", border=1, fill=True, align="L")
-            pdf.cell(46, 8, f"$ {total_mn:,.2f} M.N.", border=1, fill=True, align="R", ln=True)
-            letras = numero_a_letras(total_usd)
-            letras = letras.replace("PESOS", "DÓLARES").replace("M.N.", "USD")
-            letras_mn = numero_a_letras(total_mn)
-            letras_final = f"SON: ({letras.upper()})\nSON: ({letras_mn.upper()})"
-        else:
-            pdf.cell(140, 8, "  TOTAL", border=1, fill=True, align="L")
-            pdf.cell(46, 8, f"$ {total_mn:,.2f} M.N.", border=1, fill=True, align="R", ln=True)
-            letras = numero_a_letras(total_mn)
-            letras_final = f"SON: ({letras.upper()})"
-            
         # Words total
         pdf.ln(2)
         pdf.set_text_color(*DARK)
         pdf.set_font("Helvetica", "B", 10)
         try:
-            pdf.multi_cell(0, 5, letras_final, align="L")
+            letras = numero_a_letras(total_val)
+            if moneda == "USD":
+                letras = letras.replace("PESOS", "DÓLARES").replace("M.N.", "USD")
+            pdf.multi_cell(0, 5, f"({letras.upper()})", align="L")
         except Exception:
             pass
             

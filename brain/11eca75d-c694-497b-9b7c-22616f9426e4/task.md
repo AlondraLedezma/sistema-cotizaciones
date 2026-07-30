@@ -1,0 +1,4 @@
+- `[/]` Create `templates/proyecto_cotizacion.html` from the original `proyecto.html` in commit `7679b8f`
+- `[ ]` Create `js/proyecto_cotizacion.js` from the original `js/proyecto.js`
+- `[ ]` Create `css/cotizacion.css` with styles needed for the Excel-like editor
+- `[ ]` Update `app.py` to route `cotizacion` to `proyecto_cotizacion.html` and `proyecto` to `proyecto.html`
