@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const tcField = document.getElementById('field-tipo-cambio');
 
-  if (tcField) tcField.addEventListener('input', () => { recalculateAllSections(); updateTotals(); });
+  if (tcField) tcField.addEventListener('input', () => { recalculateAllSections(); updateTotals(); recalcAllGastos(); });
 
 
 
@@ -134,6 +134,8 @@ async function loadProject(id) {
 
     renderTabs();
 
+    recalculateAllSections();
+
     const defTab = (projectData && projectData.tipo_proyecto === 'cotizacion') ? 'COTIZACION' : 'REPORTE';
     switchTab(defTab);
 
@@ -161,7 +163,11 @@ function renderHeader() {
 
   if (!projectData) return;
 
-  document.getElementById('proyecto-nombre').textContent = projectData.nombre_proyecto || 'Sin nombre';
+  const nombreEl = document.getElementById('proyecto-nombre');
+  nombreEl.textContent = projectData.nombre_proyecto || 'Sin nombre';
+  nombreEl.contentEditable = true;
+  nombreEl.onblur = () => saveProjectName(nombreEl.textContent.trim());
+  nombreEl.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); nombreEl.blur(); } };
 
   document.getElementById('proyecto-numero').textContent = `No. ${projectData.numero_proyecto || '---'}`;
 
@@ -412,7 +418,9 @@ function renderPrese(container) {
 
         <div class="reporte-info-row"><span class="reporte-info-label">FECHA</span><span class="reporte-info-value">${formatDate(pd.fecha_creacion)}</span></div>
 
-        <div class="reporte-info-row"><span class="reporte-info-label">VENCIMIENTO</span><span class="reporte-info-value">${formatDate(pd.fecha_vencimiento) || '---'} <span style="color:var(--accent);font-weight:600;">(${diasVigencia} días)</span></span></div>
+        <div class="reporte-info-row"><span class="reporte-info-label">VENCIMIENTO</span><span class="reporte-info-value">${formatDate(pd.fecha_vencimiento) || '---'}</span></div>
+
+        <div class="reporte-info-row" style="border-bottom:none;"><span class="reporte-info-label">DÍAS DE VIGENCIA</span><span class="reporte-info-value">${diasVigencia} días</span></div>
 
       </div>
 
@@ -465,31 +473,53 @@ function renderPrese(container) {
 
     </div>
 
-    <div style="margin-top:24px;padding:20px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;">
+    <div style="margin-top:24px;display:flex;gap:20px;flex-wrap:wrap;">
 
-      <h4 style="font-family:var(--font-heading);font-size:14px;font-weight:700;margin-bottom:16px;color:#475569;text-transform:uppercase;letter-spacing:1px;">Resumen de Totales</h4>
+      <div style="flex:1;min-width:260px;padding:20px;background:#e0f7fa;border-radius:8px;border:1px solid #b2ebf2;">
 
-      <div style="display:grid;grid-template-columns:160px 1fr;gap:10px;max-width:400px;align-items:center;">
+        <h4 style="font-family:var(--font-heading);font-size:14px;font-weight:700;margin-bottom:12px;color:#006064;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #b2ebf2;padding-bottom:8px;">MONEDA NACIONAL</h4>
 
-        <span style="color:var(--text-muted);font-family:var(--font-heading);">SUBTOTAL:</span>
+        <div style="display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center;">
 
-        <span id="prese-subtotal" style="text-align:right;font-weight:600;font-size:15px;">${formatCurrency(subtotal)}</span>
+          <span style="color:#37474f;font-family:var(--font-heading);font-weight:600;">SUBTOTAL:</span>
 
-        <span style="color:var(--text-muted);font-family:var(--font-heading);">IVA 16%:</span>
+          <span style="text-align:right;font-weight:600;">${formatCurrency(subtotal)}</span>
 
-        <span id="prese-iva" style="text-align:right;font-weight:600;font-size:15px;">${formatCurrency(iva)}</span>
+          <span style="color:#37474f;font-family:var(--font-heading);font-weight:600;">IVA 16%:</span>
 
-        <span style="color:#0d47a1;font-weight:700;font-family:var(--font-heading);">TOTAL MN:</span>
+          <span style="text-align:right;font-weight:600;">${formatCurrency(iva)}</span>
 
-        <span id="prese-total-mn" style="text-align:right;font-weight:700;font-size:20px;color:#0d47a1;">${formatCurrency(totalMN)}</span>
+          <span style="color:#0d47a1;font-weight:700;font-family:var(--font-heading);font-size:16px;">TOTAL:</span>
 
-        <span style="color:#16a34a;font-weight:700;font-family:var(--font-heading);">TOTAL USD:</span>
+          <span id="prese-total-mn" style="text-align:right;font-weight:700;font-size:22px;color:#0d47a1;">${formatCurrency(totalMN)}</span>
 
-        <span id="prese-total-usd" style="text-align:right;font-weight:700;font-size:18px;color:#16a34a;">${formatCurrency(totalUSD)}</span>
+        </div>
+
+        <p id="prese-total-letras" style="color:#37474f;font-size:12px;margin-top:10px;padding-top:10px;border-top:1px solid #b2ebf2;font-style:italic;">${numberToWords(totalMN)}</p>
 
       </div>
 
-      <p id="prese-total-letras" style="color:var(--text-muted);font-size:12px;margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;font-style:italic;">${numberToWords(totalMN)}</p>
+      <div style="flex:1;min-width:260px;padding:20px;background:#e3f2fd;border-radius:8px;border:1px solid #bbdefb;">
+
+        <h4 style="font-family:var(--font-heading);font-size:14px;font-weight:700;margin-bottom:12px;color:#1565c0;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #bbdefb;padding-bottom:8px;">DÓLARES (USD)</h4>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+
+          <span style="color:#37474f;font-family:var(--font-heading);font-weight:600;font-size:13px;">TIPO DE CAMBIO:</span>
+
+          <span style="font-weight:600;font-size:13px;">$${tipoCambio().toFixed(2)}</span>
+
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+
+          <span style="color:#37474f;font-family:var(--font-heading);font-weight:600;">TOTAL:</span>
+
+          <span id="prese-total-usd" style="text-align:right;font-weight:700;font-size:22px;color:#1565c0;">${formatCurrency(totalUSD)}</span>
+
+        </div>
+
+      </div>
 
     </div>
 
@@ -802,6 +832,7 @@ function handleTipoCambioChange(val) {
   if (tcField) tcField.value = val;
   recalculateAllSections();
   updateTotals();
+  recalcAllGastos();
   if (typeof currentTab !== 'undefined' && currentTab) switchTab(currentTab);
   debouncedSaveProject();
 }
@@ -1633,6 +1664,9 @@ async function renderInsumosTab(container) {
 
     renderGastosEspeciales(gastos, seccion.id);
 
+    recalculateAllSections();
+    updateTotals();
+
   } catch(e) {
 
     const gl = document.getElementById('gastos-list');
@@ -1665,17 +1699,18 @@ function renderGastosEspeciales(gastos, seccionId) {
 
   const rows = gastos.map(g => {
 
-    const np   = parseFloat(g.num_personas) || 0;
+    const npers = parseFloat(g.num_personal) || 1;
+    const np    = parseFloat(g.num_personas) || 0;
 
-    const cpp  = parseFloat(g.costo_por_persona) || 0;
+    const cpp   = parseFloat(g.costo_por_persona) || 0;
 
-    const nv   = parseFloat(g.num_veces) || 0;
+    const nv    = parseFloat(g.num_veces) || 0;
 
-    const sub  = np * cpp * nv;
+    const sub   = npers * np * cpp * nv;
 
-    const tmn  = sub;
+    const tmn   = sub;
 
-    const tusd = tmn / tipoCambio();
+    const tusd  = tmn / tipoCambio();
 
     return `
 
@@ -1684,6 +1719,8 @@ function renderGastosEspeciales(gastos, seccionId) {
         <td><span class="excel-display" style="font-weight:700;color:#c62828;">${g.tipo||'---'}</span></td>
 
         <td><input class="excel-input" type="text" value="${escapeAttr(g.descripcion||'')}" onblur="handleGastoChange(${g.id},'descripcion',this.value)"></td>
+
+        <td><input class="excel-input numeric" type="number" value="${npers||''}" onblur="handleGastoChange(${g.id},'num_personal',this.value)" oninput="recalcGasto(this)"></td>
 
         <td><input class="excel-input numeric" type="number" value="${np||''}" onblur="handleGastoChange(${g.id},'num_personas',this.value)" oninput="recalcGasto(this)"></td>
 
@@ -1715,7 +1752,7 @@ function renderGastosEspeciales(gastos, seccionId) {
 
           <th>TIPO</th><th style="min-width:160px;">DESCRIPCI├ôN</th>
 
-          <th>N┬║ PERSONAS</th><th>COSTO/PERSONA</th><th>N┬║ VECES</th>
+          <th>PERSONAL</th><th>N┬║ PERSONAS</th><th>COSTO/PERSONA</th><th>N┬║ VECES</th>
 
           <th>SUB TOTAL</th><th>TOTAL MN</th><th>TOTAL USD</th><th style="width:40px;"></th>
 
@@ -1739,13 +1776,14 @@ function recalcGasto(input) {
 
   if (!row) return;
 
-  const np  = parseFloat(row.querySelectorAll('input[type="number"]')[0]?.value) || 0;
+  const npers = parseFloat(row.querySelectorAll('input[type="number"]')[0]?.value) || 1;
+  const np    = parseFloat(row.querySelectorAll('input[type="number"]')[1]?.value) || 0;
 
-  const cpp = parseFloat(row.querySelectorAll('input[type="number"]')[1]?.value) || 0;
+  const cpp   = parseFloat(row.querySelectorAll('input[type="number"]')[2]?.value) || 0;
 
-  const nv  = parseFloat(row.querySelectorAll('input[type="number"]')[2]?.value) || 0;
+  const nv    = parseFloat(row.querySelectorAll('input[type="number"]')[3]?.value) || 0;
 
-  const sub = np * cpp * nv;
+  const sub   = npers * np * cpp * nv;
 
   const subCell = row.querySelector('[data-field="subtotal"]');
 
@@ -1762,6 +1800,22 @@ function recalcGasto(input) {
 }
 
 
+
+function recalcAllGastos() {
+  document.querySelectorAll('.gastos-especiales tbody tr[data-gasto-id]').forEach(row => {
+    const npers = parseFloat(row.querySelectorAll('input[type="number"]')[0]?.value) || 1;
+    const np    = parseFloat(row.querySelectorAll('input[type="number"]')[1]?.value) || 0;
+    const cpp   = parseFloat(row.querySelectorAll('input[type="number"]')[2]?.value) || 0;
+    const nv    = parseFloat(row.querySelectorAll('input[type="number"]')[3]?.value) || 0;
+    const sub   = npers * np * cpp * nv;
+    const subCell = row.querySelector('[data-field="subtotal"]');
+    const mnCell  = row.querySelector('[data-field="total_mn"]');
+    const usdCell = row.querySelector('[data-field="total_usd"]');
+    if (subCell) subCell.textContent = formatCurrency(sub);
+    if (mnCell)  mnCell.textContent  = formatCurrency(sub);
+    if (usdCell) usdCell.textContent = formatCurrency(sub / tipoCambio());
+  });
+}
 
 async function handleGastoChange(id, field, value) {
 
@@ -2387,6 +2441,19 @@ function recalculateSectionTotals() {
 
     });
 
+    (sec.gastos || []).forEach(g => {
+
+      const npers  = parseFloat(g.num_personal) || 1;
+      const np     = parseFloat(g.num_personas) || 0;
+      const cpp    = parseFloat(g.costo_por_persona) || 0;
+      const nv     = parseFloat(g.num_veces) || 0;
+      const sub    = npers * np * cpp * nv;
+      const tc     = tipoCambio();
+      mn  += sub;
+      usd += sub / tc;
+
+    });
+
     sec.subtotal_usd = usd;
 
     sec.subtotal_mn  = mn;
@@ -2671,6 +2738,14 @@ async function saveProject() {
 
 
 
+function saveProjectName(name) {
+  if (!projectData) return;
+  projectData.nombre_proyecto = name;
+  const data = { id: projectData.id, nombre_proyecto: name };
+  apiCall('/api/legacy/proyectos?action=update', 'POST', data).catch(() => {});
+  document.title = `DEMATIQ - ${name}`;
+}
+
 async function saveProjectToAPI() {
 
   if (!projectData) return;
@@ -2679,6 +2754,7 @@ async function saveProjectToAPI() {
 
     id: projectData.id,
 
+    nombre_proyecto:   projectData.nombre_proyecto || '',
     atencion:          document.getElementById('field-atencion')?.value || '',
 
     telefono_cliente:  document.getElementById('field-telefono')?.value || '',
@@ -2730,6 +2806,8 @@ async function applyUSDConversion() {
   recalculateAllSections();
 
   updateTotals();
+
+  recalcAllGastos();
 
   switchTab(currentTab);
 
