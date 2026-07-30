@@ -130,6 +130,7 @@ const TABS = [
   {code:'T_ELECTRICO',label:'T. ELÉCTRICO',color:'#6366f1'},
   {code:'INSUMOS',   label:'INSUMOS',      color:'#dc2626'},
   {code:'LISTAS',    label:'LISTAS',       color:'#7c3aed'},
+  {code:'LISTAS_MEC',label:'LISTAS MEC.',  color:'#9333ea'}, // Nueva Pestaña
 ];
 
 let projectData = null;
@@ -348,6 +349,8 @@ function switchTab(code) {
     case 'PRESE':       renderPrese(content); break;
     case 'LISTAS':      handleListasAccess(content); break;
     case 'INSUMOS':     renderInsumos(content, sec); break;
+    case 'LISTAS_MEC': renderListasMecanico(content); break;
+    case 'E_MECANICO': renderEMecanico(content, sec); break;
     default:
       if (sec) {
         if (sec.tipo==='mano_obra') renderManoObra(content, sec);
@@ -2348,6 +2351,189 @@ async function savePorcentajeIva(val) {
   } catch(e) {
     showToast('Error al guardar IVA', 'error');
   }
+}
+
+// --- FUNCIONES NUEVAS PARA E. MECÁNICO Y SUS LISTAS ---
+
+async function fetchMecanicoData() {
+  const res = await fetch(`/api/emecanico/listas/${PID}`);
+  return await res.json();
+}
+
+async function renderListasMecanico(c) {
+  c.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Cargando listas...</div>';
+  const data = await fetchMecanicoData();
+  
+  const createTableHTML = (title, items, dbTable, color) => `
+    <div class="col-md-4">
+      <div class="card shadow-sm border-0">
+        <div class="p-2 text-white fw-bold text-center" style="background:${color}; font-size:13px">${title}</div>
+        <div class="p-2 bg-light">
+          <div class="input-group input-group-sm mb-2">
+            <input type="text" id="input-${dbTable}" class="form-control" placeholder="Agregar nuevo...">
+            <button class="btn btn-outline-secondary text-success" onclick="addMecLista('${dbTable}')"><i class="fa-solid fa-check"></i></button>
+          </div>
+          <div style="max-height: 400px; overflow-y: auto;">
+            <table class="table table-sm table-bordered mb-0" style="font-size:12px">
+              <tbody>
+                ${items.map(i => `
+                  <tr>
+                    <td class="align-middle">${esc(i.descripcion || i.nombre)}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  c.innerHTML = `
+    <div class="p-3 border-bottom mb-3 bg-white fw-bold text-dark"><i class="fa-solid fa-list text-primary me-2"></i>Gestor de Listas: E. Mecánico</div>
+    <div class="row g-3 max-width-1100">
+      ${createTableHTML('Descripción Pieza (Crea fila)', data.piezas, 'emec_piezas', '#ea580c')}
+      ${createTableHTML('Catálogo de Materiales', data.materiales, 'emec_materiales', '#64748b')}
+      ${createTableHTML('Catálogo de Mano de Obra', data.mano_obra, 'emec_mano_obra', '#64748b')}
+    </div>`;
+}
+
+async function addMecLista(tabla) {
+  const input = document.getElementById(`input-${tabla}`);
+  const valor = input.value.trim();
+  if(!valor) return;
+  await api('/api/emecanico/listas/add', 'POST', { tabla, proyecto_id: PID, valor });
+  input.value = '';
+  switchTab('LISTAS_MEC'); // Refrescar la vista
+}
+
+async function renderEMecanico(c, sec) {
+  c.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Cargando piezas...</div>';
+  const data = await fetchMecanicoData();
+  
+  let totalMN = 0, totalUSD = 0;
+  let rows = '';
+
+  data.piezas.forEach((p, i) => {
+    const qty = parseFloat(p.cantidad || 0), pr = parseFloat(p.precio_lista || 0), m = parseFloat(p.porcentaje_mgn || 0), mon = p.moneda || 'MN';
+    const sub = qty * pr;
+    let tmn, tusd;
+    const tc = getTC();
+
+    // Aplicando la lógica de división para conversiones
+    if (mon === 'USD') {
+      tusd = sub * (1 + m / 100);
+      tmn = tusd * tc;
+    } else {
+      tmn = sub * (1 + m / 100);
+      tusd = tc ? tmn / tc : 0; 
+    }
+    
+    totalMN += tmn; 
+    totalUSD += tusd;
+
+    const matOptions = data.materiales.map(m => `<option value="${esc(m.nombre)}" ${p.material === m.nombre ? 'selected' : ''}>${esc(m.nombre)}</option>`).join('');
+    const moOptions = data.mano_obra.map(m => `<option value="${esc(m.nombre)}" ${p.mano_obra === m.nombre ? 'selected' : ''}>${esc(m.nombre)}</option>`).join('');
+
+    rows += `
+      <tr id="emec-row-${p.id}" class="table-row">
+        <td class="text-center text-muted" style="font-size:12px">${i + 1}</td>
+        <td class="fw-semibold text-dark">${esc(p.descripcion)}</td>
+        <td><select class="excel-select" data-field="material" onchange="saveEMec(${p.id})" style="width:140px"><option value="">—</option>${matOptions}</select></td>
+        <td><select class="excel-select" data-field="mano_obra" onchange="saveEMec(${p.id})" style="width:140px"><option value="">—</option>${moOptions}</select></td>
+        <td><input class="excel-input" type="number" value="${qty || ''}" data-field="cantidad" oninput="recalcEMec(${p.id}, this)" style="width:60px"/></td>
+        <td><input class="excel-input" type="number" value="${pr || ''}" data-field="precio_lista" oninput="recalcEMec(${p.id}, this)" style="width:90px"/></td>
+        <td>
+          <select class="excel-select" data-field="moneda" onchange="recalcEMec(${p.id}, this)" style="width:65px">
+            <option value="MN" ${mon === 'MN' ? 'selected' : ''}>MN</option>
+            <option value="USD" ${mon === 'USD' ? 'selected' : ''}>USD</option>
+          </select>
+        </td>
+        <td class="text-muted text-end" style="font-size:12px" id="emec-sub-${p.id}">${fmt(sub)}</td>
+        <td><input class="excel-input" type="number" value="${m || ''}" data-field="porcentaje_mgn" oninput="recalcEMec(${p.id}, this)" style="width:55px"/></td>
+        <td class="fw-bold text-dark text-end" id="emec-tmn-${p.id}">${fmt(tmn)}</td>
+        <td class="fw-bold text-primary text-end" id="emec-tusd-${p.id}">${fmt(tusd)}</td>
+      </tr>`;
+  });
+
+  c.innerHTML = `
+    <div class="card shadow-sm border-0 overflow-hidden">
+      <div class="p-3 d-flex align-items-center justify-content-between text-white" style="background:${sec ? sec.color : '#ea580c'}">
+        <div>
+          <div class="text-uppercase" style="font-size:10px;opacity:0.8;letter-spacing:0.5px">Sección Integrada</div>
+          <div class="fs-5 fw-bold">E. MECÁNICO</div>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+          <button onclick="switchTab('LISTAS_MEC')" class="btn btn-sm btn-light fw-semibold" style="font-size:11px"><i class="fa-solid fa-list me-1"></i>Gestionar Listas</button>
+          <div class="text-end text-white text-opacity-90" style="font-size:13px">
+            <div>Total USD: <strong id="emec-header-usd">${fmt(totalUSD)}</strong></div>
+            <div>Total MN: <strong id="emec-header-mn">${fmt(totalMN)}</strong></div>
+          </div>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="excel-table">
+          <thead><tr>
+            <th style="width:45px">PDA</th><th style="min-width:180px">DESCRIPCIÓN PIEZA</th><th style="width:150px">MATERIAL</th><th style="width:150px">MANO DE OBRA</th>
+            <th style="width:65px">QTY</th><th style="width:100px">P. LISTA</th><th style="width:65px">MON.</th>
+            <th class="text-end" style="width:110px">SUB TOTAL</th><th style="width:60px">% MGN</th>
+            <th class="text-end" style="width:115px">TOTAL MN</th><th class="text-end" style="width:115px">TOTAL USD</th>
+          </tr></thead>
+          <tbody>${rows.length > 0 ? rows : `<tr><td colspan="11" class="text-center py-4 text-muted">Aún no hay piezas. Agrégalas desde "Listas Mec."</td></tr>`}</tbody>
+          <tfoot><tr class="total-row">
+            <td colspan="9" class="text-end p-3">TOTAL</td>
+            <td class="text-end p-3" id="emec-footer-mn">${fmt(totalMN)}</td>
+            <td class="text-end p-3" id="emec-footer-usd">${fmt(totalUSD)}</td>
+          </tr></tfoot>
+        </table>
+      </div>
+    </div>`;
+}
+
+function recalcEMec(pid, input) {
+  const row = document.getElementById(`emec-row-${pid}`);
+  if (!row) return;
+  const qty = parseFloat(row.querySelector('[data-field="cantidad"]')?.value || 0);
+  const pr = parseFloat(row.querySelector('[data-field="precio_lista"]')?.value || 0);
+  const m = parseFloat(row.querySelector('[data-field="porcentaje_mgn"]')?.value || 0);
+  const mon = row.querySelector('[data-field="moneda"]')?.value || 'MN';
+  const tc = getTC();
+  
+  const sub = qty * pr; 
+  let tmn, tusd;
+  if(mon === 'USD'){ tusd = sub * (1 + m / 100); tmn = tusd * tc; }
+  else { tmn = sub * (1 + m / 100); tusd = tc ? tmn / tc : 0; }
+  
+  document.getElementById(`emec-sub-${pid}`).textContent = fmt(sub);
+  document.getElementById(`emec-tmn-${pid}`).textContent = fmt(tmn);
+  document.getElementById(`emec-tusd-${pid}`).textContent = fmt(tusd);
+
+  const tbody = row.closest('tbody');
+  let totalMN = 0, totalUSD = 0;
+  tbody.querySelectorAll('tr[id^="emec-row-"]').forEach(r => {
+    const rId = r.id.split('-')[2];
+    totalMN += parseFloat(document.getElementById(`emec-tmn-${rId}`).textContent.replace(/[^0-9.-]/g, '')) || 0;
+    totalUSD += parseFloat(document.getElementById(`emec-tusd-${rId}`).textContent.replace(/[^0-9.-]/g, '')) || 0;
+  });
+
+  document.getElementById('emec-header-mn').textContent = fmt(totalMN);
+  document.getElementById('emec-header-usd').textContent = fmt(totalUSD);
+  document.getElementById('emec-footer-mn').textContent = fmt(totalMN);
+  document.getElementById('emec-footer-usd').textContent = fmt(totalUSD);
+
+  scheduleSave(() => saveEMec(pid));
+}
+
+async function saveEMec(pid) {
+  const row = document.getElementById(`emec-row-${pid}`);
+  if (!row) return;
+  await api('/api/emecanico/piezas/update', 'POST', {
+    id: pid,
+    material: row.querySelector('[data-field="material"]')?.value || '',
+    mano_obra: row.querySelector('[data-field="mano_obra"]')?.value || '',
+    cantidad: parseFloat(row.querySelector('[data-field="cantidad"]')?.value || 0),
+    precio_lista: parseFloat(row.querySelector('[data-field="precio_lista"]')?.value || 0),
+    moneda: row.querySelector('[data-field="moneda"]')?.value || 'MN',
+    porcentaje_mgn: parseFloat(row.querySelector('[data-field="porcentaje_mgn"]')?.value || 0),
+  });
 }
 
 initProject();

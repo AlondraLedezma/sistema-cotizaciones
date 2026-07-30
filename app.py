@@ -20,7 +20,7 @@ def favicon():
     return send_from_directory(os.path.join(app.root_path, "static"),
                                "favicon.ico", mimetype="image/x-icon")
 
-DB = dict(host="localhost", user="root", password="",
+DB = dict(host="localhost", user="root", password="root",
           database="cotizaciones_dematiq", charset="utf8mb4",
           cursorclass=pymysql.cursors.DictCursor, autocommit=True)
 
@@ -1535,6 +1535,69 @@ def api_update_configuracion():
     for k, v in d.items():
         ex("INSERT INTO configuracion (clave, valor) VALUES (%s, %s) ON DUPLICATE KEY UPDATE valor=%s", (k, str(v), str(v)))
     return jsonify(success=True)
+
+from flask import request, jsonify
+
+@app.route('/api/emecanico/listas/<int:proyecto_id>', methods=['GET'])
+def get_emecanico_listas(proyecto_id):
+    cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+    
+    cursor.execute("SELECT * FROM emec_materiales WHERE proyecto_id = %s", (proyecto_id,))
+    materiales = cursor.fetchall()
+    
+    cursor.execute("SELECT * FROM emec_mano_obra WHERE proyecto_id = %s", (proyecto_id,))
+    mano_obra = cursor.fetchall()
+    
+    cursor.execute("SELECT * FROM emec_piezas WHERE proyecto_id = %s", (proyecto_id,))
+    piezas = cursor.fetchall()
+    
+    cursor.close()
+    return jsonify({
+        "materiales": materiales,
+        "mano_obra": mano_obra,
+        "piezas": piezas
+    })
+
+@app.route('/api/emecanico/listas/add', methods=['POST'])
+def add_emecanico_lista():
+    data = request.json
+    tabla = data.get('tabla') # 'emec_materiales', 'emec_mano_obra' o 'emec_piezas'
+    proyecto_id = data.get('proyecto_id')
+    valor = data.get('valor')
+    
+    cursor = mysql.connection.cursor()
+    if tabla == 'emec_piezas':
+        cursor.execute("INSERT INTO emec_piezas (proyecto_id, descripcion) VALUES (%s, %s)", (proyecto_id, valor))
+    else:
+        cursor.execute(f"INSERT INTO {tabla} (proyecto_id, nombre) VALUES (%s, %s)", (proyecto_id, valor))
+    
+    mysql.connection.commit()
+    cursor.close()
+    return jsonify({"status": "success"})
+
+@app.route('/api/emecanico/piezas/update', methods=['POST'])
+def update_emecanico_pieza():
+    data = request.json
+    pieza_id = data.get('id')
+    
+    cursor = mysql.connection.cursor()
+    cursor.execute("""
+        UPDATE emec_piezas 
+        SET material = %s, mano_obra = %s, cantidad = %s, precio_lista = %s, porcentaje_mgn = %s, moneda = %s
+        WHERE id = %s
+    """, (
+        data.get('material', ''),
+        data.get('mano_obra', ''),
+        data.get('cantidad', 0),
+        data.get('precio_lista', 0),
+        data.get('porcentaje_mgn', 0),
+        data.get('moneda', 'MN'),
+        pieza_id
+    ))
+    mysql.connection.commit()
+    cursor.close()
+    return jsonify({"status": "success"})
+
 
 if __name__ == "__main__":
     import webbrowser, threading

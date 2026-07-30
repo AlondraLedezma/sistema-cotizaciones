@@ -302,3 +302,32 @@ CREATE TABLE `cotizaciones_mecanico` (
   KEY `proyecto_id` (`proyecto_id`),
   CONSTRAINT `cotizaciones_mecanico_ibfk_1` FOREIGN KEY (`proyecto_id`) REFERENCES `proyectos` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+
+-- Tabla para los Materiales (Combo 1)
+CREATE TABLE emec_materiales (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    proyecto_id INT,
+    nombre VARCHAR(255)
+);
+
+-- Tabla para la Mano de Obra (Combo 2)
+CREATE TABLE emec_mano_obra (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    proyecto_id INT,
+    nombre VARCHAR(255)
+);
+
+-- Tabla para las Piezas (Genera las filas y guarda los cálculos)
+CREATE TABLE emec_piezas (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    proyecto_id INT,
+    descripcion VARCHAR(255),
+    material VARCHAR(255) DEFAULT '',
+    mano_obra VARCHAR(255) DEFAULT '',
+    cantidad DECIMAL(10,2) DEFAULT 0,
+    precio_lista DECIMAL(10,2) DEFAULT 0,
+    porcentaje_mgn DECIMAL(5,2) DEFAULT 0,
+    moneda VARCHAR(10) DEFAULT 'MN'
+);
