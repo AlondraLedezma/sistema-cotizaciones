@@ -1,127 +1,10 @@
-{% extends "base.html" %}
-{% block title %}DEMATIQ — {{ proyecto.nombre_proyecto or 'Proyecto' }}{% endblock %}
-{% block content %}
-<style>
-.quote-header-input {
-  background: transparent;
-  border: none;
-  font-family: 'Inter', sans-serif;
-  font-size: 13px;
-  color: #0f172a;
-  padding: 4px 8px;
-  width: 100%;
-  transition: all 0.15s ease;
-}
-.quote-header-input:focus {
-  background: #fffbeb !important;
-  outline: 1.5px solid #2563eb;
-  border-radius: 4px;
-}
-.quote-header-input::placeholder {
-  color: #94a3b8;
-  font-weight: normal;
-}
-</style>
-<div class="d-flex flex-column min-vh-100" style="background:#f8fafc">
 
-  <div class="bg-white border-bottom sticky-top" style="z-index:100; box-shadow:0 1px 4px rgba(0,0,0,0.05)">
-    
-    <div class="px-4 d-flex align-items-center justify-content-between" style="height:56px">
-      <div class="d-flex align-items-center gap-2">
-        <a href="/dashboard" class="d-flex align-items-center gap-2 text-decoration-none me-2">
-          <img src="/static/img/logo.png" style="height:26px;width:auto;object-fit:contain" alt="DEMATIQ"/>
-        </a>
-        <span class="text-muted me-2">|</span>
-        <a href="/dashboard" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1">
-          <i class="fa-solid fa-arrow-left" style="font-size:11px"></i>Dashboard
-        </a>
-        <span class="text-muted">/</span>
-        <span class="text-muted" style="font-size:13px">{{ 'Cotizaciones' if proyecto.tipo_proyecto in ['mecanico', 'cotizacion'] else 'Proyectos' }}</span>
-        <span class="text-muted">/</span>
-        <input class="fw-bold text-dark border-0 bg-transparent px-1" style="font-size:13px; outline:none; width:180px;" id="f-nombre-proyecto" value="{{ proyecto.nombre_proyecto }}" onchange="saveProjectField()" />
-        <input class="badge bg-primary ms-2 border-0 text-white fw-bold text-center" id="top-numero" value="{{ proyecto.numero_proyecto }}" style="width:140px;font-size:12px" onblur="saveProjectField({numero_proyecto:this.value})" />
-      </div>
-      <div class="d-flex align-items-center gap-3">
-        <span id="autosave-indicator" class="text-muted" style="font-size:12px; display:flex; align-items:center; gap:6px">
-          <i class="fa-solid fa-circle-check text-success" style="font-size:11px"></i>Guardado
-        </span>
-        <button class="btn btn-sm btn-outline-primary px-3" id="btn-save" onclick="saveProject()">
-          <i class="fa-solid fa-floppy-disk me-1"></i>Guardar
-        </button>
-        <button class="btn btn-sm btn-primary px-3" onclick="downloadPDF()">
-          <i class="fa-solid fa-file-pdf me-1"></i>Exportar PDF
-        </button>
-      </div>
-    </div>
-
-    {% if proyecto.tipo_proyecto not in ['mecanico', 'cotizacion'] %}
-    <!-- Standard Project Header (Old layout) -->
-    <div class="border-top px-4 py-2 bg-light row g-2 m-0" style="background:linear-gradient(135deg,#eff6ff,#f5f3ff)">
-      <div class="col-6 col-sm-4 col-md-2">
-        <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Empresa</label>
-        <input id="f-empresa" class="form-control form-control-sm fw-semibold" placeholder="—" value="{{ proyecto.empresa_cliente or '' }}"/>
-      </div>
-      <div class="col-6 col-sm-4 col-md-2">
-        <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Atención</label>
-        <input id="f-atencion" class="form-control form-control-sm" placeholder="—" value="{{ proyecto.atencion or '' }}"/>
-      </div>
-      <div class="col-6 col-sm-4 col-md-2">
-        <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Teléfono</label>
-        <input id="f-telefono" class="form-control form-control-sm" placeholder="—" value="{{ proyecto.telefono_cliente or '' }}"/>
-      </div>
-      <div class="col-6 col-sm-4 col-md-2">
-        <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Email</label>
-        <input id="f-email" class="form-control form-control-sm" placeholder="—" value="{{ proyecto.email_cliente or '' }}"/>
-      </div>
-      <div class="col-6 col-sm-4 col-md-2">
-        <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Días Vigencia</label>
-        <div class="input-group input-group-sm">
-          <input id="f-dias-vigencia" type="number" class="form-control form-control-sm fw-semibold" value="{{ proyecto.dias_vigencia or 15 }}" oninput="if(typeof onFechaOrVigenciaChange==='function') onFechaOrVigenciaChange()" onblur="saveProjectField()"/>
-          <span class="input-group-text bg-transparent text-muted" style="font-size:10px">días</span>
-        </div>
-      </div>
-      <div class="col-6 col-sm-4 col-md-1">
-        <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">T/C USD</label>
-        <input id="f-tc" oninput="onTcChange(this.value)" type="number" class="form-control form-control-sm fw-bold text-primary" step="0.01" value="{{ proyecto.tipo_cambio_usd or '20.00' }}"/>
-      </div>
-      <div class="col-6 col-sm-4 col-md-1">
-        <label class="form-label fw-bold text-muted text-uppercase mb-1" style="font-size:9px">Carpeta</label>
-        <div class="input-group input-group-sm">
-          <input id="f-carpeta" class="form-control text-truncate" placeholder="Ruta..." value="{{ proyecto.carpeta_link or '' }}"/>
-          <button onclick="seleccionarCarpeta()" class="btn btn-outline-secondary text-primary" type="button"><i class="fa-solid fa-folder-open"></i></button>
-        </div>
-      </div>
-    </div>
-    <div class="bg-dark px-4 d-flex gap-1 overflow-x-auto" id="tabs-bar" style="height:38px"></div>
-    {% endif %}
-  </div>
-
-  <div class="flex-grow-1 p-4 overflow-auto" id="tab-content">
-    <div class="text-center py-5 text-muted">
-      <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
-      <span>Cargando proyecto...</span>
-    </div>
-  </div>
-
-  <div class="bg-white border-top px-4 py-2 d-flex flex-wrap align-items-center gap-4 text-muted" style="font-size:12px; {% if proyecto.tipo_proyecto in ['mecanico', 'cotizacion'] %}display:none !important;{% endif %}">
-    <span>No. <strong class="text-primary" id="sb-num">{{ proyecto.numero_proyecto }}</strong></span>
-    <span>Total MN: <strong class="text-dark" id="sb-mn">$0.00</strong></span>
-    <span>Total USD: <strong class="text-primary" id="sb-usd">$0.00</strong></span>
-    <span>IVA (16%): <strong class="text-muted" id="sb-iva">$0.00</strong></span>
-    <span>TOTAL + IVA: <strong class="text-success fs-6" id="sb-total">$0.00</strong></span>
-  </div>
-</div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-const PID = {{ proyecto.id }};
-const vendedor_config = "{{ vendedor_config }}";
-const vendedor_telefono = "{{ vendedor_telefono }}";
-const vendedor_correo_config = "{{ vendedor_correo_config }}";
-const nota_aclaracion = "{{ nota_aclaracion }}";
-const slogans_config = `{{ slogans_config|replace('\n', '\\n') }}`;
-const condiciones_seccion_titulo_config = "{{ condiciones_seccion_titulo_config }}";
+const PID = 1;
+const vendedor_config = "1";
+const vendedor_telefono = "1";
+const nota_aclaracion = "1";
+const slogans_config = `1`;
+const condiciones_seccion_titulo_config = "1";
 const expandedSubtemas = new Set();
 const TABS = [
   {code:'PRESE',     label:'PRESE',        color:'#475569'},
@@ -134,7 +17,6 @@ const TABS = [
   {code:'T_ELECTRICO',label:'T. ELÉCTRICO',color:'#6366f1'},
   {code:'INSUMOS',   label:'INSUMOS',      color:'#dc2626'},
   {code:'LISTAS',    label:'LISTAS',       color:'#7c3aed'},
-  {code:'LISTAS_MEC',label:'LISTAS MEC.',  color:'#9333ea'}, // Nueva Pestaña
 ];
 
 let projectData = null;
@@ -143,10 +25,12 @@ let saveTimer = null;
 let prevCurrency = 'MN';
 
 
+
 function onTcChange(val) {
   const numVal = parseFloat(val) || 20;
+  // Sync both TC inputs without stealing focus
   document.querySelectorAll('#f-tc, #tc-inline').forEach(el => {
-    if (el && el !== document.activeElement) el.value = numVal.toFixed(2);
+    if (el && el !== document.activeElement) el.value = val;
   });
   if (projectData && projectData.proyecto) {
     projectData.proyecto.tipo_cambio_usd = numVal;
@@ -159,12 +43,81 @@ function recalcAllProjectDataTC() {
   if (!projectData) return;
   const tc = getTC();
 
+  // --- Compute insumos total from projectData (no DOM dependency) ---
+  const listas = projectData.listas || [];
+  const getFactor = (name) => {
+    const f = listas.find(x => x.seccion_codigo === 'INSUMOS' && x.valor === name);
+    return f ? parseFloat(f.factor) || 1 : 1;
+  };
+  const f_cd   = getFactor('FACTOR VIATICOS A CD');
+  const f_af   = getFactor('FACTOR AUTO FORANEO');
+  const f_en   = getFactor('FACTOR VIATICOS EN CD');
+  const f_al   = getFactor('FACTOR AUTO LOCAL');
+  const f_ho   = getFactor('FACTOR HOSPEDAJE');
+  const f_tr   = getFactor('FACTOR TRANSPORTE');
+  const f_ga   = getFactor('FACTOR GASTOS ADMIN');
+  const f_imss = getFactor('FACTOR IMSS');
+
+  const getV = (tbl, id, fld, fallback) => {
+    const el = document.querySelector(`input[data-tbl="${tbl}"][data-id="${id}"][data-fld="${fld}"]`);
+    return el ? (parseFloat(el.value)||0) : (parseFloat(fallback)||0);
+  };
+
+  let cdSum1 = 0, cdSum2 = 0;
+  (projectData.insumos_cd||[]).forEach(r => {
+    const p = getV('viaticos_cd',r.id,'personas',r.personas);
+    const v = getV('viaticos_cd',r.id,'viajes_cd',r.viajes_cd);
+    const a = getV('viaticos_cd',r.id,'autobus',r.autobus);
+    const t = getV('viaticos_cd',r.id,'taxis',r.taxis);
+    const ac = getV('viaticos_cd',r.id,'autocasetas',r.autocasetas);
+    const g = getV('viaticos_cd',r.id,'gasolina',r.gasolina);
+    cdSum1 += (p * v * (a + t));
+    cdSum2 += (v * (ac + g));
+  });
+
+  let enSum1 = 0, stAutoSum = 0, stCasaSum = 0;
+  (projectData.insumos_en_cd||[]).forEach(r => {
+    const p = getV('viaticos_en_cd',r.id,'personas',r.personas);
+    const di = getV('viaticos_en_cd',r.id,'dias',r.dias);
+    const al = getV('viaticos_en_cd',r.id,'alimentos',r.alimentos);
+    const h = getV('viaticos_en_cd',r.id,'hotel',r.hotel);
+    const tr = getV('viaticos_en_cd',r.id,'transporte',r.transporte);
+    const rc = getV('viaticos_en_cd',r.id,'renta_coche',r.renta_coche);
+    const g = getV('viaticos_en_cd',r.id,'gasolina',r.gasolina);
+    const da = getV('viaticos_en_cd',r.id,'dias_auto',r.dias_auto);
+    const m = getV('viaticos_en_cd',r.id,'meses',r.meses);
+    const ca = getV('viaticos_en_cd',r.id,'renta_casa',r.renta_casa);
+    enSum1 += (p * di * (al + h + tr));
+    stAutoSum += ((rc + g) * da);
+    stCasaSum += (ca * m);
+  });
+
+  let trSum = 0;
+  (projectData.insumos_transporte||[]).forEach(r => {
+    const c = getV('transporte',r.id,'transporte_costo',r.costo);
+    const n = getV('transporte',r.id,'no_veces',r.no_veces);
+    trSum += (c * n);
+  });
+
+  let gaSum = 0;
+  (projectData.insumos_gastos_admin||[]).forEach(r => {
+    const c = getV('gastos_admin',r.id,'costo',r.costo);
+    gaSum += c;
+  });
+
+  let imssSum = 0;
+  (projectData.insumos_imss||[]).forEach(r => {
+    const p = getV('imss',r.id,'personas',r.personas);
+    const c = getV('imss',r.id,'costo_dia',r.costo_dia);
+    const di = getV('imss',r.id,'dias',r.dias);
+    imssSum += (p * c * di);
+  });
+
+  const insumosMn = (cdSum1 * f_cd) + (cdSum2 * f_af) + (enSum1 * f_en) + (stAutoSum * f_al) + (stCasaSum * f_ho) + (trSum * f_tr) + (gaSum * f_ga) + (imssSum * f_imss);
+
+  // --- Update all secciones in projectData ---
   (projectData.secciones || []).forEach(sec => {
-    if (sec.codigo === 'INSUMOS') {
-      if (typeof recalcInsumosGrandTotals === 'function') {
-        recalcInsumosGrandTotals();
-      }
-    } else if (sec.tipo === 'mano_obra') {
+    if (sec.tipo === 'mano_obra') {
       let secUSD = 0, secMN = 0;
       (sec.partidas || []).forEach(p => {
         const h = parseFloat(p.horas_mo || 0), d = parseFloat(p.dias_trabajo || 0),
@@ -174,7 +127,6 @@ function recalcAllProjectDataTC() {
         p.total_mn = p.total_usd * tc;
         secUSD += p.total_usd;
         secMN += p.total_mn;
-
         const elTusd = document.getElementById(`mo-tusd-${p.id}`);
         const elTmn = document.getElementById(`mo-tmn-${p.id}`);
         if (elTusd) elTusd.textContent = fmt(p.total_usd);
@@ -182,7 +134,6 @@ function recalcAllProjectDataTC() {
       });
       sec.subtotal_usd = secUSD;
       sec.subtotal_mn = secMN;
-
       const hUSD = document.getElementById(`sec-header-usd-${sec.id}`);
       const hMN = document.getElementById(`sec-header-mn-${sec.id}`);
       const fUSD = document.getElementById(`sec-footer-usd-${sec.id}`);
@@ -203,11 +154,10 @@ function recalcAllProjectDataTC() {
           p.total_mn = p.total_usd * tc;
         } else {
           p.total_mn = sub * (1 + m / 100);
-          p.total_usd = tc ? p.total_mn / tc : 0;
+          p.total_usd = tc > 0 ? p.total_mn / tc : 0;
         }
         secUSD += p.total_usd;
         secMN += p.total_mn;
-
         const elTusd = document.getElementById(`eq-tusd-${p.id}`);
         const elTmn = document.getElementById(`eq-tmn-${p.id}`);
         if (elTusd) elTusd.textContent = fmt(p.total_usd);
@@ -215,7 +165,6 @@ function recalcAllProjectDataTC() {
       });
       sec.subtotal_usd = secUSD;
       sec.subtotal_mn = secMN;
-
       const hUSD = document.getElementById(`sec-header-usd-${sec.id}`);
       const hMN = document.getElementById(`sec-header-mn-${sec.id}`);
       const fUSD = document.getElementById(`sec-footer-usd-${sec.id}`);
@@ -224,14 +173,55 @@ function recalcAllProjectDataTC() {
       if (hMN) hMN.textContent = fmt(secMN);
       if (fUSD) fUSD.textContent = fmt(secUSD);
       if (fMN) fMN.textContent = fmt(secMN);
+
+    } else if (sec.codigo === 'INSUMOS') {
+      // INSUMOS costs are in MXN - MN doesn't change with TC
+      // Only recalculate USD equivalent
+      const existingMn = parseFloat(sec.subtotal_mn || 0);
+      sec.subtotal_usd = tc > 0 ? existingMn / tc : 0;
+      // If on INSUMOS tab, also update the DOM totals
+      if (currentTab === 'INSUMOS' && typeof recalcInsumosGrandTotals === 'function') {
+        recalcInsumosGrandTotals();
+      }
     }
   });
 
   updateStatusBar();
+  updateReporteTableCells();
+}
 
-  if (currentTab === 'REPORTE' && typeof renderReporte === 'function') {
-    renderReporte();
-  }
+// Update REPORTE table cells in-place without re-rendering HTML
+function updateReporteTableCells() {
+  if (currentTab !== 'REPORTE') return;
+  const p = projectData.proyecto||{};
+  const tc = getTC();
+  const secs = (projectData.secciones||[]).filter(s => !['PRESE','REPORTE','CONDICIONES','LISTAS','IO','I/O'].includes(s.codigo));
+  let tmn = 0, tusd = 0;
+  secs.forEach((s, i) => {
+    const s_mn = parseFloat(s.subtotal_mn||0);
+    const s_usd = parseFloat(s.subtotal_usd||0);
+    tmn += s_mn;
+    tusd += s_usd;
+    // Update each row cell
+    const mnCell = document.getElementById(`rpt-mn-${s.id}`);
+    const usdCell = document.getElementById(`rpt-usd-${s.id}`);
+    if (mnCell) mnCell.textContent = fmt(s_mn);
+    if (usdCell) usdCell.textContent = fmt(s_usd);
+  });
+  // Update totals
+  const elTotMn = document.getElementById('rpt-total-mn');
+  const elTotUsd = document.getElementById('rpt-total-usd');
+  const elSubMn = document.getElementById('rpt-subtotal-mn');
+  if (elTotMn) elTotMn.textContent = fmt(tmn);
+  if (elTotUsd) elTotUsd.textContent = fmt(tusd);
+  if (elSubMn) elSubMn.textContent = fmt(tmn);
+  // IVA
+  const pct_iva = p.porcentaje_iva !== undefined ? parseFloat(p.porcentaje_iva) : 16.00;
+  const iva = tmn * (pct_iva / 100.0);
+  const elIva = document.getElementById('rpt-iva-amount');
+  const elTotal = document.getElementById('rpt-total-con-iva');
+  if (elIva) elIva.textContent = fmt(iva);
+  if (elTotal) elTotal.textContent = fmt(tmn + iva);
 }
 
 function getTC() {
@@ -317,7 +307,6 @@ async function _load() {
   } else {
     projectData = await r.json();
   }
-  recalcAllProjectDataTC();
   updateStatusBar();
   renderTabs();
   switchTab(currentTab);
@@ -328,7 +317,6 @@ async function initProject() {
     const res = await fetch(`/api/proyecto/${PID}`);
     if (!res.ok) throw new Error('Error al cargar');
     projectData = await res.json();
-    recalcAllProjectDataTC();
     updateStatusBar();
     renderTabs();
     switchTab(currentTab);
@@ -352,8 +340,6 @@ function switchTab(code) {
     case 'PRESE':       renderPrese(content); break;
     case 'LISTAS':      handleListasAccess(content); break;
     case 'INSUMOS':     renderInsumos(content, sec); break;
-    case 'LISTAS_MEC': renderListasMecanico(content); break;
-    case 'E_MECANICO': renderEMecanico(content, sec); break;
     default:
       if (sec) {
         if (sec.tipo==='mano_obra') renderManoObra(content, sec);
@@ -457,14 +443,8 @@ function renderReporte(c) {
   
   let tmn = 0, tusd = 0;
   secs.forEach(s => {
-    let s_mn = parseFloat(s.subtotal_mn||0);
-    let s_usd = parseFloat(s.subtotal_usd||0);
-    if (s.codigo === 'INSUMOS' || (s_usd === 0 && s_mn > 0)) {
-      s_usd = s_mn / tc;
-      s.subtotal_usd = s_usd;
-    }
-    tmn += s_mn;
-    tusd += s_usd;
+    tmn += parseFloat(s.subtotal_mn||0);
+    tusd += parseFloat(s.subtotal_usd||0);
   });
 
   const pct_iva = p.porcentaje_iva !== undefined ? parseFloat(p.porcentaje_iva) : 16.00;
@@ -499,37 +479,32 @@ function renderReporte(c) {
                     <span class="d-inline-block rounded-circle" style="width:8px;height:8px;background:${s.color||'#2563eb'};margin-right:10px;vertical-align:middle"></span>
                     ${s.titulo||s.codigo}
                   </td>
-                  <td class="text-end fw-bold text-dark">${fmt(s_mn)}</td>
-                  <td class="text-end text-primary fw-bold">${fmt(s_usd)}</td>
+                  <td class="text-end fw-bold text-dark" id="rpt-mn-${s.id}">${fmt(s_mn)}</td>
+                  <td class="text-end text-primary fw-bold" id="rpt-usd-${s.id}">${fmt(s_usd)}</td>
                 </tr>`;
               }).join('')}
               <tr class="total-row" style="background:#0e233d;color:#fff;">
                 <td class="p-3 fw-bold">TOTAL GENERAL</td>
-                <td class="text-end p-3 fw-bold" style="color:#fff;">${fmt(tmn)}</td>
-                <td class="text-end p-3 fw-bold" style="color:#93c5fd;">${fmt(tusd)}</td>
+                <td class="text-end p-3 fw-bold" style="color:#fff;" id="rpt-total-mn">${fmt(tmn)}</td>
+                <td class="text-end p-3 fw-bold" style="color:#93c5fd;" id="rpt-total-usd">${fmt(tusd)}</td>
               </tr>
             </tbody>
           </table>
           <div class="p-3 bg-light border-top">
-            <div class="d-flex justify-content-end gap-5 text-muted">
-              <div class="d-flex flex-column align-items-end" style="font-size:13px">
-                <span style="height:24px; line-height:24px;">Subtotal:</span>
-                <div class="d-flex align-items-center" style="height:24px; margin-top:4px;">
-                  <span class="me-2">IVA:</span>
-                  <input type="number" step="0.1" id="f-porcentaje-iva-reporte" class="f-porcentaje-iva-input form-control form-control-sm text-end fw-semibold px-1 py-0 border border-secondary-subtle" style="width:55px; height:22px; font-size:11px;" value="${pct_iva}" onchange="savePorcentajeIva(this.value)"/>
-                  <span class="ms-1">%</span>
+            <div class="d-flex flex-column align-items-end gap-1">
+              <div class="d-flex gap-4 text-muted" style="font-size:13px">
+                <span>Subtotal MN:</span><strong id="rpt-subtotal-mn">${fmt(tmn)}</strong>
+              </div>
+              <div class="d-flex gap-4 align-items-center text-muted" style="font-size:13px">
+                <span>IVA:</span>
+                <div class="d-flex align-items-center">
+                  <input type="number" step="0.1" id="f-porcentaje-iva-reporte" class="f-porcentaje-iva-input form-control form-control-sm text-end fw-semibold px-2 py-0 border border-secondary-subtle" style="width:60px; height:24px; font-size:12px;" value="${pct_iva}" onchange="savePorcentajeIva(this.value)"/>
+                  <span class="ms-1 fw-semibold">%</span>
                 </div>
-                <span class="mt-2 text-dark fw-bold border-top pt-2 w-100 text-end" style="font-size:14px">TOTAL CON IVA:</span>
+                <strong id="rpt-iva-amount">${fmt(iva)}</strong>
               </div>
-              <div class="d-flex flex-column align-items-end fw-semibold" style="width:120px; font-size:13px;">
-                <span class="text-dark" style="height:24px; line-height:24px;">${fmt(tmn)}</span>
-                <span class="text-dark" style="height:24px; line-height:24px; margin-top:4px;">${fmt(iva)}</span>
-                <span class="mt-2 text-success fw-bold border-top pt-2 w-100 text-end" style="font-size:15px">${fmt(tmn+iva)}</span>
-              </div>
-              <div class="d-flex flex-column align-items-end fw-semibold" style="width:120px; font-size:13px;">
-                <span class="text-primary" style="height:24px; line-height:24px;">${fmt(tusd)}</span>
-                <span class="text-primary" style="height:24px; line-height:24px; margin-top:4px;">${fmt(iva/tc)}</span>
-                <span class="mt-2 text-primary fw-bold border-top pt-2 w-100 text-end" style="font-size:15px">${fmt(tusd+(iva/tc))}</span>
+              <div class="d-flex gap-4 text-dark fw-bold border-top pt-2 mt-2" style="font-size:15px">
+                <span>TOTAL CON IVA:</span><strong class="text-success" id="rpt-total-con-iva">${fmt(tmn+iva)}</strong>
               </div>
             </div>
           </div>
@@ -564,9 +539,9 @@ function recalcInsumoRow(tbl, id) {
 
   if (tbl === 'viaticos_cd') {
     const p = getNum('personas'), v = getNum('viajes_cd'), a = getNum('autobus'), t = getNum('taxis');
-    const ra = getNum('renta_auto'), ac = getNum('autocasetas'), g = getNum('gasolina'), dias = getNum('dias');
+    const ac = getNum('autocasetas'), g = getNum('gasolina');
     const sub1 = p * v * (a + t);
-    const sub2 = (ra + ac + g) * dias;
+    const sub2 = v * (ac + g);
     const el1 = document.getElementById(`sub1_cd_${id}`);
     const el2 = document.getElementById(`sub2_cd_${id}`);
     if (el1) el1.innerText = '$ ' + fm(sub1);
@@ -593,8 +568,8 @@ function recalcInsumoRow(tbl, id) {
     const el = document.getElementById(`sub_ga_${id}`);
     if (el) el.innerText = '$ ' + fm(c);
   } else if (tbl === 'imss') {
-    const pe = getNum('num_personal') || 1, p = getNum('personas'), c = getNum('costo_dia'), di = getNum('dias');
-    const sub = pe * p * c * di;
+    const p = getNum('personas'), c = getNum('costo_dia'), di = getNum('dias');
+    const sub = p * c * di;
     const el = document.getElementById(`sub_imss_${id}`);
     if (el) el.innerText = '$ ' + fm(sub);
   }
@@ -605,7 +580,7 @@ function recalcInsumosGrandTotals() {
   const listas = projectData.listas || [];
   const getFactor = (name) => {
     const f = listas.find(x => x.seccion_codigo === 'INSUMOS' && x.valor === name);
-    return f ? parseFloat(f.factor) || 1.2 : 1.2;
+    return f ? parseFloat(f.factor) || 1 : 1;
   };
   const f_cd   = getFactor('FACTOR VIATICOS A CD');
   const f_af   = getFactor('FACTOR AUTO FORANEO');
@@ -626,10 +601,8 @@ function recalcInsumosGrandTotals() {
     const t = parseFloat(document.querySelector(`input[data-tbl="viaticos_cd"][data-id="${r.id}"][data-fld="taxis"]`)?.value ?? r.taxis)||0;
     const ac = parseFloat(document.querySelector(`input[data-tbl="viaticos_cd"][data-id="${r.id}"][data-fld="autocasetas"]`)?.value ?? r.autocasetas)||0;
     const g = parseFloat(document.querySelector(`input[data-tbl="viaticos_cd"][data-id="${r.id}"][data-fld="gasolina"]`)?.value ?? r.gasolina)||0;
-    const ra = parseFloat(document.querySelector(`input[data-tbl="viaticos_cd"][data-id="${r.id}"][data-fld="renta_auto"]`)?.value ?? r.renta_auto)||0;
-    const dias = parseFloat(document.querySelector(`input[data-tbl="viaticos_cd"][data-id="${r.id}"][data-fld="dias"]`)?.value ?? r.dias)||0;
     cdSum1 += (p * v * (a + t));
-    cdSum2 += ((ra + ac + g) * dias);
+    cdSum2 += (v * (ac + g));
   });
 
   let enSum1 = 0, stAutoSum = 0, stCasaSum = 0;
@@ -664,11 +637,10 @@ function recalcInsumosGrandTotals() {
 
   let imssSum = 0;
   (projectData.insumos_imss||[]).forEach(r => {
-    const pe = parseFloat(document.querySelector(`input[data-tbl="imss"][data-id="${r.id}"][data-fld="num_personal"]`)?.value ?? r.num_personal) || 1;
     const p = parseFloat(document.querySelector(`input[data-tbl="imss"][data-id="${r.id}"][data-fld="personas"]`)?.value ?? r.personas)||0;
     const c = parseFloat(document.querySelector(`input[data-tbl="imss"][data-id="${r.id}"][data-fld="costo_dia"]`)?.value ?? r.costo_dia)||0;
     const di = parseFloat(document.querySelector(`input[data-tbl="imss"][data-id="${r.id}"][data-fld="dias"]`)?.value ?? r.dias)||0;
-    imssSum += (pe * p * c * di);
+    imssSum += (p * c * di);
   });
 
   // Update table blue footers
@@ -732,20 +704,6 @@ function recalcInsumosGrandTotals() {
       sec.subtotal_usd = totalUsd;
     }
   }
-  updateStatusBar();
-}
-
-async function addInsumosRow(tabla) {
-  const r = await api('/api/insumos/add_row','POST',{proyecto_id:PID, tabla});
-  await reloadSections();
-  switchTab('INSUMOS');
-}
-
-async function deleteInsumosRow(id, tabla) {
-  if(!await askConfirm('¿Eliminar esta fila?')) return;
-  await api('/api/insumos/delete_row','POST',{id, tabla, proyecto_id:PID});
-  await reloadSections();
-  switchTab('INSUMOS');
 }
 
 function renderInsumos(c, sec) {
@@ -775,9 +733,9 @@ function renderInsumos(c, sec) {
   let cdSum1 = 0, cdSum2 = 0;
   cdRows.forEach(r => {
     const p = parseFloat(r.personas)||0, v = parseFloat(r.viajes_cd)||0, a = parseFloat(r.autobus)||0, t = parseFloat(r.taxis)||0;
-    const ra = parseFloat(r.renta_auto)||0, ac = parseFloat(r.autocasetas)||0, g = parseFloat(r.gasolina)||0, d = parseFloat(r.dias)||0;
+    const ac = parseFloat(r.autocasetas)||0, g = parseFloat(r.gasolina)||0;
     r.subtotal_mn = p * v * (a + t);
-    r.subtotal_mn2 = (ra + ac + g) * d;
+    r.subtotal_mn2 = v * (ac + g);
     cdSum1 += r.subtotal_mn;
     cdSum2 += r.subtotal_mn2;
   });
@@ -810,7 +768,7 @@ function renderInsumos(c, sec) {
 
   let imssSum = 0;
   imssRows.forEach(r => {
-    r.subtotal = (parseFloat(r.num_personal)||1) * (parseFloat(r.personas)||0) * (parseFloat(r.costo_dia)||0) * (parseFloat(r.dias)||0);
+    r.subtotal = (parseFloat(r.personas)||0) * (parseFloat(r.costo_dia)||0) * (parseFloat(r.dias)||0);
     imssSum += r.subtotal;
   });
 
@@ -867,7 +825,7 @@ function renderInsumos(c, sec) {
   // VIÁTICOS A CD: Full width 100%, responsive column distribution (No white gap on right!)
   html += `<div style="margin-bottom:32px;overflow-x:auto;box-shadow:0 2px 10px rgba(0,0,0,.08);border-radius:8px;border:1px solid #e2e8f0;background:#fff;">
     <table style="border-collapse:collapse;width:100%;min-width:980px;font-family:sans-serif;">
-      <tr><th colspan="6" style="${S.hdr}">VIÁTICOS EN CIUDAD</th><td style="${S.sep}"></td><th colspan="5" style="${S.hdr}">AUTO LOCAL</th><th style="${S.del}"></th></tr>
+      <tr><th colspan="6" style="${S.hdr}">VIÁTICOS A CD</th><td style="${S.sep}"></td><th colspan="3" style="${S.hdr}">AUTO FORÁNEO</th><th style="${S.del}"></th></tr>
       <tr>
         <th style="${S.sub};text-align:left;padding-left:12px;">PUESTO / CONCEPTO</th>
         <th style="${S.sub};width:70px;">PERSONAS</th>
@@ -876,10 +834,8 @@ function renderInsumos(c, sec) {
         <th style="${S.sub};width:100px;">TAXIS</th>
         <th style="${S.sub};width:125px;">SUB TOTAL MN</th>
         <td style="${S.sep}"></td>
-        <th style="${S.sub};width:95px;">RENTA AUTO</th>
-        <th style="${S.sub};width:95px;">CASETAS</th>
-        <th style="${S.sub};width:95px;">GASOLINA</th>
-        <th style="${S.sub};width:70px;">DÍAS</th>
+        <th style="${S.sub};width:100px;">CASETAS</th>
+        <th style="${S.sub};width:100px;">GASOLINA</th>
         <th style="${S.sub};width:125px;">SUB TOTAL MN</th>
         <th style="${S.del}"></th>
       </tr>`;
@@ -892,24 +848,22 @@ function renderInsumos(c, sec) {
       <td style="${S.cell}">${curInp(r.taxis||0,r.id,'viaticos_cd','taxis','80px')}</td>
       <td style="${S.sum}" id="sub1_cd_${r.id}">$ ${fm(r.subtotal_mn)}</td>
       <td style="${S.sep}"></td>
-      <td style="${S.cell}">${curInp(r.renta_auto||0,r.id,'viaticos_cd','renta_auto','75px')}</td>
-      <td style="${S.cell}">${curInp(r.autocasetas||0,r.id,'viaticos_cd','autocasetas','75px')}</td>
-      <td style="${S.cell}">${curInp(r.gasolina||0,r.id,'viaticos_cd','gasolina','75px')}</td>
-      <td style="${S.cell}">${inp('number',r.dias||0,r.id,'viaticos_cd','dias','100%')}</td>
+      <td style="${S.cell}">${curInp(r.autocasetas||0,r.id,'viaticos_cd','autocasetas','80px')}</td>
+      <td style="${S.cell}">${curInp(r.gasolina||0,r.id,'viaticos_cd','gasolina','80px')}</td>
       <td style="${S.sum}" id="sub2_cd_${r.id}">$ ${fm(r.subtotal_mn2)}</td>
       ${xBtn('viaticos_cd',r.id)}
     </tr>`;
   });
-  html += `<tr><td colspan="5" style="${S.dark}"></td><td style="${S.blue}" id="subtotal_cd_sum1">$ ${fm(cdSum1)}</td><td style="${S.sep}"></td><td colspan="4" style="${S.dark}"></td><td style="${S.blue}" id="subtotal_cd_sum2">$ ${fm(cdSum2)}</td><td style="${S.del}"></td></tr>
-    <tr><td colspan="4" style="border:none;"></td><td style="${S.blue}">FACTOR</td><td style="${S.blue}">${f_cd}</td><td style="border:none;"></td><td colspan="3" style="border:none;"></td><td style="${S.blue}">FACTOR</td><td style="${S.blue}">${f_af}</td><td style="${S.del}"></td></tr>
-    <tr><td colspan="4" style="border:none;"></td><td style="${S.blue}">TOTAL</td><td style="${S.blue}" id="total_cd_sum1">$ ${fm(cdSum1*f_cd)}</td><td style="border:none;"></td><td colspan="3" style="border:none;"></td><td style="${S.blue}">TOTAL</td><td style="${S.blue}" id="total_cd_sum2">$ ${fm(cdSum2*f_af)}</td><td style="${S.del}"></td></tr>
+  html += `<tr><td colspan="5" style="${S.dark}"></td><td style="${S.blue}" id="subtotal_cd_sum1">$ ${fm(cdSum1)}</td><td style="${S.sep}"></td><td colspan="2" style="${S.dark}"></td><td style="${S.blue}" id="subtotal_cd_sum2">$ ${fm(cdSum2)}</td><td style="${S.del}"></td></tr>
+    <tr><td colspan="4" style="border:none;"></td><td style="${S.blue}">FACTOR</td><td style="${S.blue}">${f_cd}</td><td style="border:none;"></td><td style="border:none;"></td><td style="${S.blue}">FACTOR</td><td style="${S.blue}">${f_af}</td><td style="${S.del}"></td></tr>
+    <tr><td colspan="4" style="border:none;"></td><td style="${S.blue}">TOTAL</td><td style="${S.blue}" id="total_cd_sum1">$ ${fm(cdSum1*f_cd)}</td><td style="border:none;"></td><td style="border:none;"></td><td style="${S.blue}">TOTAL</td><td style="${S.blue}" id="total_cd_sum2">$ ${fm(cdSum2*f_af)}</td><td style="${S.del}"></td></tr>
   </table>
   <div style="padding:10px 16px;background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom-left-radius:8px;border-bottom-right-radius:8px;"><button class="btn btn-sm" style="background:#0e233d;color:#fff;font-weight:600;font-size:12px;padding:6px 14px;box-shadow:0 1px 3px rgba(0,0,0,.2);" onclick="addInsumosRow('cd')"><i class="fas fa-plus"></i> Agregar Fila</button></div></div>`;
 
   // VIÁTICOS EN CD: Scrollable 100% visible, no cut-offs on the right or bottom!
   html += `<div style="margin-bottom:32px;overflow-x:auto;box-shadow:0 2px 10px rgba(0,0,0,.08);border-radius:8px;border:1px solid #e2e8f0;background:#fff;">
     <table style="border-collapse:collapse;width:100%;min-width:1420px;font-family:sans-serif;">
-      <tr><th colspan="7" style="${S.hdr}">VIÁTICOS A CIUDAD</th><td style="${S.sep}"></td><th colspan="4" style="${S.hdr}">AUTO FORÁNEO</th><td style="${S.sep}"></td><th colspan="3" style="${S.hdr}">HOSPEDAJE</th><th style="${S.del}"></th></tr>
+      <tr><th colspan="7" style="${S.hdr}">VIÁTICOS EN CD</th><td style="${S.sep}"></td><th colspan="4" style="${S.hdr}">AUTO LOCAL</th><td style="${S.sep}"></td><th colspan="3" style="${S.hdr}">HOSPEDAJE LOCAL</th><th style="${S.del}"></th></tr>
       <tr>
         <th style="${S.sub};min-width:200px;text-align:left;padding-left:12px;">PUESTO / CONCEPTO</th>
         <th style="${S.sub};width:65px;">PERSONAS</th>
@@ -1030,11 +984,10 @@ function renderInsumos(c, sec) {
   // Row 2: IMSS table on its own row below
   html += `<div style="max-width:550px;box-shadow:0 2px 10px rgba(0,0,0,.08);border-radius:8px;border:1px solid #e2e8f0;background:#fff;overflow-x:auto;">
     <table style="border-collapse:collapse;width:100%;font-family:sans-serif;">
-      <tr><th colspan="5" style="${S.hdr}">IMSS</th><th style="${S.del}"></th></tr>
-      <tr><th style="${S.sub};width:180px;">PERSONAL</th><th style="${S.sub};width:70px;">PERSONAS</th><th style="${S.sub};width:100px;">COSTO / DÍA</th><th style="${S.sub};width:70px;">DÍAS</th><th style="${S.sub};width:110px;">SUB TOTAL</th><th style="${S.del}"></th></tr>`;
+      <tr><th colspan="4" style="${S.hdr}">IMSS</th><th style="${S.del}"></th></tr>
+      <tr><th style="${S.sub};width:70px;">PERSONAS</th><th style="${S.sub};width:100px;">COSTO / DÍA</th><th style="${S.sub};width:70px;">DÍAS</th><th style="${S.sub};width:110px;">SUB TOTAL</th><th style="${S.del}"></th></tr>`;
   imssRows.forEach(r => {
     html += `<tr>
-      <td style="${S.cell}">${inp('text',r.num_personal||'',r.id,'imss','num_personal','100%','left')}</td>
       <td style="${S.cell}">${inp('number',r.personas||0,r.id,'imss','personas','100%')}</td>
       <td style="${S.cell}">${curInp(r.costo_dia||0,r.id,'imss','costo_dia','75px')}</td>
       <td style="${S.cell}">${inp('number',r.dias||0,r.id,'imss','dias','100%')}</td>
@@ -1403,28 +1356,29 @@ function renderPrese(c) {
   const p = projectData.proyecto||{};
   const subtemas = projectData.subtemas||[];
 
-  const tc = getTC();
-  const secs = (projectData.secciones||[]).filter(s=>!['PRESE','REPORTE','CONDICIONES','LISTAS','IO','I/O'].includes(s.codigo));
+  const secs = (projectData.secciones||[]).filter(s=>!['PRESE','REPORTE','CONDICIONES','LISTAS'].includes(s.codigo));
   let subtotal_mn = 0, subtotal_usd = 0;
   secs.forEach(sec => {
-    let s_mn = parseFloat(sec.subtotal_mn||0);
-    let s_usd = parseFloat(sec.subtotal_usd||0);
-    if (sec.codigo === 'INSUMOS' || (s_usd === 0 && s_mn > 0)) {
-      s_usd = s_mn / tc;
-    }
-    subtotal_mn += s_mn;
-    subtotal_usd += s_usd;
+    const partidas = sec.partidas||[];
+    partidas.forEach(pt => {
+      subtotal_mn += parseFloat(pt.total_mn||0);
+      subtotal_usd += parseFloat(pt.total_usd||0);
+    });
   });
+  const currency = prevCurrency || 'MN';
+  const subtotal_val = currency === 'USD' ? subtotal_usd : subtotal_mn;
   const pct_iva = p.porcentaje_iva !== undefined ? parseFloat(p.porcentaje_iva) : 16.00;
-  const total_mn_final = subtotal_mn * (1 + pct_iva / 100.0);
-  const total_usd_final = subtotal_usd * (1 + pct_iva / 100.0);
+  const iva_val = subtotal_val * (pct_iva / 100.0);
+  const total_val = subtotal_val + iva_val;
+  const total_letras = numeroALetras(total_val, currency);
 
+  // Premium WYSIWYG Cover Page layout for all projects/quotations
   let subtemasHTML = subtemas.map((st,i) => {
     const points = parseSubtemaPoints(st);
     let pointsHTML = points.map((pt, idx) => `
       <div class="d-flex align-items-center gap-2 mb-2 position-relative pt-1">
         <span class="fw-bold text-primary" style="font-size:12.5px; min-width:45px;">${st.indice}.${idx + 1}</span>
-        <textarea class="form-control form-control-sm border-0 bg-light" style="font-size:13px; border-radius:4px; resize:vertical; min-height:40px; overflow:hidden;" onchange="saveSubtemaPoint(${st.id}, ${idx}, this.value)" placeholder="Escribe el punto aquí...">${esc(pt)}</textarea>
+        <input class="form-control form-control-sm border-0 bg-light" style="font-size:13px; border-radius:4px;" value="${esc(pt)}" onchange="saveSubtemaPoint(${st.id}, ${idx}, this.value)" placeholder="Escribe el punto aquí..."/>
         <button onclick="deleteSubtemaPoint(${st.id}, ${idx})" class="btn btn-sm btn-link p-0 text-danger border-0 bg-transparent" style="text-decoration:none;" type="button" title="Eliminar punto">✕</button>
       </div>
     `).join('');
@@ -1439,7 +1393,7 @@ function renderPrese(c) {
         <div class="d-flex align-items-center gap-2 p-2 rounded cursor-pointer bg-light" onclick="toggleSubtemaCollapse(this, ${st.id})">
           <i class="fa-solid ${isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}" style="font-size:10px; transition:0.2s"></i>
           <span class="badge bg-primary text-white fw-bold" style="font-size:11px; min-width:30px;">${esc(st.indice)}</span>
-          <textarea class="form-control form-control-sm fw-bold border-0 bg-transparent flex-grow-1" style="font-size:13px; resize:vertical; min-height:40px; overflow:hidden;" onblur="updateSubtema(${st.id},'titulo',this.value)" onclick="event.stopPropagation()">${esc(st.titulo||'')}</textarea>
+          <input class="form-control form-control-sm fw-bold text-uppercase border-0 bg-transparent flex-grow-1" value="${esc(st.titulo||'')}" style="font-size:13px;" onblur="updateSubtema(${st.id},'titulo',this.value)" onclick="event.stopPropagation()"/>
           <button onclick="event.stopPropagation(); deleteSubtema(${st.id})" class="btn btn-sm btn-light text-danger border-0 ms-auto py-0"><i class="fa-solid fa-times"></i></button>
         </div>
         <div style="display:${isExpanded ? 'block' : 'none'};" class="ps-4 pe-3 pt-3 pb-3 collapse-content">
@@ -1455,85 +1409,66 @@ function renderPrese(c) {
   }).join('');
 
   c.innerHTML = `
-    <style>
-    .prese-v-input {
-      transition: all 0.25s ease;
-      border-radius: 4px;
-      padding: 2px 6px;
-      border-bottom: 1px dashed transparent !important;
-    }
-    .prese-v-input:focus {
-      background-color: #f1f5f9 !important;
-      box-shadow: 0 0 0 2px rgba(186, 230, 253, 0.5);
-      border-bottom: 1px dashed #ccc !important;
-    }
-    .prese-v-input:hover:not(:focus) {
-      background-color: #f8fafc !important;
-    }
-    ::-webkit-scrollbar { width: 8px; height: 8px; }
-    </style>
     <div class="card shadow-sm border border-light-subtle bg-white max-width-900 mx-auto p-4" style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; color:#0f172a;">
-      <div class="row align-items-start mb-4 border-bottom pb-4">
+      <!-- Header block -->
+      <div class="row align-items-center mb-4">
+        <!-- Logo & Slogans -->
         <div class="col-7">
           <div class="d-flex align-items-center gap-3">
             <img src="/static/img/logo.png" style="height:90px; width:auto; object-fit:contain;" alt="DEMATIQ"/>
-            <textarea id="prese-slogans" class="quote-header-input border-0 bg-transparent text-muted" 
-              style="font-size:12px; color:#475569; line-height:1.45; width:250px; height:90px; resize:vertical; outline:none;" 
-              onchange="saveVendedorConfig('slogans', this.value)" placeholder="Escribe los slogans de la empresa aquí...">${esc(window.currentSlogans || slogans_config || 'Integracion de sistemas Automatizados\nProgramacion de PLC, HMI\nServicio de Diseño y Armado Tableros\nPolizas de Mantenimiento')}</textarea>
+            <textarea id="prese-slogans" class="quote-header-input border-0 bg-transparent text-muted" style="font-size:10.5px; color:#475569; line-height:1.45; width:220px; height:80px; resize:none; outline:none;" onchange="saveVendedorConfig('slogans', this.value)" placeholder="Escribe los slogans de la empresa aquí...">${esc(window.currentSlogans || slogans_config || 'Integracion de sistemas Automatizados\nProgramacion de PLC, HMI\nServicio de Diseño y Armado Tableros\nPolizas de Mantenimiento')}</textarea>
           </div>
         </div>
-        <div class="col-5">
-          <div class="d-flex flex-column" style="font-size:13px; line-height:1.6;">
-            <span style="font-weight:bold; color:#1e3a8a; margin-bottom:8px; font-size:14px;">Datos del vendedor:</span>
-            <div class="d-flex align-items-center mb-2">
-              <span style="min-width:70px; font-weight:600; color:#475569;">Nombre:</span>
-              <input id="prese-vendedor" class="quote-header-input fw-semibold border-0 bg-transparent prese-v-input flex-grow-1" placeholder="Nombre" value="${esc(window.currentVendedor || vendedor_config || '')}" onchange="saveVendedorConfig('vendedor', this.value)"/>
-            </div>
-            <div class="d-flex align-items-center mb-2">
-              <span style="min-width:70px; font-weight:600; color:#475569;">Teléfono:</span>
-              <input id="prese-vendedor-telefono" class="quote-header-input fw-semibold border-0 bg-transparent prese-v-input flex-grow-1" placeholder="Número" value="${esc(window.currentVendedorTelefono || vendedor_telefono || '')}" onchange="saveVendedorConfig('vendedor_telefono', this.value)"/>
-            </div>
-            <div class="d-flex align-items-center">
-              <span style="min-width:70px; font-weight:600; color:#475569;">Correo:</span>
-              <input id="prese-vendedor-correo" class="quote-header-input fw-semibold border-0 bg-transparent prese-v-input flex-grow-1" placeholder="Correo" value="${esc(window.currentVendedorCorreo || vendedor_correo_config || '')}" onchange="saveVendedorConfig('vendedor_correo', this.value)"/>
-            </div>
+        <!-- Sales Manager & Quotation Details -->
+        <div class="col-5 text-end" style="font-size:12px;">
+          <div class="mb-1 text-muted fw-semibold d-flex align-items-center justify-content-start">
+            <span style="margin-right:8px; white-space:nowrap;">Ventas:</span>
+            <input id="f-vendedor-prese" class="quote-header-input fw-semibold text-start border-0 bg-transparent" style="width:220px; border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(window.currentVendedor || vendedor_config || 'Jose Moreno Rangel')}" onchange="saveVendedorConfig('vendedor', this.value)"/>
+          </div>
+          <div class="text-center py-1 text-white fw-bold text-uppercase rounded-1 mb-2" style="background:#1e3a8a; font-size:14px; letter-spacing:1px;">
+            COTIZACION
+          </div>
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="fw-bold text-muted text-uppercase" style="font-size:9px">COTIZACION No.</span>
+            <input id="top-numero" class="quote-header-input fw-bold text-end border-0 bg-transparent" style="width:60%; border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(p.numero_proyecto||'')}" onchange="saveProjectField()"/>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="fw-bold text-muted text-uppercase" style="font-size:9px">FECHA</span>
+            <input id="f-fecha" type="date" class="quote-header-input text-end border-0 bg-transparent text-muted" style="width:60%; border-bottom:1px dashed #ccc !important; outline:none;" value="${p.fecha_creacion||''}" onchange="saveProjectField()"/>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="fw-bold text-muted text-uppercase" style="font-size:9px">VENCIMIENTO</span>
+            <input id="f-vencimiento" type="date" class="quote-header-input text-end border-0 bg-transparent" style="width:60%; border-bottom:1px dashed #ccc !important; outline:none;" value="${p.fecha_vencimiento||''}" onchange="saveProjectField()"/>
           </div>
         </div>
       </div>
 
+      <hr style="border-top: 1.5px solid #1e3a8a; opacity:1; margin: 0 0 16px 0;"/>
+
+      <!-- Customer Info & Reference Grid -->
       <div class="row g-3 mb-4" style="font-size:13px;">
-        <div class="col-8 border-end pe-4" style="line-height:1.6;">
-          <div class="d-flex align-items-center mb-2">
-            <span style="min-width:70px; font-weight:600; color:#475569;">Empresa:</span>
-            <input id="f-empresa" class="quote-header-input fw-semibold border-0 bg-transparent prese-v-input flex-grow-1 text-dark" value="${esc(p.empresa_cliente||'')}" placeholder="Empresa..." onchange="saveProjectField()"/>
+        <div class="col-7">
+          <div class="mb-2 d-flex">
+            <strong style="min-width:70px; color:#475569;">Atencion:</strong>
+            <input id="f-atencion" class="quote-header-input flex-grow-1 border-0 bg-transparent" style="border-bottom:1px dashed #ccc !important; outline:none; font-weight:500;" value="${esc(p.atencion||'')}" placeholder="Nombre del contacto..." onchange="saveProjectField()"/>
           </div>
-          <div class="d-flex align-items-center mb-2">
-            <span style="min-width:70px; font-weight:600; color:#475569;">Atención:</span>
-            <input id="f-atencion" class="quote-header-input fw-semibold border-0 bg-transparent prese-v-input flex-grow-1" value="${esc(p.atencion||'')}" placeholder="Nombre del contacto..." onchange="saveProjectField()"/>
+          <div class="mb-2 d-flex align-items-center gap-2">
+            <strong style="min-width:70px; color:#475569;">TEL:</strong>
+            <input id="f-telefono" class="quote-header-input border-0 bg-transparent" style="width:120px; border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(p.telefono_cliente||'')}" placeholder="Teléfono..." onchange="saveProjectField()"/>
+            <strong style="color:#475569;">Empresa:</strong>
+            <input id="f-empresa" class="quote-header-input flex-grow-1 border-0 bg-transparent" style="border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(p.empresa_cliente||'')}" placeholder="Empresa..." onchange="saveProjectField()"/>
           </div>
-          <div class="d-flex align-items-center mb-2">
-            <span style="min-width:70px; font-weight:600; color:#475569;">E-mail:</span>
-            <input id="f-email" class="quote-header-input fw-semibold border-0 bg-transparent prese-v-input flex-grow-1" value="${esc(p.email_cliente||'')}" placeholder="Email..." onchange="saveProjectField()"/>
-          </div>
-          <div class="d-flex align-items-center mb-2">
-            <span style="min-width:70px; font-weight:600; color:#475569;">TEL:</span>
-            <input id="f-telefono" class="quote-header-input fw-semibold border-0 bg-transparent prese-v-input" style="width:120px;" value="${esc(p.telefono_cliente||'')}" placeholder="Teléfono..." onchange="saveProjectField()"/>
+          <div class="d-flex">
+            <strong style="min-width:70px; color:#475569;">E-mail:</strong>
+            <input id="f-email" class="quote-header-input flex-grow-1 border-0 bg-transparent" style="border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(p.email_cliente||'')}" placeholder="Email..." onchange="saveProjectField()"/>
           </div>
         </div>
-        <div class="col-4 ps-4">
-          <div class="d-flex justify-content-between align-items-center mb-2" style="font-size:13px; font-weight:600; color:#475569;">
-            <span style="min-width:120px;">COTIZACIÓN No.</span>
-            <input id="top-numero" class="quote-header-input fw-bold text-end border-0 bg-transparent" style="width:130px; border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(p.numero_proyecto||'')}" onchange="saveProjectField()"/>
-          </div>
-          <div class="d-flex justify-content-between align-items-center mb-2" style="font-size:13px; font-weight:600; color:#475569;">
-            <span style="min-width:120px;">FECHA</span>
-            <input id="f-fecha" type="date" class="quote-header-input fw-semibold text-end border-0 bg-transparent prese-v-input" style="width:130px;" value="${p.fecha_creacion||''}" onchange="onFechaOrVigenciaChange()"/>
-          </div>
-
-          <div class="d-flex justify-content-between align-items-center mb-2" style="font-size:13px; font-weight:600; color:#475569;">
-            <span style="min-width:120px;">VENCIMIENTO</span>
-            <span id="f-vencimiento-display" class="text-end fw-semibold" style="width:130px;">${(() => { const f = p.fecha_creacion; const d = parseInt(p.dias_vigencia)||15; if(!f) return '---'; const cleanF = f.split(/[ T]/)[0]; const dt = new Date(cleanF+'T00:00:00'); dt.setDate(dt.getDate()+d); return dt.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'}); })()}</span>
-            <input id="f-vencimiento" type="hidden" value="${p.fecha_vencimiento||''}"/>
+        <div class="col-5">
+          <div class="d-flex flex-column h-100 justify-content-end pb-1">
+            <div class="d-flex align-items-center mb-2">
+              <strong style="min-width:130px; color:#475569;">Tipo de Cambio USD:</strong>
+              <input id="f-tc" oninput="onTcChange(this.value)" type="number" step="0.01" class="quote-header-input border-0 bg-transparent fw-bold text-primary" style="width:70px; border-bottom:1px dashed #ccc !important; outline:none;" value="${p.tipo_cambio_usd||20}" onchange="saveProjectField()"/>
+            </div>
           </div>
         </div>
       </div>
@@ -1545,11 +1480,13 @@ function renderPrese(c) {
         </div>
       </div>
 
+      <!-- Solution Description -->
       <div class="mb-4">
         <h6 class="fw-bold text-uppercase mb-2" style="font-size:12px; letter-spacing:0.5px; color:#475569;">DESCRIPCION DE LA SOLUCION.</h6>
         <textarea id="prese-desc" class="form-control border-light-subtle bg-light" style="resize:vertical; min-height:80px; line-height:1.6; font-size:13px;" onblur="saveDesc(this.value)" placeholder="De acuerdo a la información proporcionada por el cliente se realiza la siguiente propuesta...">${esc(p.descripcion_solucion||'')}</textarea>
       </div>
 
+      <!-- Subthemes Section -->
       <div class="border-top pt-3">
         <div class="d-flex align-items-center justify-content-between mb-3">
           <h6 class="fw-bold text-dark mb-0" style="font-size:13px;"><i class="fa-solid fa-list-ol text-primary me-2"></i>Subtemas de Alcance</h6>
@@ -1558,40 +1495,37 @@ function renderPrese(c) {
         <div id="subtemas-container">${subtemasHTML || '<div class="text-center py-3 text-muted" style="font-size:13px">Sin subtemas. Agrega el primero.</div>'}</div>
       </div>
 
+      <!-- Economical Totals (matching Image 3) -->
       <div class="mt-4 pt-3 border-top">
-        <div class="text-end fw-bold text-muted mb-2" style="font-size:12px;">Precio Total más IVA.</div>
-        <div class="row g-3">
-          <div class="col-6">
-            <div class="d-flex align-items-center justify-content-between p-3 rounded text-white fw-bold shadow-sm" style="background:#0f766e; font-size:18px;">
-              <span class="ps-2" style="letter-spacing:1px; font-size:14px;">TOTAL (M.N.)</span>
-              <span class="pe-2">$ ${fmtCurrency(total_mn_final)}</span>
-            </div>
-            <div class="text-end fw-bold text-dark text-uppercase mt-2" style="font-size:11px; line-height: 1.5;">
-              ${numeroALetras(total_mn_final, 'MN')}
-            </div>
+        <div class="row align-items-end">
+          <div class="col-7">
+            <!-- Left side empty -->
           </div>
-          <div class="col-6">
-            <div class="d-flex align-items-center justify-content-between p-3 rounded text-white fw-bold shadow-sm" style="background:#0369a1; font-size:18px;">
-              <span class="ps-2" style="letter-spacing:1px; font-size:14px;">TOTAL (USD)</span>
-              <span class="pe-2">$ ${fmtCurrency(total_usd_final)}</span>
+          <div class="col-5">
+            <div class="text-end fw-bold text-muted mb-1" style="font-size:12px;">Precio Total más IVA.</div>
+            <div class="d-flex align-items-center justify-content-between p-2 rounded text-white fw-bold" style="background:#00bcd4; font-size:16px;">
+              <span class="ps-2">TOTAL</span>
+              <span class="pe-2">$ ${fmtCurrency(total_val)} ${currency === 'USD' ? 'USD' : 'M.N.'}</span>
             </div>
-            <div class="text-end fw-bold text-dark text-uppercase mt-2" style="font-size:11px; line-height: 1.5;">
-              ${numeroALetras(total_usd_final, 'USD')}
+            <div class="text-end mt-2 fw-bold text-dark text-uppercase" style="font-size:11px; line-height: 1.4;">
+              (${total_letras.toUpperCase()})
             </div>
           </div>
         </div>
       </div>
 
+      <!-- Conditions Section (matching Image 3) -->
       ${(() => {
         const subtemas = projectData.subtemas || [];
         const nextIdx = subtemas.length + 1;
+        const condPrefix = `A${nextIdx}`;
         return `
         <div class="mt-4 pt-3 border-top">
           <div class="card mb-3 border border-light-subtle shadow-sm">
             <div class="d-flex align-items-center gap-2 p-2 rounded bg-light cursor-pointer" onclick="toggleCondicionesExpand(event)">
               <i class="fa-solid ${window.condicionesExpanded !== false ? 'fa-chevron-down' : 'fa-chevron-right'}" style="font-size:10px;"></i>
               <span class="badge bg-primary text-white fw-bold" style="font-size:11px; min-width:30px;">A${nextIdx}</span>
-              <input class="fw-bold border-0 bg-transparent" id="cond-titulo" value="${esc(window.currentCondicionesTitulo || condiciones_seccion_titulo_config || 'CONDICIONES COMERCIALES')}" style="font-size:13px;" onblur="saveVendedorConfig('condiciones_seccion_titulo', this.value)" onclick="event.stopPropagation();"/>
+              <input class="form-control form-control-sm fw-bold text-uppercase border-0 bg-transparent flex-grow-1" value="${esc(window.currentCondicionesTitulo || condiciones_seccion_titulo_config || 'CONDICIONES COMERCIALES')}" style="font-size:13px;" onblur="saveVendedorConfig('condiciones_seccion_titulo', this.value)" onclick="event.stopPropagation();"/>
             </div>
             ${window.condicionesExpanded !== false ? `
             <div class="ps-4 pe-3 pt-3 pb-3">
@@ -1847,6 +1781,7 @@ async function cambiarClaveListas() {
 
 async function addPartida(seccionId, tipo) {
   try {
+    // Save all pending inputs in MO rows before reload
     if (tipo === 'mano_obra') {
       const rows = document.querySelectorAll('tr[id^="mo-row-"]');
       const savePromises = [];
@@ -1863,6 +1798,7 @@ async function addPartida(seccionId, tipo) {
       });
       if (savePromises.length) await Promise.all(savePromises);
     } else {
+      // For equipo rows, save all visible inputs
       const rows = document.querySelectorAll('tr[id^="eq-row-"]');
       const savePromises = [];
       rows.forEach(row => {
@@ -1899,46 +1835,6 @@ async function deletePartida(pid, tipo, seccionId) {
   } catch(e){showToast(e.message,'error');}
 }
 
-async function deleteInsumosRow(id, tbl) {
-  const confirmed = await new Promise(resolve => {
-    const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,23,42,0.6);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.2s ease;';
-    overlay.innerHTML = `
-      <div style="background:#fff;border-radius:16px;padding:32px 28px;max-width:380px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);text-align:center;animation:scaleIn 0.25s ease;">
-        <div style="width:56px;height:56px;border-radius:50%;background:#fef2f2;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
-          <i class="fas fa-trash-alt" style="font-size:24px;color:#dc2626;"></i>
-        </div>
-        <h4 style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f172a;">Eliminar Insumo</h4>
-        <p style="margin:0 0 24px;color:#64748b;font-size:14px;line-height:1.5;">¿Estás seguro de que deseas eliminar este insumo? Esta acción no se puede deshacer.</p>
-        <div style="display:flex;gap:12px;justify-content:center;">
-          <button id="btn-cancel" style="flex:1;padding:10px 0;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer;transition:all 0.2s;">Cancelar</button>
-          <button id="btn-confirm" style="flex:1;padding:10px 0;border-radius:8px;border:none;background:#dc2626;color:#fff;font-weight:600;font-size:14px;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 12px rgba(220,38,38,0.2);">Sí, Eliminar</button>
-        </div>
-      </div>
-      <style>
-        @keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        #btn-cancel:hover { background:#f8fafc; border-color:#cbd5e1; }
-        #btn-confirm:hover { background:#b91c1c; transform:translateY(-1px); box-shadow:0 6px 16px rgba(220,38,38,0.3); }
-      </style>
-    `;
-    document.body.appendChild(overlay);
-    requestAnimationFrame(() => overlay.style.opacity = '1');
-    const close = (val) => {
-      overlay.style.opacity = '0';
-      setTimeout(() => { document.body.removeChild(overlay); resolve(val); }, 200);
-    };
-    overlay.querySelector('#btn-cancel').onclick = () => close(false);
-    overlay.querySelector('#btn-confirm').onclick = () => close(true);
-  });
-  if (!confirmed) return;
-  try {
-    if (typeof flushPendingSave === 'function') await flushPendingSave();
-    await api('/api/insumos/delete_row','POST',{id, tabla: tbl, proyecto_id: PID});
-    await reloadSections();
-    switchTab('INSUMOS');
-  } catch(e){showToast(e.message,'error');}
-}
-
 async function reloadSections() {
   const r = await api(`/api/proyecto/${PID}`);
   projectData = r;
@@ -1955,51 +1851,23 @@ async function saveProject() {
   showToast('Proyecto guardado','success');
 }
 
-function calcVencimiento(fecha, dias) {
-  if (!fecha) return '';
-  const cleanF = fecha.split(/[ T]/)[0];
-  const dt = new Date(cleanF + 'T00:00:00');
-  dt.setDate(dt.getDate() + (parseInt(dias) || 15));
-  return dt.toISOString().split('T')[0];
-}
-
-function onFechaOrVigenciaChange() {
-  const fecha = document.getElementById('f-fecha')?.value || '';
-  const dias = document.getElementById('f-dias-vigencia')?.value || 15;
-  const venc = calcVencimiento(fecha, dias);
-  const elVenc = document.getElementById('f-vencimiento');
-  if (elVenc) elVenc.value = venc;
-  const elDisplay = document.getElementById('f-vencimiento-display');
-  if (elDisplay) {
-    if (venc) {
-      const cleanVenc = venc.split(/[ T]/)[0];
-      const dt = new Date(cleanVenc + 'T00:00:00');
-      elDisplay.textContent = dt.toLocaleDateString('es-MX', {day:'2-digit', month:'2-digit', year:'numeric'});
-    } else {
-      elDisplay.textContent = '---';
-    }
-  }
-  saveProjectField();
-}
-
 async function saveProjectField(extra={}) {
   const p = projectData?.proyecto || {};
   const getVal = (id, fallback) => {
     const el = document.getElementById(id);
     if (!el) return fallback;
-    if (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') return el.value;
+    if (el.tagName === 'INPUT' || el.tagName === 'SELECT') return el.value;
     return el.textContent || fallback;
   };
 
-  const nombre_val = getVal('f-nombre-proyecto', p.nombre_proyecto || '');
+  const nombre_val = getVal('f-nombre', p.nombre_proyecto || '');
   const num_val = getVal('top-numero', p.numero_proyecto || '');
   const empresa_val = getVal('f-empresa', p.empresa_cliente || '');
   const atencion_val = getVal('f-atencion', p.atencion || '');
   const tel_val = getVal('f-telefono', p.telefono_cliente || '');
   const email_val = getVal('f-email', p.email_cliente || '');
   const fecha_val = getVal('f-fecha', p.fecha_creacion || '');
-  const dias_vig_val = getVal('f-dias-vigencia', p.dias_vigencia || 15);
-  const venc_val = calcVencimiento(fecha_val, dias_vig_val) || getVal('f-vencimiento', p.fecha_vencimiento || '');
+  const venc_val = getVal('f-vencimiento', p.fecha_vencimiento || '');
   const ref_val = getVal('f-referencia', p.referencia || '');
   const tc_val = getVal('f-tc', p.tipo_cambio_usd || 20);
   const carpeta_val = getVal('f-carpeta', p.carpeta_link || '');
@@ -2025,7 +1893,6 @@ async function saveProjectField(extra={}) {
     tiempo_entrega:  tiempo_val,
     condiciones_pago:cond_val,
     porcentaje_iva:  iva_pct_val,
-    dias_vigencia:   dias_vig_val,
     ...extra,
   });
 
@@ -2045,13 +1912,8 @@ async function saveProjectField(extra={}) {
       tiempo_entrega:  tiempo_val,
       condiciones_pago:cond_val,
       porcentaje_iva:  iva_pct_val,
-      dias_vigencia:   dias_vig_val,
       ...extra,
     });
-    
-    // Update top navbar span
-    const elTopSpan = document.getElementById('top-nombre');
-    if (elTopSpan) elTopSpan.textContent = nombre_val;
   }
 
   recalcAllProjectDataTC();
@@ -2124,7 +1986,6 @@ function downloadPDF() {
         <div class="d-grid gap-2">
           <button onclick="doPDF('MN')" class="btn btn-primary d-flex align-items-center justify-content-center gap-2 fw-semibold"><i class="fa-solid fa-peso-sign"></i>Pesos Mexicanos (MN)</button>
           <button onclick="doPDF('USD')" class="btn btn-success d-flex align-items-center justify-content-center gap-2 fw-semibold"><i class="fa-solid fa-dollar-sign"></i>Dólares (USD)</button>
-          <button onclick="doPDF('AMBOS')" class="btn btn-info d-flex align-items-center justify-content-center gap-2 fw-semibold text-white"><i class="fa-solid fa-file-pdf"></i>Ambos (MN y USD)</button>
         </div>
         <button onclick="this.closest('.modal-overlay').remove()" class="btn btn-secondary btn-sm w-100 mt-3">Cancelar</button>
       </div>
@@ -2252,8 +2113,7 @@ async function addReporteItem() {
 
 async function saveVendedorConfig(clave, valor) {
   if (clave === 'vendedor') window.currentVendedor = valor;
-  if (clave === 'vendedor_telefono') window.currentVendedorTelefono = valor;
-  if (clave === 'vendedor_correo') window.currentVendedorCorreo = valor;
+  if (clave === 'vendedor_telefono') window.currentVendedorTel = valor;
   if (clave === 'slogans') window.currentSlogans = valor;
   if (clave === 'condiciones_seccion_titulo') window.currentCondicionesTitulo = valor;
   
@@ -2476,189 +2336,4 @@ async function savePorcentajeIva(val) {
   }
 }
 
-// --- FUNCIONES NUEVAS PARA E. MECÁNICO Y SUS LISTAS ---
-
-async function fetchMecanicoData() {
-  const res = await fetch(`/api/emecanico/listas/${PID}`);
-  return await res.json();
-}
-
-async function renderListasMecanico(c) {
-  c.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Cargando listas...</div>';
-  const data = await fetchMecanicoData();
-  
-  const createTableHTML = (title, items, dbTable, color) => `
-    <div class="col-md-4">
-      <div class="card shadow-sm border-0">
-        <div class="p-2 text-white fw-bold text-center" style="background:${color}; font-size:13px">${title}</div>
-        <div class="p-2 bg-light">
-          <div class="input-group input-group-sm mb-2">
-            <input type="text" id="input-${dbTable}" class="form-control" placeholder="Agregar nuevo...">
-            <button class="btn btn-outline-secondary text-success" onclick="addMecLista('${dbTable}')"><i class="fa-solid fa-check"></i></button>
-          </div>
-          <div style="max-height: 400px; overflow-y: auto;">
-            <table class="table table-sm table-bordered mb-0" style="font-size:12px">
-              <tbody>
-                ${items.map(i => `
-                  <tr>
-                    <td class="align-middle">${esc(i.descripcion || i.nombre)}</td>
-                  </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>`;
-
-  c.innerHTML = `
-    <div class="p-3 border-bottom mb-3 bg-white fw-bold text-dark"><i class="fa-solid fa-list text-primary me-2"></i>Gestor de Listas: E. Mecánico</div>
-    <div class="row g-3 max-width-1100">
-      ${createTableHTML('Descripción Pieza (Crea fila)', data.piezas, 'emec_piezas', '#ea580c')}
-      ${createTableHTML('Catálogo de Materiales', data.materiales, 'emec_materiales', '#64748b')}
-      ${createTableHTML('Catálogo de Mano de Obra', data.mano_obra, 'emec_mano_obra', '#64748b')}
-    </div>`;
-}
-
-async function addMecLista(tabla) {
-  const input = document.getElementById(`input-${tabla}`);
-  const valor = input.value.trim();
-  if(!valor) return;
-  await api('/api/emecanico/listas/add', 'POST', { tabla, proyecto_id: PID, valor });
-  input.value = '';
-  switchTab('LISTAS_MEC'); // Refrescar la vista
-}
-
-async function renderEMecanico(c, sec) {
-  c.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Cargando piezas...</div>';
-  const data = await fetchMecanicoData();
-  
-  let totalMN = 0, totalUSD = 0;
-  let rows = '';
-
-  data.piezas.forEach((p, i) => {
-    const qty = parseFloat(p.cantidad || 0), pr = parseFloat(p.precio_lista || 0), m = parseFloat(p.porcentaje_mgn || 0), mon = p.moneda || 'MN';
-    const sub = qty * pr;
-    let tmn, tusd;
-    const tc = getTC();
-
-    // Aplicando la lógica de división para conversiones
-    if (mon === 'USD') {
-      tusd = sub * (1 + m / 100);
-      tmn = tusd * tc;
-    } else {
-      tmn = sub * (1 + m / 100);
-      tusd = tc ? tmn / tc : 0; 
-    }
-    
-    totalMN += tmn; 
-    totalUSD += tusd;
-
-    const matOptions = data.materiales.map(m => `<option value="${esc(m.nombre)}" ${p.material === m.nombre ? 'selected' : ''}>${esc(m.nombre)}</option>`).join('');
-    const moOptions = data.mano_obra.map(m => `<option value="${esc(m.nombre)}" ${p.mano_obra === m.nombre ? 'selected' : ''}>${esc(m.nombre)}</option>`).join('');
-
-    rows += `
-      <tr id="emec-row-${p.id}" class="table-row">
-        <td class="text-center text-muted" style="font-size:12px">${i + 1}</td>
-        <td class="fw-semibold text-dark">${esc(p.descripcion)}</td>
-        <td><select class="excel-select" data-field="material" onchange="saveEMec(${p.id})" style="width:140px"><option value="">—</option>${matOptions}</select></td>
-        <td><select class="excel-select" data-field="mano_obra" onchange="saveEMec(${p.id})" style="width:140px"><option value="">—</option>${moOptions}</select></td>
-        <td><input class="excel-input" type="number" value="${qty || ''}" data-field="cantidad" oninput="recalcEMec(${p.id}, this)" style="width:60px"/></td>
-        <td><input class="excel-input" type="number" value="${pr || ''}" data-field="precio_lista" oninput="recalcEMec(${p.id}, this)" style="width:90px"/></td>
-        <td>
-          <select class="excel-select" data-field="moneda" onchange="recalcEMec(${p.id}, this)" style="width:65px">
-            <option value="MN" ${mon === 'MN' ? 'selected' : ''}>MN</option>
-            <option value="USD" ${mon === 'USD' ? 'selected' : ''}>USD</option>
-          </select>
-        </td>
-        <td class="text-muted text-end" style="font-size:12px" id="emec-sub-${p.id}">${fmt(sub)}</td>
-        <td><input class="excel-input" type="number" value="${m || ''}" data-field="porcentaje_mgn" oninput="recalcEMec(${p.id}, this)" style="width:55px"/></td>
-        <td class="fw-bold text-dark text-end" id="emec-tmn-${p.id}">${fmt(tmn)}</td>
-        <td class="fw-bold text-primary text-end" id="emec-tusd-${p.id}">${fmt(tusd)}</td>
-      </tr>`;
-  });
-
-  c.innerHTML = `
-    <div class="card shadow-sm border-0 overflow-hidden">
-      <div class="p-3 d-flex align-items-center justify-content-between text-white" style="background:${sec ? sec.color : '#ea580c'}">
-        <div>
-          <div class="text-uppercase" style="font-size:10px;opacity:0.8;letter-spacing:0.5px">Sección Integrada</div>
-          <div class="fs-5 fw-bold">E. MECÁNICO</div>
-        </div>
-        <div class="d-flex align-items-center gap-3">
-          <button onclick="switchTab('LISTAS_MEC')" class="btn btn-sm btn-light fw-semibold" style="font-size:11px"><i class="fa-solid fa-list me-1"></i>Gestionar Listas</button>
-          <div class="text-end text-white text-opacity-90" style="font-size:13px">
-            <div>Total USD: <strong id="emec-header-usd">${fmt(totalUSD)}</strong></div>
-            <div>Total MN: <strong id="emec-header-mn">${fmt(totalMN)}</strong></div>
-          </div>
-        </div>
-      </div>
-      <div class="table-responsive">
-        <table class="excel-table">
-          <thead><tr>
-            <th style="width:45px">PDA</th><th style="min-width:180px">DESCRIPCIÓN PIEZA</th><th style="width:150px">MATERIAL</th><th style="width:150px">MANO DE OBRA</th>
-            <th style="width:65px">QTY</th><th style="width:100px">P. LISTA</th><th style="width:65px">MON.</th>
-            <th class="text-end" style="width:110px">SUB TOTAL</th><th style="width:60px">% MGN</th>
-            <th class="text-end" style="width:115px">TOTAL MN</th><th class="text-end" style="width:115px">TOTAL USD</th>
-          </tr></thead>
-          <tbody>${rows.length > 0 ? rows : `<tr><td colspan="11" class="text-center py-4 text-muted">Aún no hay piezas. Agrégalas desde "Listas Mec."</td></tr>`}</tbody>
-          <tfoot><tr class="total-row">
-            <td colspan="9" class="text-end p-3">TOTAL</td>
-            <td class="text-end p-3" id="emec-footer-mn">${fmt(totalMN)}</td>
-            <td class="text-end p-3" id="emec-footer-usd">${fmt(totalUSD)}</td>
-          </tr></tfoot>
-        </table>
-      </div>
-    </div>`;
-}
-
-function recalcEMec(pid, input) {
-  const row = document.getElementById(`emec-row-${pid}`);
-  if (!row) return;
-  const qty = parseFloat(row.querySelector('[data-field="cantidad"]')?.value || 0);
-  const pr = parseFloat(row.querySelector('[data-field="precio_lista"]')?.value || 0);
-  const m = parseFloat(row.querySelector('[data-field="porcentaje_mgn"]')?.value || 0);
-  const mon = row.querySelector('[data-field="moneda"]')?.value || 'MN';
-  const tc = getTC();
-  
-  const sub = qty * pr; 
-  let tmn, tusd;
-  if(mon === 'USD'){ tusd = sub * (1 + m / 100); tmn = tusd * tc; }
-  else { tmn = sub * (1 + m / 100); tusd = tc ? tmn / tc : 0; }
-  
-  document.getElementById(`emec-sub-${pid}`).textContent = fmt(sub);
-  document.getElementById(`emec-tmn-${pid}`).textContent = fmt(tmn);
-  document.getElementById(`emec-tusd-${pid}`).textContent = fmt(tusd);
-
-  const tbody = row.closest('tbody');
-  let totalMN = 0, totalUSD = 0;
-  tbody.querySelectorAll('tr[id^="emec-row-"]').forEach(r => {
-    const rId = r.id.split('-')[2];
-    totalMN += parseFloat(document.getElementById(`emec-tmn-${rId}`).textContent.replace(/[^0-9.-]/g, '')) || 0;
-    totalUSD += parseFloat(document.getElementById(`emec-tusd-${rId}`).textContent.replace(/[^0-9.-]/g, '')) || 0;
-  });
-
-  document.getElementById('emec-header-mn').textContent = fmt(totalMN);
-  document.getElementById('emec-header-usd').textContent = fmt(totalUSD);
-  document.getElementById('emec-footer-mn').textContent = fmt(totalMN);
-  document.getElementById('emec-footer-usd').textContent = fmt(totalUSD);
-
-  scheduleSave(() => saveEMec(pid));
-}
-
-async function saveEMec(pid) {
-  const row = document.getElementById(`emec-row-${pid}`);
-  if (!row) return;
-  await api('/api/emecanico/piezas/update', 'POST', {
-    id: pid,
-    material: row.querySelector('[data-field="material"]')?.value || '',
-    mano_obra: row.querySelector('[data-field="mano_obra"]')?.value || '',
-    cantidad: parseFloat(row.querySelector('[data-field="cantidad"]')?.value || 0),
-    precio_lista: parseFloat(row.querySelector('[data-field="precio_lista"]')?.value || 0),
-    moneda: row.querySelector('[data-field="moneda"]')?.value || 'MN',
-    porcentaje_mgn: parseFloat(row.querySelector('[data-field="porcentaje_mgn"]')?.value || 0),
-  });
-}
-
 initProject();
-</script>
-{% endblock %}
