@@ -8,7 +8,9 @@ def _insumos_crud(table, id_col='proyecto_id'):
     """Generic CRUD for insumos sub-tables keyed by proyecto_id."""
     from app import q, ex
     action = request.args.get('action')
-    data = request.json if request.is_json else request.form.to_dict()
+    data = request.get_json(silent=True) if request.is_json else request.form.to_dict()
+    if data is None:
+        data = {}
 
     if action == 'list':
         pid = request.args.get('proyecto_id')
@@ -37,7 +39,9 @@ def _insumos_crud(table, id_col='proyecto_id'):
 @legacy_api.route('/<path:endpoint>', methods=['GET', 'POST'])
 def handle_legacy(endpoint):
     action = request.args.get('action')
-    data = request.json if request.is_json else request.form.to_dict()
+    data = request.get_json(silent=True) if request.is_json else request.form.to_dict()
+    if data is None:
+        data = {}
     
     from app import q, ex
     

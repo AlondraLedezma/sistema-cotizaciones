@@ -6,7 +6,7 @@
   <title>DEMATIQ - Editor de Proyecto | Sistema de Cotizaciones</title>
   <meta name="description" content="Editor de cotización Excel-like - DEMATIQ Automatización">
   <link rel="stylesheet" href="/static/css/cotizacion.css">
-  <link href="https://fonts.googleapis.com/css2?family=Rozha+One&family=Questrial&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
 <body>
@@ -22,7 +22,7 @@
         <button class="btn btn-success" id="btn-save" onclick="saveProject()"><i class="fas fa-save"></i> Guardar</button>
         <button class="btn btn-primary" id="btn-pdf" onclick="generatePDF()"><i class="fas fa-file-pdf"></i> Generar PDF</button>
         <button class="btn btn-warning" onclick="convertToUSD()"><i class="fas fa-dollar-sign"></i> Tipo Cambio</button>
-        <button class="btn btn-warning" id="btn-carpeta" onclick="openFolderLink()" title="Abrir carpeta del proyecto"><i class="fas fa-folder-open"></i> Carpeta</button>
+        <button class="btn btn-warning" id="btn-carpeta" onclick="openFolderLink()" title="Abrir carpeta del proyecto" style="{% if proyecto.tipo_proyecto == 'cotizacion' %}display:none !important;{% endif %}"><i class="fas fa-folder-open"></i> Carpeta</button>
       </div>
     </div>
     <div class="proyecto-header card" style="margin-bottom:12px;">
@@ -69,11 +69,11 @@
           <label>Referencia:</label>
           <input type="text" id="field-referencia" class="input-field" placeholder="Referencia del proyecto">
         </div>
-        <div class="field-group full-width">
+        <div class="field-group full-width" style="{% if proyecto.tipo_proyecto == 'cotizacion' %}display:none !important;{% endif %}">
           <label>Descripción de la Solución:</label>
           <textarea id="field-descripcion" class="input-field" rows="2" placeholder="Descripción detallada..."></textarea>
         </div>
-        <div class="field-group full-width">
+        <div class="field-group full-width" style="{% if proyecto.tipo_proyecto == 'cotizacion' %}display:none !important;{% endif %}">
           <label>Carpeta del Proyecto:</label>
           <div id="carpeta-field-container">
             <input type="text" id="field-carpeta" class="input-field" placeholder="Ruta a la carpeta del proyecto">
@@ -132,7 +132,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
   <script src="/static/js/utils.js?v=3"></script>
   <script src="/static/js/auth.js"></script>
-  <script src="/static/js/proyecto_cotizacion_v3.js?v=4"></script>
+  <script src="/static/js/proyecto_cotizacion_v3.js?v=5"></script>
   <script src="/static/js/pdf.js?v=3"></script>
 </body>
 </html>

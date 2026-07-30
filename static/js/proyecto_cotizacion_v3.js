@@ -134,7 +134,8 @@ async function loadProject(id) {
 
     renderTabs();
 
-    switchTab('REPORTE');
+    const defTab = (projectData && projectData.tipo_proyecto === 'cotizacion') ? 'COTIZACION' : 'REPORTE';
+    switchTab(defTab);
 
     updateTotals();
 
@@ -271,17 +272,12 @@ function autoCalcVencimiento() {
   projectData.dias_vigencia = dias;
 
   if (fecha && dias > 0) {
-
-    const fechaDate = new Date(fecha + 'T00:00:00');
-
+    const cleanFecha = fecha.split(/[ T]/)[0];
+    const fechaDate = new Date(cleanFecha + 'T00:00:00');
     fechaDate.setDate(fechaDate.getDate() + dias);
-
     const year = fechaDate.getFullYear();
-
     const month = String(fechaDate.getMonth() + 1).padStart(2, '0');
-
     const day = String(fechaDate.getDate()).padStart(2, '0');
-
     vencField.value = `${year}-${month}-${day}`;
 
   } else if (fecha && dias === 0) {
@@ -295,31 +291,27 @@ function autoCalcVencimiento() {
 
 
 function renderTabs() {
-
   const tabsBar = document.getElementById('tabs-bar');
-
   if (!tabsBar) return;
-
   tabsBar.innerHTML = '';
 
-  TABS.forEach(tab => {
+  let visibleTabs = TABS;
+  if (projectData && projectData.tipo_proyecto === 'cotizacion') {
+    visibleTabs = [
+      { code: 'COTIZACION', label: 'COTIZACIÓN', color: '#16a34a', icon: 'fa-file-invoice-dollar' },
+      { code: 'CONDICIONES', label: 'CONDICIONES', color: '#546e7a', icon: 'fa-handshake' }
+    ];
+  }
 
+  visibleTabs.forEach(tab => {
     const el = document.createElement('button');
-
     el.className = 'excel-tab' + (tab.code === currentTab ? ' active' : '');
-
     el.style.background = tab.color;
-
     el.dataset.tab = tab.code;
-
     el.innerHTML = `<i class="fas ${tab.icon}"></i> ${tab.label}`;
-
     el.onclick = () => switchTab(tab.code);
-
     tabsBar.appendChild(el);
-
   });
-
 }
 
 
@@ -349,7 +341,7 @@ function switchTab(tabCode) {
 
 
   switch (tabCode) {
-
+    case 'COTIZACION':  renderCotizacionTable(content); break;
     case 'PRESE':       renderPrese(content); break;
 
     case 'REPORTE':     renderReporte(content); break;
@@ -2786,10 +2778,92 @@ function escapeAttr(str) {
 
 
 function escapeHtml(str) {
-
   if (!str) return '';
-
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
+function renderCotizacionTable(container) {
+  const seccion = projectData.secciones.find(s => s.codigo === 'E_CONTROL') || projectData.secciones[0];
+  if (!seccion) {
+    container.innerHTML = '<div class="alert alert-warning">No se encontró sección para cargar las partidas.</div>';
+    return;
+  }
+
+  const partidas = seccion.partidas || [];
+  const tc = tipoCambio();
+
+  let rowsHtml = '';
+  partidas.forEach((p, idx) => {
+    const qty = parseFloat(p.cantidad) || 0;
+    const precio = parseFloat(p.precio_lista) || 0;
+    const subtotal = qty * precio;
+
+    rowsHtml += `
+      <tr data-partida-id="${p.id}" data-tipo="equipo" data-seccion-id="${seccion.id}">
+        <td><span class="excel-display" style="text-align:center;">${p.numero_partida || idx+1}</span></td>
+        <td><input class="excel-input" type="text" value="${escapeAttr(p.descripcion||'')}" data-field="descripcion" onchange="handleCellChange(this)" tabindex="0"></td>
+        <td><input class="excel-input numeric" type="number" value="${precio||''}" data-field="precio_lista" oninput="handleNumericInput(this)" step="0.01" tabindex="0"></td>
+        <td><input class="excel-input numeric" type="number" value="${qty||''}" data-field="cantidad" oninput="handleNumericInput(this)" step="1" tabindex="0"></td>
+        <td><span class="excel-display total-val" data-display="subtotal">${formatCurrency(subtotal)}</span></td>
+        <input type="hidden" data-field="porcentaje_mgn" value="0">
+        <input type="hidden" data-field="moneda" value="${p.moneda || 'MN'}">
+        <td style="text-align:center;">
+          <button class="btn-icon text-danger" onclick="deletePartidaRow(this)" title="Eliminar Partida"><i class="fas fa-trash-alt"></i></button>
+        </td>
+      </tr>
+    `;
+  });
+
+  container.innerHTML = `
+    <div class="excel-container">
+      <table class="excel-table">
+        <thead>
+          <tr>
+            <th style="width: 50px;">Partida</th>
+            <th>Descripción</th>
+            <th style="width: 120px;">Precio</th>
+            <th style="width: 80px;">Cantidad</th>
+            <th style="width: 120px;">Sub Total</th>
+            <th style="width: 60px;">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="cotizacion-tbody">
+          ${rowsHtml}
+        </tbody>
+      </table>
+      <div style="margin-top: 15px;">
+        <button class="btn btn-success" onclick="addCotizacionPartida('${seccion.id}')"><i class="fas fa-plus"></i> Agregar Partida</button>
+      </div>
+    </div>
+  `;
+}
+
+async function addCotizacionPartida(seccionId) {
+  try {
+    showLoading();
+    const res = await apiCall('/api/partidas/create', 'POST', {
+      seccion_id: seccionId,
+      numero_partida: '',
+      descripcion: '',
+      marca: '',
+      modelo: '',
+      cantidad: 1,
+      precio_lista: 0,
+      moneda: 'MN',
+      porcentaje_mgn: 0
+    });
+    if (res.success || res.ok) {
+      const seccion = projectData.secciones.find(s => s.id == seccionId);
+      if (seccion) {
+        if (!seccion.partidas) seccion.partidas = [];
+        seccion.partidas.push(res.partida || res.data);
+      }
+      switchTab(currentTab);
+    }
+  } catch (err) {
+    showToast('Error al agregar partida: ' + err.message, 'error');
+  } finally {
+    hideLoading();
+  }
 }
 

@@ -13,8 +13,8 @@
   --bg: #f1f5f9;
   --bg-card: #ffffff;
   --border: #e2e8f0;
-  --font-heading: 'Rozha One', Georgia, serif;
-  --font-body: 'Questrial', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-heading: 'Inter', sans-serif;
+  --font-body: 'Inter', sans-serif;
 }
 
 body {
@@ -363,7 +363,7 @@ body {
   font-size: 12px;
 }
 .reporte-info-row:last-child { border-bottom: none; }
-.reporte-info-label { font-weight: 700; color: var(--text-muted); text-transform: uppercase; font-size: 10px; letter-spacing: 0.3px; }
+.reporte-info-label { font-weight: 700; color: var(--text-muted); text-transform: uppercase; font-size: 10px; letter-spacing: 0.3px; min-width: 120px; }
 .reporte-info-value { font-weight: 600; color: var(--text); text-align: right; }
 
 /* Prese */

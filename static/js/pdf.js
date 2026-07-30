@@ -4,6 +4,10 @@ async function generatePDF() {
     return;
   }
 
+  if (projectData.tipo_proyecto === 'cotizacion') {
+    return generateCotizacionPDF();
+  }
+
   try {
     showLoading();
 
@@ -383,3 +387,250 @@ async function generatePDF() {
     showToast('Error al generar el PDF: ' + error.message, 'error');
   }
 }
+
+async function generateCotizacionPDF() {
+  try {
+    showLoading();
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'mm', 'letter');
+    const pageWidth = 215.9;
+    const pageHeight = 279.4;
+    const margin = 15;
+    const contentWidth = pageWidth - 2 * margin;
+    let y = 15;
+
+    function checkPageBreak(needed) {
+      if (y + needed > pageHeight - 25) {
+        doc.addPage();
+        y = 20;
+        return true;
+      }
+      return false;
+    }
+
+    // Header Right
+    const vendedor = projectData.vendedor_config?.vendedor || 'Jose Moreno Rangel';
+    doc.setTextColor(0, 100, 180);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`Ventas: ${vendedor}`, pageWidth - margin, y, { align: 'right' });
+    y += 5;
+
+    doc.setFillColor(26, 58, 92);
+    doc.rect(pageWidth - margin - 70, y, 70, 7, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(255, 255, 255);
+    doc.text("COTIZACION", pageWidth - margin - 35, y + 5, { align: 'center' });
+    y += 10;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(40, 40, 40);
+    doc.text("COTIZACION No.", pageWidth - margin - 70, y);
+    doc.text(projectData.numero_proyecto || '---', pageWidth - margin, y, { align: 'right' });
+    y += 5;
+
+    doc.text("FECHA", pageWidth - margin - 70, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(formatDate(projectData.fecha_creacion), pageWidth - margin, y, { align: 'right' });
+    y += 5;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text("VENCIMIENTO", pageWidth - margin - 70, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(formatDate(projectData.fecha_vencimiento), pageWidth - margin, y, { align: 'right' });
+    y += 6;
+
+    // Reference under date details
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(26, 58, 92);
+    const refText = (projectData.referencia || '').toUpperCase();
+    const refLines = doc.splitTextToSize(refText, 70);
+    doc.text(refLines, pageWidth - margin, y, { align: 'right' });
+    y += refLines.length * 4;
+
+    // Header Left
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(40, 40, 40);
+    doc.text("Atencion: ", margin, 24);
+    doc.setFont('helvetica', 'normal');
+    doc.text(projectData.atencion || '', margin + 16, 24);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text("TEL: ", margin, 29);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`52 ${projectData.telefono_cliente || ''}`, margin + 8, 29);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text("Empresa: ", margin + 45, 29);
+    doc.setFont('helvetica', 'normal');
+    doc.text(projectData.empresa_cliente || '', margin + 61, 29);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 100, 180);
+    doc.text("E-mail", margin, 34);
+    doc.setDrawColor(0, 100, 180);
+    doc.setLineWidth(0.3);
+    doc.line(margin, 35, margin + 10, 35);
+
+    doc.setFont('helvetica', 'normal');
+    doc.text(projectData.email_cliente || '', margin, 40);
+    doc.line(margin, 41, margin + doc.getTextWidth(projectData.email_cliente || ''), 41);
+
+    y = Math.max(y, 48) + 4;
+
+    // Build flat partidas list
+    const tableBody = [];
+    let pda = 1;
+    let subtotal = 0;
+    
+    if (projectData.secciones) {
+      projectData.secciones.forEach(sec => {
+        if (['PRESE', 'REPORTE', 'CONDICIONES', 'LISTAS', 'INSUMOS'].includes(sec.codigo)) return;
+        if (sec.partidas) {
+          sec.partidas.forEach(p => {
+            const qty = parseFloat(p.cantidad) || 1;
+            const total_mn = parseFloat(p.total_mn) || 0;
+            const total_usd = parseFloat(p.total_usd) || 0;
+            let t = total_mn;
+            if (projectData.moneda === 'USD') {
+              t = total_usd;
+            }
+            const precio_unit = t / qty;
+            subtotal += t;
+
+            tableBody.push([
+              pda++,
+              p.descripcion || '',
+              formatCurrency(precio_unit),
+              qty,
+              formatCurrency(t)
+            ]);
+          });
+        }
+      });
+    }
+
+    doc.autoTable({
+      startY: y,
+      head: [['Partida', 'Descripcion', 'Precio', 'Cantidad', 'Sub Total']],
+      body: tableBody,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [26, 58, 92],
+        fontSize: 9,
+        fontStyle: 'bold',
+        halign: 'center',
+        cellPadding: 3
+      },
+      bodyStyles: {
+        fontSize: 9,
+        cellPadding: 3,
+        textColor: [40, 40, 40]
+      },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 15 },
+        1: { cellWidth: 105.9 },
+        2: { halign: 'right', cellWidth: 22 },
+        3: { halign: 'center', cellWidth: 15 },
+        4: { halign: 'right', cellWidth: 28 }
+      },
+      margin: { left: margin, right: margin },
+      tableWidth: contentWidth
+    });
+
+    y = doc.lastAutoTable.finalY + 4;
+
+    // Delivery time banner
+    checkPageBreak(12);
+    doc.setFillColor(240, 240, 240);
+    doc.rect(margin, y, contentWidth, 7, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(40, 40, 40);
+    doc.text("TIEMPO DE ENTREGA 8- DIAS HABILES", margin + 3, y + 5);
+    y += 12;
+
+    // Totals Block
+    checkPageBreak(25);
+    const iva = subtotal * 0.16;
+    const total = subtotal + iva;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text("SUB TOTAL", pageWidth - margin - 50, y, { align: 'right' });
+    doc.text("$", pageWidth - margin - 35, y);
+    doc.text(formatCurrency(subtotal).replace('$', '').trim(), pageWidth - margin, y, { align: 'right' });
+    y += 5;
+
+    doc.text("IVA (16%)", pageWidth - margin - 50, y, { align: 'right' });
+    doc.text(formatCurrency(iva).replace('$', '').trim(), pageWidth - margin, y, { align: 'right' });
+    y += 6;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text("TOTAL", pageWidth - margin - 50, y, { align: 'right' });
+    doc.text(formatCurrency(total).replace('$', '').trim(), pageWidth - margin, y, { align: 'right' });
+    y += 8;
+
+    // Total in words
+    checkPageBreak(15);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    const suffix = (projectData.moneda === 'USD') ? 'USD' : 'MN';
+    let letras = numberToWords(total).toUpperCase();
+    if (projectData.moneda === 'USD') {
+      letras = letras.replace("PESOS", "DOLARES").replace("M.N.", "USD");
+    }
+    doc.text(`${letras} 00/100 ${suffix}`, pageWidth / 2, y, { align: 'center' });
+    y += 6;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Nota : precios en ${projectData.moneda === 'USD' ? 'Dolares USD' : 'Pesos Mexicanos MN'} ,precios sujetos a cambio sin previo aviso`, pageWidth / 2, y, { align: 'center' });
+    y += 5;
+
+    const condPago = projectData.condiciones_pago || '90 DIAS';
+    doc.setFont('helvetica', 'bold');
+    doc.text(`TERMINOS Y CONDICIONES: Condiciones de Pago : ${condPago}`, pageWidth / 2, y, { align: 'center' });
+    y += 8;
+
+    // Final note and standard texts
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(40, 40, 40);
+    const aclaraText = "Para cualquier aclaración con respecto a esta cotización o para colocar su orden, favor de comunicarse al correo integraqro07@outlook.com";
+    const aclaraLines = doc.splitTextToSize(aclaraText, contentWidth);
+    
+    checkPageBreak(aclaraLines.length * 4 + 30);
+    doc.text(aclaraLines, margin, y);
+    y += aclaraLines.length * 4 + 2;
+
+    doc.text("• Tiempo de Entrega: Los días de entrega serán considerados a partir de la recepción de su orden de compra. Este tiempo de entrega es SALVO PREVIA VENTA.", margin, y, { maxWidth: contentWidth });
+    y += 8;
+    doc.text("• Si esta cotización es en pesos y el tipo de cambio sufre una variación mayor al 2%, esta cotización pierde su validez.", margin, y, { maxWidth: contentWidth });
+    y += 8;
+    doc.text("• Vigencia: 30 días para cotizaciones en Pesos y Dólares.", margin, y, { maxWidth: contentWidth });
+    y += 8;
+
+    doc.setFont('helvetica', 'bold');
+    const vendTel = projectData.vendedor_config?.vendedor_telefono || '442 7214891';
+    doc.text(`Atencion: ${vendedor} tel: ${vendTel}`, margin, y);
+
+    const filename = `Cotizacion_${projectData.numero_proyecto || 'SN'}.pdf`;
+    doc.save(filename);
+
+    hideLoading();
+    showToast('PDF generado exitosamente', 'success');
+
+  } catch (error) {
+    hideLoading();
+    console.error('Error generating PDF:', error);
+    showToast('Error al generar el PDF: ' + error.message, 'error');
+  }
+}
+

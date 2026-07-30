@@ -100,8 +100,26 @@ function formatCurrency(num, currency = 'MN') {
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
-  const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  if (dateStr instanceof Date) {
+    return dateStr.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+  let parsed = Date.parse(dateStr);
+  if (isNaN(parsed)) {
+    const cleanStr = String(dateStr).replace(' ', 'T');
+    parsed = Date.parse(cleanStr);
+  }
+  if (isNaN(parsed)) {
+    const match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return `${match[3]}/${match[2]}/${match[1]}`;
+    }
+    return '---';
+  }
+  const d = new Date(parsed);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
 }
 
 function showToast(message, type = 'success') {

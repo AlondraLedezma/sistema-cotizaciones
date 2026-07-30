@@ -7,6 +7,9 @@ from functools import wraps
 app = Flask(__name__)
 app.secret_key = "dematiq-2026-secret-key"
 
+from legacy_api import legacy_api
+app.register_blueprint(legacy_api)
+
 @app.after_request
 def add_header(r):
     r.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
@@ -146,6 +149,8 @@ def proyecto(pid):
     vendedor = vendedor_row.get("valor") if vendedor_row else "Jose Moreno Rangel"
     tel_row = q("SELECT valor FROM configuracion WHERE clave='vendedor_telefono'", fetch="one")
     vendedor_telefono = tel_row.get("valor") if tel_row else "442 7214891"
+    correo_row = q("SELECT valor FROM configuracion WHERE clave='vendedor_correo'", fetch="one")
+    vendedor_correo = correo_row.get("valor") if correo_row else "ventas@dematiq.com"
     nota_row = q("SELECT valor FROM configuracion WHERE clave='nota_aclaracion'", fetch="one")
     nota_aclaracion = nota_row.get("valor") if nota_row else "Para cualquier aclaración con respecto a esta cotización o para colocar su orden, favor de comunicarse al correo: integraqro07@outlook.com"
     slogans_row = q("SELECT valor FROM configuracion WHERE clave='slogans'", fetch="one")
@@ -160,6 +165,7 @@ def proyecto(pid):
     
     return render_template("proyecto.html", proyecto=p, vendedor_config=vendedor,
                            vendedor_telefono=vendedor_telefono,
+                           vendedor_correo_config=vendedor_correo,
                            nota_aclaracion=nota_aclaracion,
                            slogans_config=slogans,
                            condiciones_seccion_titulo_config=titulo_cond,
@@ -272,14 +278,15 @@ def api_update_proyecto():
           atencion=%s,referencia=%s,descripcion_solucion=%s,
           fecha_creacion=%s,fecha_vencimiento=%s,tipo_cambio_usd=%s,
           carpeta_link=%s,tiempo_entrega=%s,condiciones_pago=%s,
-          porcentaje_iva=%s WHERE id=%s""",
+          porcentaje_iva=%s,dias_vigencia=%s WHERE id=%s""",
        (d.get("nombre_proyecto"), d.get("empresa_cliente"),
         d.get("contacto_cliente"), d.get("telefono_cliente"),
         d.get("email_cliente"), d.get("atencion"), d.get("referencia"),
         d.get("descripcion_solucion"), d.get("fecha_creacion"),
         d.get("fecha_vencimiento"), d.get("tipo_cambio_usd") or 20,
         d.get("carpeta_link"), d.get("tiempo_entrega"), d.get("condiciones_pago"),
-        d.get("porcentaje_iva") if d.get("porcentaje_iva") is not None else curr_iva, pid))
+        d.get("porcentaje_iva") if d.get("porcentaje_iva") is not None else curr_iva,
+        d.get("dias_vigencia"), pid))
     tc_new = float(d.get("tipo_cambio_usd") or 20)
     recalc_project_currency_conversions(pid, tc_new)
     return jsonify(ok=True)
@@ -544,9 +551,22 @@ def api_pdf_save(pid):
             root.destroy()
         if not filepath:
             return jsonify(ok=False, canceled=True)
-        pdf = _build_pdf(proyecto, secciones, condiciones, moneda, subtemas)
-        pdf.output(filepath)
-        return jsonify(ok=True, path=filepath)
+            
+        if moneda == "AMBOS":
+            base, ext = os.path.splitext(filepath)
+            filepath_mn = f"{base}_MN{ext}"
+            filepath_usd = f"{base}_USD{ext}"
+            
+            pdf_mn = _build_pdf(proyecto, secciones, condiciones, "MN", subtemas)
+            pdf_mn.output(filepath_mn)
+            
+            pdf_usd = _build_pdf(proyecto, secciones, condiciones, "USD", subtemas)
+            pdf_usd.output(filepath_usd)
+            return jsonify(ok=True, path=f"{filepath_mn} y {filepath_usd}")
+        else:
+            pdf = _build_pdf(proyecto, secciones, condiciones, moneda, subtemas)
+            pdf.output(filepath)
+            return jsonify(ok=True, path=filepath)
     except Exception as e:
         return jsonify(error=str(e)), 500
 
@@ -1206,6 +1226,10 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
 
+    tipo_proy = proyecto.get("tipo_proyecto", "")
+    if tipo_proy == "cotizacion":
+        return _build_pdf_cotizacion_simple(proyecto, secciones, condiciones, moneda, pdf)
+
     BLUE = (30, 58, 138)  # #1e3a8a
     DARK = (15, 23, 42)
     GRAY = (100, 116, 139)
@@ -1252,61 +1276,70 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
         pdf.set_fill_color(*BLUE)
         pdf.rect(130, 14, 68, 8, "F")
         pdf.set_xy(130, 14)
-        pdf.set_text_color(255, 255, 255)
         pdf.set_font("Helvetica", "B", 10)
         pdf.cell(68, 8, "COTIZACION", align="C")
         
-        # Quote Details
-        pdf.set_text_color(*DARK)
-        pdf.set_font("Helvetica", "", 9)
-        
-        pdf.set_xy(130, 24)
-        pdf.cell(30, 7, "COTIZACION No.")
-        pdf.set_font("Helvetica", "B", 10)
-        pdf.cell(38, 7, str(proyecto.get("numero_proyecto") or "---"), align="R")
-        
-        # Customer Info on Left, Dates on Right (aligned side-by-side)
-        # Row 1: Atencion & FECHA
-        pdf.set_xy(12, 43)
+        y_pos = 35
+        # Column 1
+        pdf.set_xy(12, y_pos)
         pdf.set_font("Helvetica", "B", 9)
-        pdf.cell(20, 5, "Atencion:")
+        pdf.cell(20, 5, "Empresa:")
         pdf.set_font("Helvetica", "", 9)
-        pdf.cell(100, 5, str(proyecto.get("atencion") or "---"))
-        
-        pdf.set_xy(140, 43)
+        pdf.cell(80, 5, str(proyecto.get("empresa_cliente") or "---"))
+
+        pdf.set_xy(12, y_pos+5)
         pdf.set_font("Helvetica", "B", 9)
-        pdf.cell(25, 5, "FECHA")
+        pdf.cell(20, 5, "Atención:")
         pdf.set_font("Helvetica", "", 9)
-        import datetime
-        pdf.cell(33, 5, datetime.date.today().strftime("%Y-%m-%d"), align="R")
-        
-        # Row 2: TEL / Empresa & VENCIMIENTO
-        pdf.set_xy(12, 49)
+        pdf.cell(80, 5, str(proyecto.get("atencion") or "---"))
+
+        pdf.set_xy(12, y_pos+10)
         pdf.set_font("Helvetica", "B", 9)
-        pdf.cell(10, 5, "TEL:")
+        pdf.cell(20, 5, "E-mail:")
+        pdf.set_font("Helvetica", "", 9)
+        pdf.cell(80, 5, str(proyecto.get("email_cliente") or "---"))
+
+        pdf.set_xy(12, y_pos+15)
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(20, 5, "TEL:")
         pdf.set_font("Helvetica", "", 9)
         pdf.cell(30, 5, str(proyecto.get("telefono_cliente") or "---"))
-        
+
         pdf.set_font("Helvetica", "B", 9)
-        pdf.cell(18, 5, "Empresa:")
+        pdf.cell(18, 5, "Proyecto:")
         pdf.set_font("Helvetica", "", 9)
-        pdf.cell(62, 5, str(proyecto.get("empresa_cliente") or "---"))
-        
-        pdf.set_xy(140, 49)
+        pdf.cell(50, 5, str(proyecto.get("nombre_proyecto") or "---"))
+
+        # Column 2
+        pdf.set_xy(135, y_pos)
         pdf.set_font("Helvetica", "B", 9)
-        pdf.cell(25, 5, "VIGENCIA")
+        pdf.cell(30, 5, "COTIZACIÓN No.")
         pdf.set_font("Helvetica", "", 9)
-        dias_vigencia = proyecto.get("dias_vigencia")
-        if dias_vigencia is None:
-            dias_vigencia = 30
-        pdf.cell(33, 5, f"{dias_vigencia} DÍAS", align="R")
-        
-        # Row 3: E-mail
-        pdf.set_xy(12, 55)
+        pdf.cell(33, 5, str(proyecto.get("numero_proyecto") or "---"), align="R")
+
+        pdf.set_xy(135, y_pos+5)
         pdf.set_font("Helvetica", "B", 9)
-        pdf.cell(15, 5, "E-mail:")
+        pdf.cell(30, 5, "FECHA")
         pdf.set_font("Helvetica", "", 9)
-        pdf.cell(105, 5, str(proyecto.get("email_cliente") or "---"))
+        fecha_c = str(proyecto.get("fecha_creacion") or "---")[:10]
+        pdf.cell(33, 5, fecha_c, align="R")
+
+        pdf.set_xy(135, y_pos+10)
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(30, 5, "VENCIMIENTO")
+        pdf.set_font("Helvetica", "", 9)
+        
+        venc = "---"
+        if fecha_c != "---":
+            dias = int(proyecto.get("dias_vigencia") or 15)
+            import datetime
+            try:
+                dt = datetime.datetime.strptime(fecha_c, "%Y-%m-%d")
+                dt = dt + datetime.timedelta(days=dias)
+                venc = dt.strftime("%Y-%m-%d")
+            except:
+                pass
+        pdf.cell(33, 5, venc, align="R")
 
         # Separator line
         pdf.set_draw_color(*BLUE)
@@ -1348,14 +1381,20 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
                 points = [ln for ln in raw_lines if ln.strip()]
                 for idx, line in enumerate(points):
                     point_label = f"{st.get('indice')}.{idx + 1}"
+                    
+                    # Remove duplicate prefix if user typed it
+                    line_clean = line.strip()
+                    if line_clean.startswith(point_label):
+                        line_clean = line_clean[len(point_label):].strip()
+                        
+                    current_y = pdf.get_y()
                     pdf.set_font("Helvetica", "B", 9)
                     pdf.set_x(10)
-                    current_y = pdf.get_y()
                     pdf.cell(16, 5, point_label)
                     
                     pdf.set_font("Helvetica", "", 9)
                     pdf.set_xy(26, current_y)
-                    pdf.multi_cell(0, 5, line.strip())
+                    pdf.multi_cell(0, 5, line_clean)
                     pdf.ln(2)
                 pdf.ln(1)
 
@@ -1380,22 +1419,25 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
         total_mn = subtotal_mn + iva_mn
         
         pdf.ln(4)
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(140, 6, "SUB TOTAL:", align="R")
         pdf.set_font("Helvetica", "", 9)
-        pdf.cell(140, 6, "SUB TOTAL", border=1, align="R")
         if moneda == "USD":
-            pdf.cell(46, 6, f"$ {subtotal_usd:,.2f} USD", border=1, align="R", ln=True)
+            pdf.cell(46, 6, f"$ {subtotal_usd:,.2f} USD", align="R", ln=True)
         else:
-            pdf.cell(46, 6, f"$ {subtotal_mn:,.2f} M.N.", border=1, align="R", ln=True)
+            pdf.cell(46, 6, f"$ {subtotal_mn:,.2f} M.N.", align="R", ln=True)
         
         # IVA
-        pdf.cell(140, 6, f"IVA ({pct_iva:g}%)", border=1, align="R")
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(140, 6, f"IVA ({pct_iva:g}%):", align="R")
+        pdf.set_font("Helvetica", "", 9)
         if moneda == "USD":
-            pdf.cell(46, 6, f"$ {iva_usd:,.2f} USD", border=1, align="R", ln=True)
+            pdf.cell(46, 6, f"$ {iva_usd:,.2f} USD", align="R", ln=True)
         else:
-            pdf.cell(46, 6, f"$ {iva_mn:,.2f} M.N.", border=1, align="R", ln=True)
+            pdf.cell(46, 6, f"$ {iva_mn:,.2f} M.N.", align="R", ln=True)
         
         # Price Total plus IVA label
-        pdf.ln(1)
+        pdf.ln(2)
         pdf.set_font("Helvetica", "B", 9.5)
         pdf.set_text_color(*DARK)
         pdf.cell(0, 5, "Precio Total más IVA.", align="R", ln=True)
@@ -1407,10 +1449,11 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None):
         pdf.set_font("Helvetica", "B", 10)
         
         if moneda == "USD":
-            pdf.cell(140, 8, "  TOTAL USD", border=1, fill=True, align="L")
-            pdf.cell(46, 8, f"$ {total_usd:,.2f} USD", border=1, fill=True, align="R", ln=True)
-            pdf.cell(140, 8, "  TOTAL M.N.", border=1, fill=True, align="L")
-            pdf.cell(46, 8, f"$ {total_mn:,.2f} M.N.", border=1, fill=True, align="R", ln=True)
+            pdf.cell(140, 8, "  TOTAL USD", border=0, fill=True, align="L")
+            pdf.cell(46, 8, f"$ {total_usd:,.2f} USD", border=0, fill=True, align="R", ln=True)
+            pdf.ln(1)
+            pdf.cell(140, 8, "  TOTAL M.N.", border=0, fill=True, align="L")
+            pdf.cell(46, 8, f"$ {total_mn:,.2f} M.N.", border=0, fill=True, align="R", ln=True)
             letras = numero_a_letras(total_usd)
             letras = letras.replace("PESOS", "DÓLARES").replace("M.N.", "USD")
             letras_mn = numero_a_letras(total_mn)
@@ -1586,3 +1629,229 @@ if __name__ == "__main__":
         webbrowser.open("http://localhost:5000")
     threading.Thread(target=_open, daemon=True).start()
     app.run(debug=False, port=5000)
+
+
+def _build_pdf_cotizacion_simple(proyecto, secciones, condiciones, moneda, pdf):
+    from utils.numero_a_letras import numero_a_letras
+    import datetime
+
+    # Colores
+    BLUE = (30, 58, 138)
+    DARK = (15, 23, 42)
+    GRAY = (100, 116, 139)
+
+    pdf.add_page()
+    
+    # Header Derecha
+    vendedor = proyecto.get("vendedor_config", {}).get("vendedor", "Jose Moreno Rangel")
+    
+    pdf.set_text_color(*BLUE)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_xy(130, 10)
+    pdf.cell(70, 5, f"Ventas: {vendedor}", align="R")
+    
+    pdf.set_fill_color(*BLUE)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_xy(130, 16)
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(70, 7, "COTIZACION", align="C", fill=True)
+    
+    pdf.set_text_color(*DARK)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.set_xy(130, 24)
+    pdf.cell(35, 5, "COTIZACION No.")
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(35, 5, str(proyecto.get("numero_proyecto") or "---"), align="R")
+    
+    pdf.set_xy(130, 29)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(35, 5, "FECHA")
+    pdf.set_font("Helvetica", "", 10)
+    fecha_c = str(proyecto.get("fecha_creacion") or "---")[:10]
+    pdf.cell(35, 5, fecha_c, align="R")
+    
+    pdf.set_xy(130, 34)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(35, 5, "VENCIMIENTO")
+    pdf.set_font("Helvetica", "", 10)
+    venc = "---"
+    if fecha_c != "---":
+        dias = int(proyecto.get("dias_vigencia") or 30)
+        try:
+            dt = datetime.datetime.strptime(fecha_c, "%Y-%m-%d")
+            dt = dt + datetime.timedelta(days=dias)
+            venc = dt.strftime("%Y-%m-%d")
+        except:
+            pass
+    pdf.cell(35, 5, venc, align="R")
+    
+    # Header Izquierda
+    pdf.set_xy(10, 24)
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.cell(18, 5, "Atencion:")
+    pdf.set_font("Helvetica", "", 9)
+    pdf.cell(90, 5, str(proyecto.get("atencion") or "---"))
+    
+    pdf.set_xy(10, 29)
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.cell(10, 5, "TEL:")
+    pdf.set_font("Helvetica", "", 9)
+    pdf.cell(45, 5, str(proyecto.get("telefono_cliente") or "---"))
+    
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.cell(16, 5, "Empresa:")
+    pdf.set_font("Helvetica", "", 9)
+    pdf.cell(45, 5, str(proyecto.get("empresa_cliente") or "---"))
+    
+    pdf.set_xy(10, 34)
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.cell(12, 5, "E-mail")
+    pdf.ln()
+    pdf.set_x(10)
+    pdf.set_text_color(*BLUE)
+    pdf.set_font("Helvetica", "U", 9)
+    pdf.cell(100, 5, str(proyecto.get("email_cliente") or "---"))
+    pdf.set_text_color(*DARK)
+    
+    # Referencia
+    pdf.set_xy(130, 42)
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.multi_cell(70, 4, str(proyecto.get("referencia") or "---").upper(), align="R")
+    
+    pdf.set_y(55)
+    
+    # Table Header
+    pdf.set_fill_color(*BLUE)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.cell(15, 6, "Partida", border=0, fill=True, align="C")
+    pdf.cell(115, 6, "Descripcion", border=0, fill=True, align="L")
+    pdf.cell(20, 6, "Pecio", border=0, fill=True, align="C")
+    pdf.cell(15, 6, "Cantidad", border=0, fill=True, align="C")
+    pdf.cell(25, 6, "Sub Total", border=0, fill=True, align="C")
+    pdf.ln()
+    
+    pdf.set_text_color(*DARK)
+    pdf.set_font("Helvetica", "", 9)
+    
+    # Gather all partidas
+    todas_partidas = []
+    for s in secciones:
+        if s["codigo"] in ("PRESE", "REPORTE", "CONDICIONES", "LISTAS", "INSUMOS"):
+            continue
+        for p in s.get("partidas", []):
+            todas_partidas.append(p)
+            
+    # Table Rows
+    y_start = pdf.get_y()
+    subtotal = 0
+    for i, p in enumerate(todas_partidas):
+        # We need a bordered row, but multi_cell for description might wrap
+        desc = p.get("descripcion", "")
+        qty = float(p.get("cantidad") or 1)
+        # Use the stored total_mn / usd
+        if moneda == "USD":
+            t = float(p.get("total_usd") or 0)
+        else:
+            t = float(p.get("total_mn") or 0)
+            
+        precio_unit = t / qty if qty else 0
+        subtotal += t
+        
+        # Calculate height
+        lines = pdf.get_string_width(desc) / 110.0
+        h = max(6, int(lines + 1) * 5)
+        
+        pdf.rect(10, pdf.get_y(), 15, h)
+        pdf.rect(25, pdf.get_y(), 115, h)
+        pdf.rect(140, pdf.get_y(), 20, h)
+        pdf.rect(160, pdf.get_y(), 15, h)
+        pdf.rect(175, pdf.get_y(), 25, h)
+        
+        y_before = pdf.get_y()
+        
+        pdf.set_xy(10, y_before)
+        pdf.cell(15, h, str(i+1), align="C")
+        
+        pdf.set_xy(25, y_before + (h - 5)/2) # rough vertical center
+        pdf.multi_cell(115, 5, desc)
+        
+        pdf.set_xy(140, y_before)
+        pdf.cell(20, h, f"{precio_unit:,.2f}", align="C")
+        
+        pdf.set_xy(160, y_before)
+        pdf.cell(15, h, str(int(qty)), align="C")
+        
+        pdf.set_xy(175, y_before)
+        pdf.cell(25, h, f"{t:,.2f}", align="C")
+        
+        pdf.set_y(y_before + h)
+        
+    pdf.ln(5)
+    
+    # Tiempo de entrega
+    pdf.set_fill_color(226, 232, 240)
+    pdf.set_font("Helvetica", "B", 9)
+    # They said "TIEMPO DE ENTREGA 8- DIAS HABILES"
+    # We don't have a specific field for this in the DB, so we'll hardcode or use dias_vigencia
+    pdf.cell(190, 6, "TIEMPO DE ENTREGA 8- DIAS HABILES", fill=True, align="L")
+    pdf.ln(10)
+    
+    # Totals
+    pct_iva = float(proyecto.get("porcentaje_iva") if proyecto.get("porcentaje_iva") is not None else 16.00)
+    iva = subtotal * (pct_iva / 100.0)
+    total = subtotal + iva
+    
+    pdf.set_x(130)
+    pdf.cell(30, 6, "SUB TOTAL", align="R")
+    pdf.cell(10, 6, "$", align="C")
+    pdf.cell(30, 6, f"{subtotal:,.2f}", align="R")
+    pdf.ln()
+    
+    pdf.set_x(130)
+    pdf.cell(30, 6, f"IVA ({pct_iva:g}%)", align="R")
+    pdf.cell(10, 6, "", align="C")
+    pdf.cell(30, 6, f"{iva:,.2f}", align="R")
+    pdf.ln()
+    
+    pdf.set_x(130)
+    pdf.cell(30, 6, "TOTAL", align="R")
+    pdf.cell(10, 6, "", align="C")
+    pdf.cell(30, 6, f"{total:,.2f}", align="R")
+    pdf.ln(10)
+    
+    # Letras
+    pdf.set_font("Helvetica", "", 9)
+    letras = numero_a_letras(total)
+    if moneda == "USD":
+        letras = letras.replace("PESOS", "DOLARES").replace("M.N.", "USD")
+        suffix = "USD"
+    else:
+        suffix = "MN"
+        
+    pdf.cell(0, 5, f"{letras.upper()} 00/100 {suffix}", align="C")
+    pdf.ln(6)
+    
+    pdf.cell(0, 5, f"Nota : precios en {'Pesos Mexicanos MN' if moneda != 'USD' else 'Dolares USD'} ,precios sujetos a cambio sin previo aviso", align="C")
+    pdf.ln(5)
+    
+    pdf.set_font("Helvetica", "B", 9)
+    cond_pago = proyecto.get("condiciones_pago", "90 DIAS")
+    pdf.cell(0, 5, f"TERMINOS Y CONDICIONES: Condiciones de Pago : {cond_pago}", align="C")
+    pdf.ln(8)
+    
+    # Nota final
+    pdf.set_font("Helvetica", "B", 9)
+    nota_row = proyecto.get("nota_aclaracion", "Para cualquier aclaración con respecto a esta cotización o para colocar su orden, favor de comunicarse al correo integraqro07@outlook.com")
+    pdf.multi_cell(0, 5, nota_row)
+    pdf.ln(2)
+    
+    pdf.set_font("Helvetica", "", 9)
+    pdf.multi_cell(0, 5, "• Tiempo de Entrega: Los días de entrega serán considerados a partir de la recepción de su orden de compra. Este tiempo de entrega es SALVO PREVIA VENTA.\n• Si esta cotización es en pesos y el tipo de cambio sufre una variación mayor al 2%, esta cotización pierde su validez.\n• Vigencia: 30 días para cotizaciones en Pesos y Dólares.")
+    pdf.ln(4)
+    
+    pdf.set_font("Helvetica", "B", 9)
+    vend_tel = proyecto.get("vendedor_config", {}).get("vendedor_telefono", "442 7214891")
+    pdf.cell(0, 5, f"Atencion: {vendedor} tel: {vend_tel}")
+    
+    return pdf
