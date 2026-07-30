@@ -590,8 +590,8 @@ function recalcInsumoRow(tbl, id) {
     const el = document.getElementById(`sub_ga_${id}`);
     if (el) el.innerText = '$ ' + fm(c);
   } else if (tbl === 'imss') {
-    const p = getNum('personas'), c = getNum('costo_dia'), di = getNum('dias');
-    const sub = p * c * di;
+    const pe = getNum('num_personal') || 1, p = getNum('personas'), c = getNum('costo_dia'), di = getNum('dias');
+    const sub = pe * p * c * di;
     const el = document.getElementById(`sub_imss_${id}`);
     if (el) el.innerText = '$ ' + fm(sub);
   }
@@ -661,10 +661,11 @@ function recalcInsumosGrandTotals() {
 
   let imssSum = 0;
   (projectData.insumos_imss||[]).forEach(r => {
+    const pe = parseFloat(document.querySelector(`input[data-tbl="imss"][data-id="${r.id}"][data-fld="num_personal"]`)?.value ?? r.num_personal) || 1;
     const p = parseFloat(document.querySelector(`input[data-tbl="imss"][data-id="${r.id}"][data-fld="personas"]`)?.value ?? r.personas)||0;
     const c = parseFloat(document.querySelector(`input[data-tbl="imss"][data-id="${r.id}"][data-fld="costo_dia"]`)?.value ?? r.costo_dia)||0;
     const di = parseFloat(document.querySelector(`input[data-tbl="imss"][data-id="${r.id}"][data-fld="dias"]`)?.value ?? r.dias)||0;
-    imssSum += (p * c * di);
+    imssSum += (pe * p * c * di);
   });
 
   // Update table blue footers
@@ -806,7 +807,7 @@ function renderInsumos(c, sec) {
 
   let imssSum = 0;
   imssRows.forEach(r => {
-    r.subtotal = (parseFloat(r.personas)||0) * (parseFloat(r.costo_dia)||0) * (parseFloat(r.dias)||0);
+    r.subtotal = (parseFloat(r.num_personal)||1) * (parseFloat(r.personas)||0) * (parseFloat(r.costo_dia)||0) * (parseFloat(r.dias)||0);
     imssSum += r.subtotal;
   });
 
@@ -1026,10 +1027,11 @@ function renderInsumos(c, sec) {
   // Row 2: IMSS table on its own row below
   html += `<div style="max-width:550px;box-shadow:0 2px 10px rgba(0,0,0,.08);border-radius:8px;border:1px solid #e2e8f0;background:#fff;overflow-x:auto;">
     <table style="border-collapse:collapse;width:100%;font-family:sans-serif;">
-      <tr><th colspan="4" style="${S.hdr}">IMSS</th><th style="${S.del}"></th></tr>
-      <tr><th style="${S.sub};width:70px;">PERSONAS</th><th style="${S.sub};width:100px;">COSTO / DÍA</th><th style="${S.sub};width:70px;">DÍAS</th><th style="${S.sub};width:110px;">SUB TOTAL</th><th style="${S.del}"></th></tr>`;
+      <tr><th colspan="5" style="${S.hdr}">IMSS</th><th style="${S.del}"></th></tr>
+      <tr><th style="${S.sub};width:180px;">PERSONAL</th><th style="${S.sub};width:70px;">PERSONAS</th><th style="${S.sub};width:100px;">COSTO / DÍA</th><th style="${S.sub};width:70px;">DÍAS</th><th style="${S.sub};width:110px;">SUB TOTAL</th><th style="${S.del}"></th></tr>`;
   imssRows.forEach(r => {
     html += `<tr>
+      <td style="${S.cell}">${inp('text',r.num_personal||'',r.id,'imss','num_personal','100%','left')}</td>
       <td style="${S.cell}">${inp('number',r.personas||0,r.id,'imss','personas','100%')}</td>
       <td style="${S.cell}">${curInp(r.costo_dia||0,r.id,'imss','costo_dia','75px')}</td>
       <td style="${S.cell}">${inp('number',r.dias||0,r.id,'imss','dias','100%')}</td>

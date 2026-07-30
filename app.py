@@ -714,6 +714,12 @@ def _ensure_insumos_tables():
       KEY `proyecto_id` (`proyecto_id`),
       CONSTRAINT `imss_ibfk_1` FOREIGN KEY (`proyecto_id`) REFERENCES `proyectos` (`id`) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""")
+    try:
+        ex("ALTER TABLE `insumos_imss` ADD COLUMN `num_personal` varchar(200) DEFAULT ''")
+    except Exception:
+        try:
+            ex("ALTER TABLE `insumos_imss` MODIFY COLUMN `num_personal` varchar(200) DEFAULT ''")
+        except Exception: pass
 
 def _seed_insumos(pid):
     _ensure_insumos_tables()
@@ -758,7 +764,7 @@ def api_update_insumos_row():
     if (tabla in ['transporte', 'insumos_transporte']) and field in field_map:
         field = field_map[field]
     
-    text_fields = ['persona', 'destino', 'descripcion']
+    text_fields = ['persona', 'destino', 'descripcion', 'num_personal']
     
     if field in row:
         if isinstance(val, str) and field not in text_fields:
@@ -836,7 +842,7 @@ def api_insumos_add_row():
         new_id = ex("INSERT INTO insumos_gastos_admin (proyecto_id,descripcion,costo,subtotal,orden) VALUES (%s,'',0,0,%s)", (pid, n))
     elif tabla in ['imss', 'insumos_imss']:
         n = q("SELECT COUNT(*) cnt FROM insumos_imss WHERE proyecto_id=%s", (pid,), fetch="one")["cnt"]+1
-        new_id = ex("INSERT INTO insumos_imss (proyecto_id,personas,costo_dia,dias,subtotal,orden) VALUES (%s,0,0,0,0,%s)", (pid, n))
+        new_id = ex("INSERT INTO insumos_imss (proyecto_id,num_personal,personas,costo_dia,dias,subtotal,orden) VALUES (%s,'',0,0,0,0,%s)", (pid, n))
     else:
         n = q("SELECT COUNT(*) cnt FROM insumos_transporte WHERE proyecto_id=%s", (pid,), fetch="one")["cnt"]+1
         new_id = ex("INSERT INTO insumos_transporte (proyecto_id,descripcion,costo,no_veces,subtotal,orden) VALUES (%s,'',0,0,0,%s)", (pid, n))
