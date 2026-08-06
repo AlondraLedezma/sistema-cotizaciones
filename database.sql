@@ -305,29 +305,23 @@ CREATE TABLE `cotizaciones_mecanico` (
 
 
 
--- Tabla para los Materiales (Combo 1)
-CREATE TABLE emec_materiales (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    proyecto_id INT,
-    nombre VARCHAR(255)
-);
-
--- Tabla para la Mano de Obra (Combo 2)
-CREATE TABLE emec_mano_obra (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    proyecto_id INT,
-    nombre VARCHAR(255)
-);
-
--- Tabla para las Piezas (Genera las filas y guarda los cálculos)
-CREATE TABLE emec_piezas (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    proyecto_id INT,
-    descripcion VARCHAR(255),
-    material VARCHAR(255) DEFAULT '',
-    mano_obra VARCHAR(255) DEFAULT '',
-    cantidad DECIMAL(10,2) DEFAULT 0,
-    precio_lista DECIMAL(10,2) DEFAULT 0,
-    porcentaje_mgn DECIMAL(5,2) DEFAULT 0,
-    moneda VARCHAR(10) DEFAULT 'MN'
-);
+CREATE TABLE `partidas_mecanico` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `proyecto_id` int(11) NOT NULL,
+  `numero_partida` int(11) NOT NULL,
+  `descripcion_pieza` varchar(500) DEFAULT '',
+  `material` varchar(255) DEFAULT '',
+  `costo_material` decimal(15,2) DEFAULT 0.00,
+  `mano_obra` varchar(255) DEFAULT '',
+  `costo_mano_obra` decimal(15,2) DEFAULT 0.00,
+  `cantidad` int(11) DEFAULT 1,
+  `moneda` enum('MN','USD') DEFAULT 'MN',
+  `subtotal` decimal(15,2) DEFAULT 0.00,
+  `porcentaje_mgn` decimal(5,2) DEFAULT 0.00,
+  `total_mn` decimal(15,2) DEFAULT 0.00,
+  `total_usd` decimal(15,2) DEFAULT 0.00,
+  `orden` int(11) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `proyecto_id` (`proyecto_id`),
+  CONSTRAINT `partidas_mecanico_ibfk_1` FOREIGN KEY (`proyecto_id`) REFERENCES `proyectos` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

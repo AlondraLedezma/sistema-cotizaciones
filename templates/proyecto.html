@@ -1915,12 +1915,29 @@ async function addPartida(seccionId, tipo) {
     }
     clearTimeout(_saveTimer);
     pendingSaveFn = null;
-    await api('/api/partidas/create','POST',{seccion_id:seccionId,tipo});
+
+    if (tipo === 'e_mecanico') {
+
+        const sec = projectData.secciones.find(s => String(s.id) === String(seccionId));
+
+        await api('/api/partidas_mecanico/create', 'POST', {
+            proyecto_id: sec.proyecto_id
+        });
+
+    } else {
+
+        await api('/api/partidas/create', 'POST', {
+            seccion_id: seccionId,
+            tipo
+        });
+
+    }
+
     await reloadSections();
     switchTab(currentTab);
-    showToast('Partida agregada','success');
-  } catch(e){showToast(e.message,'error');}
+    showToast('Partida agregada','success');} catch(e){showToast(e.message,'error');}
 }
+
 
 async function deletePartida(pid, tipo, seccionId) {
   if(!await askConfirm('¿Eliminar esta partida?')) return;
@@ -2544,19 +2561,47 @@ function renderEMecanico(c, sec) {
   let totalMN = 0, totalUSD = 0;
   let rows = '';
 
+  // Obtener las listas UNA SOLA VEZ
+  const listas = projectData.listas || [];
+
+  const listasMateriales = listas.filter(
+    l => l.seccion_codigo === 'E_MECANICO'
+  );
+
+  const listasManoObra = listas.filter(
+    l => l.seccion_codigo === 'MO_MECANICO'
+  );
+
   partidas.forEach((p, i) => {
+
     const desc = p.descripcion_pieza || '';
     const qty = parseFloat(p.cantidad || 0);
     const c_mat = parseFloat(p.costo_material || 0);
     const c_mo = parseFloat(p.costo_mano_obra || 0);
     const m = parseFloat(p.porcentaje_mgn || 0);
     const mon = p.moneda || 'MN';
-    
+
+    const materialOptions = listasMateriales.map(l => `
+      <option value="${esc(l.valor)}"
+        ${p.material === l.valor ? 'selected' : ''}>
+        ${esc(l.valor)}
+      </option>
+    `).join('');
+
+    const manoObraOptions = listasManoObra.map(l => `
+      <option value="${esc(l.valor)}"
+        ${p.mano_obra === l.valor ? 'selected' : ''}>
+        ${esc(l.valor)}
+      </option>
+    `).join('');
+
+    // Aquí continúa exactamente el resto de tu función...
+
     // Cálculo de subtotal: (Material + Mano de Obra) * Cantidad
     const sub = (c_mat + c_mo) * qty;
     let tmn, tusd;
     const tc = getTC();
-    
+
     if (mon === 'USD') {
       tusd = sub * (1 + m / 100);
       tmn = tusd * tc;
@@ -2564,51 +2609,108 @@ function renderEMecanico(c, sec) {
       tmn = sub * (1 + m / 100);
       tusd = tc ? tmn / tc : 0;
     }
-    
-    totalMN += tmn; 
+
+    totalMN += tmn;
     totalUSD += tusd;
-    
+
     rows += `
       <tr id="em-row-${p.id}" class="table-row">
         <td class="text-center text-muted" style="font-size:12px">${p.numero_partida || i + 1}</td>
-        
+
         <td>
-          <input class="excel-input text-start" type="text" value="${esc(desc)}" data-field="descripcion_pieza" onchange="saveEM(${p.id})" placeholder="Descripción de la pieza..." style="width:100%; min-width:200px"/>
+          <input class="excel-input text-start" type="text"
+                 value="${esc(desc)}"
+                 data-field="descripcion_pieza"
+                 onchange="saveEM(${p.id})"
+                 placeholder="Descripción de la pieza..."
+                 style="width:100%; min-width:200px"/>
         </td>
 
         <td>
-          <select class="excel-select" data-field="material" onchange="saveEM(${p.id})" style="width:100%; min-width:140px">
+          <select class="excel-select"
+                  data-field="material"
+                  onchange="saveEM(${p.id})"
+                  style="width:100%; min-width:140px">
             <option value="">— Seleccionar Material —</option>
-            ${p.material ? `<option value="${esc(p.material)}" selected>${esc(p.material)}</option>` : ''}
+            ${materialOptions}
           </select>
         </td>
-        
+
         <td>
-          <select class="excel-select" data-field="mano_obra" onchange="saveEM(${p.id})" style="width:100%; min-width:140px">
+          <select class="excel-select"
+                  data-field="mano_obra"
+                  onchange="saveEM(${p.id})"
+                  style="width:100%; min-width:140px">
             <option value="">— Seleccionar M.O. —</option>
-            ${p.mano_obra ? `<option value="${esc(p.mano_obra)}" selected>${esc(p.mano_obra)}</option>` : ''}
+            ${manoObraOptions}
           </select>
         </td>
-        
-        <td><input class="excel-input" type="number" value="${c_mat || ''}" data-field="costo_material" oninput="recalcEM(${p.id})" style="width:90px" step="0.01"/></td>
-        <td><input class="excel-input" type="number" value="${c_mo || ''}" data-field="costo_mano_obra" oninput="recalcEM(${p.id})" style="width:90px" step="0.01"/></td>
-        <td><input class="excel-input" type="number" value="${qty || ''}" data-field="cantidad" oninput="recalcEM(${p.id})" style="width:60px" step="1"/></td>
-        
+
         <td>
-          <select class="excel-select" data-field="moneda" onchange="recalcEM(${p.id})" style="width:65px">
+          <input class="excel-input"
+                 type="number"
+                 value="${c_mat || ''}"
+                 data-field="costo_material"
+                 oninput="recalcEM(${p.id})"
+                 style="width:90px"
+                 step="0.01"/>
+        </td>
+
+        <td>
+          <input class="excel-input"
+                 type="number"
+                 value="${c_mo || ''}"
+                 data-field="costo_mano_obra"
+                 oninput="recalcEM(${p.id})"
+                 style="width:90px"
+                 step="0.01"/>
+        </td>
+
+        <td>
+          <input class="excel-input"
+                 type="number"
+                 value="${qty || ''}"
+                 data-field="cantidad"
+                 oninput="recalcEM(${p.id})"
+                 style="width:60px"
+                 step="1"/>
+        </td>
+
+        <td>
+          <select class="excel-select"
+                  data-field="moneda"
+                  onchange="recalcEM(${p.id})"
+                  style="width:65px">
             <option value="MN" ${mon === 'MN' ? 'selected' : ''}>MN</option>
             <option value="USD" ${mon === 'USD' ? 'selected' : ''}>USD</option>
           </select>
         </td>
-        
-        <td class="text-muted text-end" style="font-size:12px" id="em-sub-${p.id}">${fmt(sub)}</td>
-        <td><input class="excel-input" type="number" value="${m || ''}" data-field="porcentaje_mgn" oninput="recalcEM(${p.id})" style="width:60px" step="1"/></td>
-        
-        <td class="fw-bold text-dark text-end" id="em-tmn-${p.id}">${fmt(tmn)}</td>
-        <td class="fw-bold text-primary text-end" id="em-tusd-${p.id}">${fmt(tusd)}</td>
-        
+
+        <td class="text-muted text-end" style="font-size:12px" id="em-sub-${p.id}">
+          ${fmt(sub)}
+        </td>
+
+        <td>
+          <input class="excel-input"
+                 type="number"
+                 value="${m || ''}"
+                 data-field="porcentaje_mgn"
+                 oninput="recalcEM(${p.id})"
+                 style="width:60px"
+                 step="1"/>
+        </td>
+
+        <td class="fw-bold text-dark text-end" id="em-tmn-${p.id}">
+          ${fmt(tmn)}
+        </td>
+
+        <td class="fw-bold text-primary text-end" id="em-tusd-${p.id}">
+          ${fmt(tusd)}
+        </td>
+
         <td class="text-center">
-          <button onclick="deletePartida(${p.id},'e_mecanico','${sec.id}')" class="btn btn-sm btn-light text-danger border-0 py-1">
+          <button onclick="deletePartida(${p.id},'e_mecanico','${sec.id}')"
+                  class="btn btn-sm btn-light text-danger border-0 py-1">
             <i class="fa-solid fa-times"></i>
           </button>
         </td>
@@ -2617,44 +2719,71 @@ function renderEMecanico(c, sec) {
 
   c.innerHTML = `
     <div class="card shadow-sm border-0 overflow-hidden">
-      <div class="p-3 d-flex align-items-center justify-content-between text-white" style="background:${sec.color || '#ea580c'}">
+      <div class="p-3 d-flex align-items-center justify-content-between text-white"
+           style="background:${sec.color || '#ea580c'}">
+
         <div>
-          <div class="text-uppercase" style="font-size:10px;opacity:0.8;letter-spacing:0.5px">Sección</div>
+          <div class="text-uppercase"
+               style="font-size:10px;opacity:0.8;letter-spacing:0.5px">
+            Sección
+          </div>
           <div class="fs-5 fw-bold">${sec.titulo || sec.codigo}</div>
         </div>
+
         <div class="text-end text-white text-opacity-90" style="font-size:13px">
-          <div>Total USD: <strong id="sec-header-usd-${sec.id}">${fmt(totalUSD)}</strong></div>
-          <div>Total MN: <strong id="sec-header-mn-${sec.id}">${fmt(totalMN)}</strong></div>
+          <div>Total USD:
+            <strong id="sec-header-usd-${sec.id}">${fmt(totalUSD)}</strong>
+          </div>
+          <div>Total MN:
+            <strong id="sec-header-mn-${sec.id}">${fmt(totalMN)}</strong>
+          </div>
         </div>
+
       </div>
+
       <div class="table-responsive">
         <table class="excel-table">
-          <thead><tr>
-            <th style="width:45px">PDA</th>
-            <th style="min-width:200px">DESCRIPCIÓN PIEZA</th>
-            <th style="min-width:140px">MATERIAL</th>
-            <th style="min-width:140px">MANO DE OBRA</th>
-            <th style="width:90px">COSTO MAT.</th>
-            <th style="width:90px">COSTO M.O.</th>
-            <th style="width:60px">QTY</th>
-            <th style="width:65px">MONEDA</th>
-            <th class="text-end" style="width:100px">SUB TOTAL</th>
-            <th style="width:60px">% MGN</th>
-            <th class="text-end" style="width:115px">TOTAL MN</th>
-            <th class="text-end" style="width:115px">TOTAL USD</th>
-            <th style="width:40px"></th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-          <tfoot><tr class="total-row">
-            <td colspan="10" class="text-end p-3">TOTAL</td>
-            <td class="text-end p-3" id="sec-footer-mn-${sec.id}">${fmt(totalMN)}</td>
-            <td class="text-end p-3" id="sec-footer-usd-${sec.id}">${fmt(totalUSD)}</td><td></td>
-          </tr></tfoot>
+
+          <thead>
+            <tr>
+              <th style="width:45px">PDA</th>
+              <th style="min-width:200px">DESCRIPCIÓN PIEZA</th>
+              <th style="min-width:140px">MATERIAL</th>
+              <th style="min-width:140px">MANO DE OBRA</th>
+              <th style="width:90px">COSTO MAT.</th>
+              <th style="width:90px">COSTO M.O.</th>
+              <th style="width:60px">QTY</th>
+              <th style="width:65px">MONEDA</th>
+              <th class="text-end" style="width:100px">SUB TOTAL</th>
+              <th style="width:60px">% MGN</th>
+              <th class="text-end" style="width:115px">TOTAL MN</th>
+              <th class="text-end" style="width:115px">TOTAL USD</th>
+              <th style="width:40px"></th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${rows}
+          </tbody>
+
+          <tfoot>
+            <tr class="total-row">
+              <td colspan="10" class="text-end p-3">TOTAL</td>
+              <td class="text-end p-3" id="sec-footer-mn-${sec.id}">${fmt(totalMN)}</td>
+              <td class="text-end p-3" id="sec-footer-usd-${sec.id}">${fmt(totalUSD)}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+
         </table>
       </div>
+
       <div class="p-3 border-top bg-light">
-        <button onclick="addPartida('${sec.id}','e_mecanico')" class="btn btn-sm btn-primary d-flex align-items-center gap-2 fw-semibold" style="background:${sec.color || '#ea580c'}">
-          <i class="fa-solid fa-plus"></i>Agregar Partida
+        <button onclick="addPartida('${sec.id}','e_mecanico')"
+                class="btn btn-sm btn-primary d-flex align-items-center gap-2 fw-semibold"
+                style="background:${sec.color || '#ea580c'}">
+          <i class="fa-solid fa-plus"></i>
+          Agregar Partida
         </button>
       </div>
     </div>`;
@@ -2712,24 +2841,48 @@ function recalcEM(pid) {
 }
 
 async function saveEM(pid) {
-  const row = document.getElementById(`em-row-${pid}`);
-  if (!row) return;
-  
-  await api('/api/partidas/update', 'POST', {
-    id: pid, 
-    tipo: 'e_mecanico', 
-    tipo_cambio: getTC(),
-    descripcion_pieza: row.querySelector('[data-field="descripcion_pieza"]')?.value || '',
-    material: row.querySelector('[data-field="material"]')?.value || '',
-    mano_obra: row.querySelector('[data-field="mano_obra"]')?.value || '',
-    costo_material: parseFloat(row.querySelector('[data-field="costo_material"]')?.value || 0),
-    costo_mano_obra: parseFloat(row.querySelector('[data-field="costo_mano_obra"]')?.value || 0),
-    cantidad: parseFloat(row.querySelector('[data-field="cantidad"]')?.value || 0),
-    moneda: row.querySelector('[data-field="moneda"]')?.value || 'MN',
-    porcentaje_mgn: parseFloat(row.querySelector('[data-field="porcentaje_mgn"]')?.value || 0)
-  });
-  
-  await reloadSections();
+
+    const row = document.getElementById(`em-row-${pid}`);
+    if (!row) return;
+
+    try {
+
+        await api('/api/partidas_mecanico/update', 'POST', {
+
+            id: pid,
+
+            descripcion_pieza: row.querySelector('[data-field="descripcion_pieza"]')?.value || "",
+
+            material: row.querySelector('[data-field="material"]')?.value || "",
+
+            mano_obra: row.querySelector('[data-field="mano_obra"]')?.value || "",
+
+            costo_material: parseFloat(
+                row.querySelector('[data-field="costo_material"]')?.value || 0
+            ),
+
+            costo_mano_obra: parseFloat(
+                row.querySelector('[data-field="costo_mano_obra"]')?.value || 0
+            ),
+
+            cantidad: parseFloat(
+                row.querySelector('[data-field="cantidad"]')?.value || 1
+            ),
+
+            moneda: row.querySelector('[data-field="moneda"]')?.value || "MN",
+
+            porcentaje_mgn: parseFloat(
+                row.querySelector('[data-field="porcentaje_mgn"]')?.value || 0
+            )
+
+        });
+
+        await reloadSections();
+
+    } catch (err) {
+        console.error(err);
+        showToast("Error al guardar la partida mecánica", "error");
+    }
 }
 
 initProject();

@@ -260,36 +260,84 @@ def api_delete_proyecto():
     ex("DELETE FROM proyectos WHERE id=%s", (pid,))
     return jsonify(ok=True)
 
+
 @app.route("/api/proyectos/update", methods=["POST"])
 @login_required
 def api_update_proyecto():
     d = request.json or {}
     pid = d.get("id")
-    curr = q("SELECT porcentaje_iva FROM proyectos WHERE id=%s", (pid,), fetch="one")
-    curr_iva = curr.get("porcentaje_iva") if curr else 16.00
+
+    # Validar que se recibió el ID
+    if not pid:
+        return jsonify(error="ID de proyecto no proporcionado"), 400
+
+    # Obtener el IVA actual para conservarlo si no se envía uno nuevo
+    curr = q(
+        "SELECT iva FROM proyectos WHERE id=%s",
+        (pid,),
+        fetch="one"
+    )
+
+    curr_iva = curr.get("iva") if curr else 0.00
+
+    # Verificar que el número de proyecto no esté duplicado
     new_num = d.get("numero_proyecto")
     if new_num:
-        conflict = q("SELECT id FROM proyectos WHERE numero_proyecto=%s AND id!=%s", (new_num, pid), fetch="one")
+        conflict = q(
+            "SELECT id FROM proyectos WHERE numero_proyecto=%s AND id<>%s",
+            (new_num, pid),
+            fetch="one"
+        )
+
         if conflict:
             return jsonify(error="El número de proyecto ya está en uso"), 400
-        ex("UPDATE proyectos SET numero_proyecto=%s WHERE id=%s", (new_num, pid))
-    ex("""UPDATE proyectos SET nombre_proyecto=%s,empresa_cliente=%s,
-          contacto_cliente=%s,telefono_cliente=%s,email_cliente=%s,
-          atencion=%s,referencia=%s,descripcion_solucion=%s,
-          fecha_creacion=%s,fecha_vencimiento=%s,tipo_cambio_usd=%s,
-          carpeta_link=%s,tiempo_entrega=%s,condiciones_pago=%s,
-          porcentaje_iva=%s,dias_vigencia=%s WHERE id=%s""",
-       (d.get("nombre_proyecto"), d.get("empresa_cliente"),
-        d.get("contacto_cliente"), d.get("telefono_cliente"),
-        d.get("email_cliente"), d.get("atencion"), d.get("referencia"),
-        d.get("descripcion_solucion"), d.get("fecha_creacion"),
-        d.get("fecha_vencimiento"), d.get("tipo_cambio_usd") or 20,
-        d.get("carpeta_link"), d.get("tiempo_entrega"), d.get("condiciones_pago"),
-        d.get("porcentaje_iva") if d.get("porcentaje_iva") is not None else curr_iva,
-        d.get("dias_vigencia"), pid))
+
+        ex(
+            "UPDATE proyectos SET numero_proyecto=%s WHERE id=%s",
+            (new_num, pid)
+        )
+
+    # Actualizar la información del proyecto
+    ex("""
+        UPDATE proyectos
+        SET
+            nombre_proyecto=%s,
+            referencia=%s,
+            descripcion_solucion=%s,
+            empresa_cliente=%s,
+            contacto_cliente=%s,
+            telefono_cliente=%s,
+            email_cliente=%s,
+            atencion=%s,
+            fecha_creacion=%s,
+            fecha_vencimiento=%s,
+            tipo_cambio_usd=%s,
+            iva=%s,
+            carpeta_link=%s
+        WHERE id=%s
+    """, (
+        d.get("nombre_proyecto"),
+        d.get("referencia"),
+        d.get("descripcion_solucion"),
+        d.get("empresa_cliente"),
+        d.get("contacto_cliente"),
+        d.get("telefono_cliente"),
+        d.get("email_cliente"),
+        d.get("atencion"),
+        d.get("fecha_creacion"),
+        d.get("fecha_vencimiento"),
+        d.get("tipo_cambio_usd") or 20,
+        d.get("iva") if d.get("iva") is not None else curr_iva,
+        d.get("carpeta_link"),
+        pid
+    ))
+
+    # Recalcular conversiones de moneda
     tc_new = float(d.get("tipo_cambio_usd") or 20)
     recalc_project_currency_conversions(pid, tc_new)
+
     return jsonify(ok=True)
+
 
 @app.route("/api/proyectos/seleccionar_carpeta", methods=["POST"])
 @login_required
@@ -312,10 +360,29 @@ def api_get_proyecto(pid):
         return jsonify(error="No encontrado"), 404
     secciones = q("SELECT * FROM secciones WHERE proyecto_id=%s ORDER BY orden", (pid,))
     for s in secciones:
-        if s["tipo"] == "mano_obra":
-            s["partidas"] = list(q("SELECT * FROM partidas_mano_obra WHERE seccion_id=%s ORDER BY orden", (s["id"],)))
+
+        if s["codigo"] == "E_MECANICO":
+
+            s["partidas"] = list(q("""
+                SELECT *
+                FROM partidas_mecanico
+                WHERE proyecto_id=%s
+                ORDER BY orden, id
+            """, (pid,)))
+
+        elif s["tipo"] == "mano_obra":
+
+            s["partidas"] = list(q(
+                "SELECT * FROM partidas_mano_obra WHERE seccion_id=%s ORDER BY orden",
+                (s["id"],)
+            ))
+
         else:
-            s["partidas"] = list(q("SELECT * FROM partidas_equipo WHERE seccion_id=%s ORDER BY orden", (s["id"],)))
+
+            s["partidas"] = list(q(
+                "SELECT * FROM partidas_equipo WHERE seccion_id=%s ORDER BY orden",
+                (s["id"],)
+            ))
     condiciones = q("SELECT * FROM condiciones_comerciales WHERE proyecto_id=%s ORDER BY orden", (pid,))
     try:
         subtemas = q("SELECT * FROM subtemas_prese WHERE proyecto_id=%s ORDER BY orden", (pid,))
@@ -362,6 +429,7 @@ def api_get_proyecto(pid):
         insumos_transporte = list(q("SELECT * FROM insumos_transporte WHERE proyecto_id=%s ORDER BY orden", (pid,)))
         insumos_ga = list(q("SELECT * FROM insumos_gastos_admin WHERE proyecto_id=%s ORDER BY orden", (pid,)))
         insumos_imss = list(q("SELECT * FROM insumos_imss WHERE proyecto_id=%s ORDER BY orden", (pid,)))
+    partidas_mec = q("SELECT * FROM partidas_mecanico WHERE proyecto_id=%s ORDER BY orden, id", (pid,))
     return jsonify(
         proyecto=_serialize(proyecto),
         secciones=[_serialize(s) for s in secciones],
@@ -372,7 +440,8 @@ def api_get_proyecto(pid):
         insumos_en_cd=[_serialize(r) for r in insumos_en_cd],
         insumos_transporte=[_serialize(r) for r in insumos_transporte],
         insumos_gastos_admin=[_serialize(r) for r in insumos_ga],
-        insumos_imss=[_serialize(r) for r in insumos_imss]
+        insumos_imss=[_serialize(r) for r in insumos_imss],
+        partidas_mecanico=[_serialize(pm) for pm in partidas_mec] # <--- AGREGADO
     )
 
 @app.route("/api/partidas/create", methods=["POST"])
@@ -381,17 +450,88 @@ def api_create_partida():
     d = request.json or {}
     sid  = d.get("seccion_id")
     tipo = d.get("tipo","mano_obra")
-    sec  = q("SELECT * FROM secciones WHERE id=%s", (sid,), fetch="one")
+
+    sec = q("SELECT * FROM secciones WHERE id=%s", (sid,), fetch="one")
     if not sec:
         return jsonify(error="Sección no encontrada"), 404
-    n = q("SELECT COUNT(*) cnt FROM partidas_mano_obra WHERE seccion_id=%s" if tipo=="mano_obra"
-          else "SELECT COUNT(*) cnt FROM partidas_equipo WHERE seccion_id=%s", (sid,), fetch="one")["cnt"] + 1
+
     if tipo == "mano_obra":
-        new_id = ex("INSERT INTO partidas_mano_obra (seccion_id,numero_partida,descripcion,horas_mo,dias_trabajo,costo_hora_usd,porcentaje_mgn,subtotal,total_usd,total_mn,orden) VALUES (%s,%s,'',0,1,0,0,0,0,0,%s)",
-                    (sid, n, n))
+
+        n = q(
+            "SELECT COUNT(*) cnt FROM partidas_mano_obra WHERE seccion_id=%s",
+            (sid,),
+            fetch="one"
+        )["cnt"] + 1
+
+        new_id = ex(
+            "INSERT INTO partidas_mano_obra (seccion_id,numero_partida,descripcion,horas_mo,dias_trabajo,costo_hora_usd,porcentaje_mgn,subtotal,total_usd,total_mn,orden) VALUES (%s,%s,'',0,1,0,0,0,0,0,%s)",
+            (sid, n, n)
+        )
+
+    elif tipo == "e_mecanico":
+
+        n = q(
+            "SELECT COUNT(*) cnt FROM partidas_mecanico WHERE proyecto_id=%s",
+            (sec["proyecto_id"],),
+            fetch="one"
+        )["cnt"] + 1
+
+        new_id = ex("""
+            INSERT INTO partidas_mecanico
+            (
+                proyecto_id,
+                numero_partida,
+                descripcion_pieza,
+                material,
+                costo_material,
+                mano_obra,
+                costo_mano_obra,
+                cantidad,
+                moneda,
+                subtotal,
+                porcentaje_mgn,
+                total_mn,
+                total_usd,
+                orden
+            )
+            VALUES
+            (
+                %s,
+                %s,
+                '',
+                '',
+                0,
+                '',
+                0,
+                1,
+                'MN',
+                0,
+                0,
+                0,
+                0,
+                %s
+            )
+        """, (
+            sec["proyecto_id"],
+            n,
+            n
+        ))
+
+        _recalc_mecanico_totals(sec["proyecto_id"])
+
     else:
-        new_id = ex("INSERT INTO partidas_equipo (seccion_id,numero_partida,descripcion,marca,modelo,cantidad,precio_lista,moneda,porcentaje_mgn,subtotal,total_mn,total_usd,orden) VALUES (%s,%s,'','','',1,0,'MN',0,0,0,0,%s)",
-                    (sid, n, n))
+
+        n = q(
+            "SELECT COUNT(*) cnt FROM partidas_equipo WHERE seccion_id=%s",
+            (sid,),
+            fetch="one"
+        )["cnt"] + 1
+
+        new_id = ex(
+            "INSERT INTO partidas_equipo (seccion_id,numero_partida,descripcion,marca,modelo,cantidad,precio_lista,moneda,porcentaje_mgn,subtotal,total_mn,total_usd,orden) VALUES (%s,%s,'','','',1,0,'MN',0,0,0,0,%s)",
+            (sid, n, n)
+        )
+
     return jsonify(id=new_id)
 
 @app.route("/api/partidas/update", methods=["POST"])
@@ -1028,7 +1168,23 @@ def api_duplicar_proyecto():
     for st in subtemas:
         ex("INSERT INTO subtemas_prese (proyecto_id,titulo,contenido,indice,orden) VALUES (%s,%s,%s,%s,%s)",
            (new_pid, st["titulo"], st.get("contenido",""), st["indice"], st["orden"]))
-    _recalc_totals(new_pid)
+
+
+    # Dentro de api_duplicar_proyecto():
+    mec_items = q("SELECT * FROM partidas_mecanico WHERE proyecto_id=%s ORDER BY orden", (orig_id,))
+    for pm in mec_items:
+        ex("""INSERT INTO partidas_mecanico
+            (proyecto_id, numero_partida, descripcion_pieza, material, costo_material,
+            mano_obra, costo_mano_obra, cantidad, moneda, subtotal, porcentaje_mgn,
+            total_mn, total_usd, orden)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+        (new_pid, pm["numero_partida"], pm.get("descripcion_pieza",""),
+            pm.get("material",""), pm.get("costo_material",0),
+            pm.get("mano_obra",""), pm.get("costo_mano_obra",0),
+            pm.get("cantidad",1), pm.get("moneda","MN"), pm.get("subtotal",0),
+            pm.get("porcentaje_mgn",0), pm.get("total_mn",0), pm.get("total_usd",0),
+            pm.get("orden",0)))
+        _recalc_totals(new_pid)
     return jsonify(id=new_pid, numero=num)
 
 @app.route("/api/stats/anual")
@@ -1208,6 +1364,24 @@ def recalc_project_currency_conversions(pid, tc=None):
         tusd = sum(float(r.get("total_usd") or 0) for r in rows)
         ex("UPDATE secciones SET subtotal_mn=%s, subtotal_usd=%s WHERE id=%s", (tmn, tusd, s["id"]))
 
+    mec_partidas = q("SELECT id, costo_material, costo_mano_obra, cantidad, moneda, porcentaje_mgn FROM partidas_mecanico WHERE proyecto_id=%s", (pid,))
+    for r in mec_partidas:
+        costo_mat = float(r.get("costo_material") or 0)
+        costo_mo  = float(r.get("costo_mano_obra") or 0)
+        cantidad  = int(r.get("cantidad") or 1)
+        moneda    = r.get("moneda") or "MN"
+        porcentaje_mgn = float(r.get("porcentaje_mgn") or 0)
+        
+        sub = (costo_mat + costo_mo) * cantidad
+        if moneda == "USD":
+            t_usd = sub * (1 + porcentaje_mgn / 100.0)
+            t_mn  = t_usd * tc
+        else:
+            t_mn  = sub * (1 + porcentaje_mgn / 100.0)
+            t_usd = t_mn / tc if tc else 0
+        ex("UPDATE partidas_mecanico SET subtotal=%s, total_mn=%s, total_usd=%s WHERE id=%s", (sub, t_mn, t_usd, r["id"]))
+
+    _recalc_mecanico_totals(pid)
     _update_insumos_total(pid)
     _recalc_totals(pid)
 
@@ -1628,67 +1802,143 @@ def api_update_configuracion():
         ex("INSERT INTO configuracion (clave, valor) VALUES (%s, %s) ON DUPLICATE KEY UPDATE valor=%s", (k, str(v), str(v)))
     return jsonify(success=True)
 
-from flask import request, jsonify
+from flask import request, jsonify 
 
-@app.route('/api/emecanico/listas/<int:proyecto_id>', methods=['GET'])
-def get_emecanico_listas(proyecto_id):
-    cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-    
-    cursor.execute("SELECT * FROM emec_materiales WHERE proyecto_id = %s", (proyecto_id,))
-    materiales = cursor.fetchall()
-    
-    cursor.execute("SELECT * FROM emec_mano_obra WHERE proyecto_id = %s", (proyecto_id,))
-    mano_obra = cursor.fetchall()
-    
-    cursor.execute("SELECT * FROM emec_piezas WHERE proyecto_id = %s", (proyecto_id,))
-    piezas = cursor.fetchall()
-    
-    cursor.close()
-    return jsonify({
-        "materiales": materiales,
-        "mano_obra": mano_obra,
-        "piezas": piezas
-    })
 
-@app.route('/api/emecanico/listas/add', methods=['POST'])
-def add_emecanico_lista():
-    data = request.json
-    tabla = data.get('tabla') # 'emec_materiales', 'emec_mano_obra' o 'emec_piezas'
-    proyecto_id = data.get('proyecto_id')
-    valor = data.get('valor')
-    
-    cursor = mysql.connection.cursor()
-    if tabla == 'emec_piezas':
-        cursor.execute("INSERT INTO emec_piezas (proyecto_id, descripcion) VALUES (%s, %s)", (proyecto_id, valor))
+def _recalc_mecanico_totals(pid):
+    """Recalcula el subtotal de la sección E_MECANICO y actualiza el total general del proyecto."""
+    if not pid:
+        return
+    rows = q("SELECT total_mn, total_usd FROM partidas_mecanico WHERE proyecto_id=%s", (pid,))
+    tmn = sum(float(r.get("total_mn") or 0) for r in rows)
+    tusd = sum(float(r.get("total_usd") or 0) for r in rows)
+
+    # Actualizar el subtotal de la sección E_MECANICO
+    sec = q("SELECT id FROM secciones WHERE proyecto_id=%s AND codigo='E_MECANICO'", (pid,), fetch="one")
+    if sec:
+        ex("UPDATE secciones SET subtotal_mn=%s, subtotal_usd=%s WHERE id=%s", (tmn, tusd, sec["id"]))
+
+    _recalc_totals(pid)
+
+
+@app.route("/api/partidas_mecanico/create", methods=["POST"])
+@login_required
+def api_create_partida_mecanico():
+    """Crea una nueva partida mecánico en la base de datos."""
+    d = request.json or {}
+    pid = d.get("proyecto_id")
+    if not pid:
+        return jsonify(error="ID de proyecto requerido"), 400
+
+    n = q("SELECT COUNT(*) cnt FROM partidas_mecanico WHERE proyecto_id=%s", (pid,), fetch="one")["cnt"] + 1
+
+    new_id = ex("""INSERT INTO partidas_mecanico 
+                   (proyecto_id, numero_partida, descripcion_pieza, material, costo_material, 
+                    mano_obra, costo_mano_obra, cantidad, moneda, subtotal, porcentaje_mgn, 
+                    total_mn, total_usd, orden) 
+                   VALUES (%s, %s, '', '', 0.00, '', 0.00, 1, 'MN', 0.00, 0.00, 0.00, 0.00, %s)""",
+                (pid, n, n))
+
+    _recalc_mecanico_totals(pid)
+    return jsonify(id=new_id, numero_partida=n)
+
+
+@app.route("/api/partidas_mecanico/update", methods=["POST"])
+@login_required
+def api_update_partida_mecanico():
+    d = request.json or {}
+
+    item_id = d.get("id")
+    if not item_id:
+        return jsonify(error="ID de partida requerido"), 400
+
+    item = q(
+        "SELECT proyecto_id FROM partidas_mecanico WHERE id=%s",
+        (item_id,),
+        fetch="one"
+    )
+
+    if not item:
+        return jsonify(error="Partida mecánico no encontrada"), 404
+
+    proyecto_id = item["proyecto_id"]
+
+    proyecto = q(
+        "SELECT tipo_cambio_usd FROM proyectos WHERE id=%s",
+        (proyecto_id,),
+        fetch="one"
+    )
+
+    tc = float((proyecto or {}).get("tipo_cambio_usd") or 20)
+    if tc <= 0:
+        tc = 20
+
+    descripcion_pieza = d.get("descripcion_pieza", "")
+    material = d.get("material", "")
+    costo_material = float(d.get("costo_material") or 0)
+
+    mano_obra = d.get("mano_obra", "")
+    costo_mano_obra = float(d.get("costo_mano_obra") or 0)
+
+    cantidad = int(float(d.get("cantidad") or 1))
+    moneda = d.get("moneda", "MN")
+    porcentaje_mgn = float(d.get("porcentaje_mgn") or 0)
+
+    subtotal = (costo_material + costo_mano_obra) * cantidad
+
+    if moneda == "USD":
+        total_usd = subtotal * (1 + porcentaje_mgn / 100)
+        total_mn = total_usd * tc
     else:
-        cursor.execute(f"INSERT INTO {tabla} (proyecto_id, nombre) VALUES (%s, %s)", (proyecto_id, valor))
-    
-    mysql.connection.commit()
-    cursor.close()
-    return jsonify({"status": "success"})
+        total_mn = subtotal * (1 + porcentaje_mgn / 100)
+        total_usd = total_mn / tc if tc else 0
 
-@app.route('/api/emecanico/piezas/update', methods=['POST'])
-def update_emecanico_pieza():
-    data = request.json
-    pieza_id = data.get('id')
-    
-    cursor = mysql.connection.cursor()
-    cursor.execute("""
-        UPDATE emec_piezas 
-        SET material = %s, mano_obra = %s, cantidad = %s, precio_lista = %s, porcentaje_mgn = %s, moneda = %s
-        WHERE id = %s
+    ex("""
+        UPDATE partidas_mecanico
+        SET
+            descripcion_pieza=%s,
+            material=%s,
+            costo_material=%s,
+            mano_obra=%s,
+            costo_mano_obra=%s,
+            cantidad=%s,
+            moneda=%s,
+            subtotal=%s,
+            porcentaje_mgn=%s,
+            total_mn=%s,
+            total_usd=%s
+        WHERE id=%s
     """, (
-        data.get('material', ''),
-        data.get('mano_obra', ''),
-        data.get('cantidad', 0),
-        data.get('precio_lista', 0),
-        data.get('porcentaje_mgn', 0),
-        data.get('moneda', 'MN'),
-        pieza_id
+        descripcion_pieza,
+        material,
+        costo_material,
+        mano_obra,
+        costo_mano_obra,
+        cantidad,
+        moneda,
+        subtotal,
+        porcentaje_mgn,
+        total_mn,
+        total_usd,
+        item_id
     ))
-    mysql.connection.commit()
-    cursor.close()
-    return jsonify({"status": "success"})
+
+    _recalc_mecanico_totals(proyecto_id)
+
+    return jsonify(ok=True)
+
+@app.route("/api/partidas_mecanico/delete", methods=["POST"])
+@login_required
+def api_delete_partida_mecanico():
+    """Elimina una partida mecánico."""
+    d = request.json or {}
+    item_id = d.get("id")
+    item = q("SELECT proyecto_id FROM partidas_mecanico WHERE id=%s", (item_id,), fetch="one")
+    if item:
+        pid = item["proyecto_id"]
+        ex("DELETE FROM partidas_mecanico WHERE id=%s", (item_id,))
+        _recalc_mecanico_totals(pid)
+    return jsonify(ok=True)
 
 
 if __name__ == "__main__":
