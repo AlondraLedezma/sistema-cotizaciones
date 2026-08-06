@@ -103,7 +103,7 @@
     </div>
   </div>
 
-  <div class="bg-white border-top px-4 py-2 d-flex flex-wrap align-items-center gap-4 text-muted" style="font-size:12px; {% if proyecto.tipo_proyecto in ['mecanico', 'cotizacion'] %}display:none !important;{% endif %}">
+  <div class="bg-white border-top px-4 py-2 d-flex flex-wrap align-items-center gap-4 text-muted{% if proyecto.tipo_proyecto in ['mecanico', 'cotizacion'] %} d-none{% endif %}" style="font-size:12px;">
     <span>No. <strong class="text-primary" id="sb-num">{{ proyecto.numero_proyecto }}</strong></span>
     <span>Total MN: <strong class="text-dark" id="sb-mn">$0.00</strong></span>
     <span>Total USD: <strong class="text-primary" id="sb-usd">$0.00</strong></span>
@@ -115,7 +115,7 @@
 
 {% block scripts %}
 <script>
-const PID = {{ proyecto.id }};
+const PID = "{{ proyecto.id }}";
 const vendedor_config = "{{ vendedor_config }}";
 const vendedor_telefono = "{{ vendedor_telefono }}";
 const vendedor_correo_config = "{{ vendedor_correo_config }}";
@@ -1510,10 +1510,8 @@ function renderPrese(c) {
       <div class="row align-items-start mb-4 border-bottom pb-4">
         <div class="col-7">
           <div class="d-flex align-items-center gap-3">
-            <img src="/static/img/logo.png" style="height:90px; width:auto; object-fit:contain;" alt="DEMATIQ"/>
-            <textarea id="prese-slogans" class="quote-header-input border-0 bg-transparent text-muted" 
-              style="font-size:12px; color:#475569; line-height:1.45; width:250px; height:90px; resize:vertical; outline:none;" 
-              onchange="saveVendedorConfig('slogans', this.value)" placeholder="Escribe los slogans de la empresa aquí...">${esc(window.currentSlogans || slogans_config || 'Integracion de sistemas Automatizados\nProgramacion de PLC, HMI\nServicio de Diseño y Armado Tableros\nPolizas de Mantenimiento')}</textarea>
+            <img src="${p.logo_data || '/static/img/logo.png'}" style="height:90px; width:auto; max-width:200px; object-fit:contain;" alt="DEMATIQ"/>
+            <div style="font-size:12px; color:#475569; line-height:1.45; white-space:pre-wrap;">${esc(p.empresa_slogan || slogans_config || 'Integracion de sistemas Automatizados\nProgramacion de PLC, HMI\nServicio de Diseño y Armado Tableros\nPolizas de Mantenimiento')}</div>
           </div>
         </div>
         <div class="col-5">
@@ -1737,11 +1735,92 @@ async function verificarClaveListas() {
   } catch(e){showToast('Contraseña incorrecta','error');}
 }
 
+async function handleLogoUploadStandard(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) {
+    showToast('El archivo excede 2MB. Use una imagen más pequeña.', 'error');
+    return;
+  }
+  if (!file.type.match(/^image\/(png|jpe?g)$/)) {
+    showToast('Solo se permiten archivos PNG o JPG.', 'error');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    const base64 = e.target.result;
+    projectData.proyecto.logo_data = base64;
+    const previewContainer = document.getElementById('logo-preview-container-standard');
+    if (previewContainer) {
+      previewContainer.innerHTML = `
+        <img src="${base64}" style="max-height:80px;max-width:180px;object-fit:contain;margin-bottom:8px;" />
+        <button class="btn btn-xs btn-outline-danger" onclick="removeLogoStandard(event)" style="font-size:10px;"><i class="fa-solid fa-trash"></i> Quitar logo</button>
+      `;
+    }
+    await saveProjectField({});
+    showToast('Logo actualizado exitosamente', 'success');
+  };
+  reader.readAsDataURL(file);
+}
+
+async function removeLogoStandard(event) {
+  if (event) event.stopPropagation();
+  if (!confirm('¿Quitar el logo de la presentación?')) return;
+  projectData.proyecto.logo_data = '';
+  const previewContainer = document.getElementById('logo-preview-container-standard');
+  if (previewContainer) {
+    previewContainer.innerHTML = `
+      <i class="fa-solid fa-cloud-arrow-up" style="font-size:24px;color:#94a3b8;margin-bottom:4px;"></i>
+      <span style="font-size:11px;color:#94a3b8;">Click para subir logo</span>
+      <span style="font-size:9px;color:#cbd5e1;margin-top:2px;">PNG, JPG (max 2MB)</span>
+    `;
+  }
+  await saveProjectField({});
+  showToast('Logo eliminado', 'success');
+}
+
 async function renderListas(c) {
   const listas = projectData.listas||[];
   const categorias = ['E_CONTROL','E_ELECTRICO','ING_MO','E_NEUMATICO','E_MECANICO','T_ELECTRICO', 'INSUMOS', 'MO_MECANICO'];
   const nombres = {E_CONTROL:'MARCAS E. CONTROL',E_ELECTRICO:'MARCAS E. ELÉCTRICO',ING_MO:'INGENIERÍA MO',E_NEUMATICO:'E. NEUMÁTICO HIDRÁULICO',E_MECANICO:'MATERIAL MECÁNICO',T_ELECTRICO:'TABLERO ELÉCTRICO', INSUMOS: 'FACTORES INSUMOS', MO_MECANICO: 'M.O. MECÁNICO'};
+  const pd = projectData?.proyecto || {};
+  const logoData = pd.logo_data || '';
+  const empresaSlogan = pd.empresa_slogan || '';
+
   let html = `
+    <!-- CONFIGURACION DE LOGO Y SLOGAN -->
+    <div class="card shadow-sm border mb-4">
+      <div class="card-header py-2 fw-bold text-uppercase" style="font-size:11px;background:#f8fafc">
+        <i class="fa-solid fa-image me-1"></i> LOGO Y DATOS DE LA EMPRESA
+      </div>
+      <div class="card-body p-3">
+        <div class="row g-3 align-items-start">
+          <div class="col-md-4">
+            <label class="form-label fw-bold text-muted mb-1" style="font-size:11px;">LOGO DE LA EMPRESA</label>
+            <div id="logo-preview-container-standard" onclick="if (!event.target.closest('button')) document.getElementById('logo-file-input-standard')?.click();" 
+                 style="border:2px dashed #cbd5e1;border-radius:8px;padding:12px;text-align:center;min-height:100px;display:flex;align-items:center;justify-content:center;flex-direction:column;cursor:pointer;transition:border-color 0.2s;" 
+                 onmouseover="this.style.borderColor='#3b82f6'" onmouseout="this.style.borderColor='#cbd5e1'">
+              ${logoData 
+                ? `<img src="${logoData}" style="max-height:80px;max-width:180px;object-fit:contain;margin-bottom:8px;" />
+                   <button class="btn btn-xs btn-outline-danger" onclick="removeLogoStandard(event)" style="font-size:10px;"><i class="fa-solid fa-trash"></i> Quitar logo</button>`
+                : `<i class="fa-solid fa-cloud-arrow-up" style="font-size:24px;color:#94a3b8;margin-bottom:4px;"></i>
+                   <span style="font-size:11px;color:#94a3b8;">Click para subir logo</span>
+                   <span style="font-size:9px;color:#cbd5e1;margin-top:2px;">PNG, JPG (max 2MB)</span>`
+              }
+            </div>
+            <input type="file" id="logo-file-input-standard" accept="image/png,image/jpeg,image/jpg" style="display:none;" onchange="handleLogoUploadStandard(event)">
+          </div>
+          <div class="col-md-8">
+            <label class="form-label fw-bold text-muted mb-1" style="font-size:11px;">TEXTO AL LADO DEL LOGO (SLOGAN)</label>
+            <textarea id="standard-empresa-slogan" class="form-control" rows="3" style="font-size:12px;"
+              oninput="projectData.proyecto.empresa_slogan=this.value; scheduleSave(() => saveProjectField({}));"
+              placeholder="Ej: Integración de sistemas Automatizados...">${esc(empresaSlogan)}</textarea>
+            <p style="font-size:10px;color:#94a3b8;margin-top:4px;" class="mb-0">Este texto aparecerá junto al logo en la presentación de solo lectura.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="card shadow-sm border-0 overflow-hidden">
       <div class="p-3 d-flex align-items-center justify-content-between text-white" style="background:#7c3aed">
         <div><div class="fs-5 fw-bold">Administrador de Listas y Factores</div></div>
@@ -2084,6 +2163,11 @@ async function saveProjectField(extra={}) {
   const iva_pct_input = document.querySelector('.f-porcentaje-iva-input');
   const iva_pct_val = iva_pct_input ? parseFloat(iva_pct_input.value) : (p.porcentaje_iva !== undefined ? p.porcentaje_iva : 16.00);
 
+  const descEl = document.getElementById('prese-desc');
+  const desc_val = descEl ? descEl.value : (p.descripcion_solucion != null ? p.descripcion_solucion : '');
+  const logo_val = p.logo_data || '';
+  const slogan_val = p.empresa_slogan || '';
+
   await api('/api/proyectos/update','POST',{
     id: PID,
     nombre_proyecto: nombre_val,
@@ -2101,6 +2185,9 @@ async function saveProjectField(extra={}) {
     condiciones_pago:cond_val,
     porcentaje_iva:  iva_pct_val,
     dias_vigencia:   dias_vig_val,
+    descripcion_solucion: desc_val,
+    logo_data:       logo_val,
+    empresa_slogan:  slogan_val,
     ...extra,
   });
 
@@ -2121,6 +2208,9 @@ async function saveProjectField(extra={}) {
       condiciones_pago:cond_val,
       porcentaje_iva:  iva_pct_val,
       dias_vigencia:   dias_vig_val,
+      descripcion_solucion: desc_val,
+      logo_data:       logo_val,
+      empresa_slogan:  slogan_val,
       ...extra,
     });
     
@@ -2187,14 +2277,37 @@ function downloadPDF() {
     </div>`;
   }
 
+  const checkableSections = [
+    { key: 'presentacion', label: 'Presentación (Logo, Slogan, Datos, Descripción)', checked: true },
+    { key: 'alcances', label: 'Puntos Generales y Alcance (A1.x, A2.x)', checked: true }
+  ];
+  secs.forEach(s => {
+    checkableSections.push({ key: 'sec_' + s.id, label: s.titulo || s.codigo, checked: true });
+  });
+  checkableSections.push({ key: 'condiciones', label: 'Condiciones Comerciales', checked: true });
+  checkableSections.push({ key: 'totales', label: 'Totales y Notas', checked: true });
+
+  const checkboxesHTML = checkableSections.map(s => `
+    <label style="display:flex;align-items:center;gap:10px;padding:6px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:12.5px;font-weight:500;" class="mb-0">
+      <input type="checkbox" id="pdf-sec-chk-${s.key}" ${s.checked ? 'checked' : ''} style="width:16px;height:16px;accent-color:#2563eb;">
+      <span>${esc(s.label)}</span>
+    </label>
+  `).join('');
+
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay open';
   overlay.id = 'modal-pdf';
   overlay.innerHTML = `
-    <div class="modal-card" style="max-width:400px">
+    <div class="modal-card" style="max-width:450px">
       <div class="p-3 border-bottom bg-light fw-bold text-dark fs-6"><i class="fa-solid fa-file-pdf text-danger me-2"></i>Exportar PDF</div>
       <div class="p-4">
         ${alertHTML}
+        
+        <p class="fw-bold mb-2 text-dark" style="font-size:13px">Selecciona las secciones a incluir:</p>
+        <div style="max-height:220px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:15px;background:#f8fafc">
+          ${checkboxesHTML}
+        </div>
+
         <p class="text-muted mb-3" style="font-size:13px">Selecciona la moneda para el reporte:</p>
         <div class="d-grid gap-2">
           <button onclick="doPDF('MN')" class="btn btn-primary d-flex align-items-center justify-content-center gap-2 fw-semibold"><i class="fa-solid fa-peso-sign"></i>Pesos Mexicanos (MN)</button>
@@ -2208,10 +2321,15 @@ function downloadPDF() {
 }
 
 async function doPDF(moneda) {
+  const seccionesActivas = [];
+  document.querySelectorAll('[id^="pdf-sec-chk-"]').forEach(chk => {
+    if (chk.checked) seccionesActivas.push(chk.id.replace('pdf-sec-chk-', ''));
+  });
+
   document.getElementById('modal-pdf')?.remove();
   showToast('Generando PDF...','success');
   try {
-    const r = await api(`/api/proyecto/${PID}/pdf/save`, 'POST', {moneda});
+    const r = await api(`/api/proyecto/${PID}/pdf/save`, 'POST', {moneda, secciones_activas: seccionesActivas});
     if (r.ok) {
       showToast('PDF guardado exitosamente','success');
     } else if (r.canceled) {
