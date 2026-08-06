@@ -126,13 +126,25 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="modal-pdf-sections" style="display:none;">
+    <div class="modal" style="max-width:500px;">
+      <h2 class="modal-title"><i class="fas fa-file-pdf" style="color:#dc2626;margin-right:8px;"></i>Generar PDF</h2>
+      <p class="modal-subtitle">Selecciona las secciones a incluir en el PDF:</p>
+      <div id="pdf-sections-list" style="max-height:350px;overflow-y:auto;padding:8px 0;"></div>
+      <div class="modal-actions" style="margin-top:12px;">
+        <button class="btn btn-ghost" onclick="closeModal('modal-pdf-sections')">Cancelar</button>
+        <button class="btn btn-primary" onclick="confirmGeneratePDF()"><i class="fas fa-file-pdf"></i> Generar PDF</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast-container" id="toast-container"></div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
-  <script src="/static/js/utils.js?v=22"></script>
+  <script src="/static/js/utils.js?v=23"></script>
   <script src="/static/js/auth.js"></script>
-  <script src="/static/js/proyecto_cotizacion_v3.js?v=22"></script>
-  <script src="/static/js/pdf.js?v=22"></script>
+  <script src="/static/js/proyecto_cotizacion_v3.js?v=23"></script>
+  <script src="/static/js/pdf.js?v=23"></script>
 </body>
 </html>

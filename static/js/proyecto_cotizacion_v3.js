@@ -1982,6 +1982,7 @@ async function handleLogoUpload(event) {
 
   }
 
+  const reader = new FileReader();
   reader.onload = async function(e) {
     const base64 = e.target.result;
     projectData.logo_data = base64;
@@ -2794,11 +2795,6 @@ function saveProjectName(name) {
 async function saveProjectToAPI() {
   if (!projectData) return;
 
-  const descField = document.getElementById('field-descripcion');
-  if (descField && descField.value && !projectData.descripcion_solucion) {
-    projectData.descripcion_solucion = descField.value;
-  }
-
   const data = {
     id:                  projectData.id,
     nombre_proyecto:     projectData.nombre_proyecto || '',
@@ -2811,7 +2807,7 @@ async function saveProjectToAPI() {
     fecha_vencimiento:   projectData.fecha_vencimiento || '',
     tipo_cambio_usd:     tipoCambio(),
     referencia:          projectData.referencia || document.getElementById('field-referencia')?.value || '',
-    descripcion_solucion: projectData.descripcion_solucion !== undefined ? projectData.descripcion_solucion : (descField?.value || ''),
+    descripcion_solucion: projectData.descripcion_solucion != null ? projectData.descripcion_solucion : '',
     carpeta_link:        projectData.carpeta_link || '',
     logo_data:           projectData.logo_data || '',
     empresa_slogan:      projectData.empresa_slogan || '',
@@ -2999,8 +2995,8 @@ function renderCotizacionTable(container) {
       <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; font-family:var(--font-body);">
         <div style="flex:1; max-width:65%;">
           <div style="display:flex; gap:15px; align-items:center; margin-bottom:15px;">
-            <img src="/static/img/logo.png" style="height:75px; object-fit:contain;" alt="DEMATIQ">
-            <textarea class="excel-input-inline" style="font-size:11px; font-weight:500; color:#334155; line-height:1.4; width:260px; height:75px; resize:vertical; border:none; background:transparent;" oninput="projectData.empresa_slogan=this.value; unsavedChanges=true; debouncedSaveProject();">${escapeAttr(projectData.empresa_slogan || defaultSlogans)}</textarea>
+            <img src="${projectData.logo_data || '/static/img/logo.png'}" style="height:75px; object-fit:contain;" alt="DEMATIQ">
+            <div style="font-size:11px; font-weight:500; color:#334155; line-height:1.4; width:260px; white-space:pre-wrap;">${escapeHtml(projectData.empresa_slogan || defaultSlogans)}</div>
           </div>
           <div style="font-size:12px; color:#334155; line-height:1.8;">
             <div><strong>Atención:</strong> <input class="excel-input-inline" style="width:70%;" value="${escapeAttr(projectData.atencion || '')}" oninput="projectData.atencion=this.value; unsavedChanges=true; debouncedSaveProject();"></div>
