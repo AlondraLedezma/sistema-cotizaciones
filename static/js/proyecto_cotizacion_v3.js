@@ -126,9 +126,20 @@ async function loadProject(id) {
 
     showLoading();
 
-    const result = await apiCall(`/api/legacy/proyectos?action=get&id=${id}`);
+    const result = await apiCall(`/api/proyecto/${id}`);
 
-    projectData = result.proyecto || result.data;
+    // result = {proyecto: {...}, secciones: [...], condiciones: [...], ...}
+    // Merge proyecto fields into projectData root + attach secciones/condiciones
+    projectData = result.proyecto || {};
+    projectData.secciones = result.secciones || [];
+    projectData.condiciones = result.condiciones || [];
+    projectData.subtemas = result.subtemas || [];
+    projectData.listas = result.listas || [];
+    projectData.insumos_cd = result.insumos_cd || [];
+    projectData.insumos_en_cd = result.insumos_en_cd || [];
+    projectData.insumos_transporte = result.insumos_transporte || [];
+    projectData.insumos_gastos_admin = result.insumos_gastos_admin || [];
+    projectData.insumos_imss = result.insumos_imss || [];
 
     renderHeader();
 
@@ -262,36 +273,29 @@ function openFolderLink() {
 
 
 function autoCalcVencimiento() {
+  const fechaEl = document.getElementById('field-fecha-inline') || document.getElementById('field-fecha');
+  const diasEl = document.getElementById('field-dias-vigencia-inline') || document.getElementById('field-dias-vigencia');
+  const vencEl = document.getElementById('field-vencimiento-inline') || document.getElementById('field-vencimiento');
 
-  const fechaField = document.getElementById('field-fecha');
+  if (!fechaEl || !diasEl || !vencEl) return;
 
-  const diasField = document.getElementById('field-dias-vigencia');
+  const fecha = fechaEl.value;
+  const dias = parseInt(diasEl.value) || 30;
 
-  const vencField = document.getElementById('field-vencimiento');
-
-  if (!fechaField || !diasField || !vencField) return;
-
-  const fecha = fechaField.value;
-
-  const dias = parseInt(diasField.value) || 0;
-
+  projectData.fecha_creacion = fecha;
   projectData.dias_vigencia = dias;
 
-  if (fecha && dias > 0) {
+  if (fecha && dias >= 0) {
     const cleanFecha = fecha.split(/[ T]/)[0];
     const fechaDate = new Date(cleanFecha + 'T00:00:00');
     fechaDate.setDate(fechaDate.getDate() + dias);
     const year = fechaDate.getFullYear();
     const month = String(fechaDate.getMonth() + 1).padStart(2, '0');
     const day = String(fechaDate.getDate()).padStart(2, '0');
-    vencField.value = `${year}-${month}-${day}`;
-
-  } else if (fecha && dias === 0) {
-
-    vencField.value = fecha;
-
+    const newVenc = `${year}-${month}-${day}`;
+    vencEl.value = newVenc;
+    projectData.fecha_vencimiento = newVenc;
   }
-
 }
 
 
@@ -426,23 +430,18 @@ function renderPrese(container) {
 
     </div>
 
-    ${logoData ? `<div style="margin-bottom:16px;display:flex;align-items:center;gap:16px;padding:12px;border:1px solid #e2e8f0;border-radius:6px;">
-      <img src="${logoData}" style="max-height:80px;max-width:200px;object-fit:contain;" />
-      ${empresaSlogan ? `<div style="font-family:var(--font-heading);font-size:14px;color:#475569;">${escapeHtml(empresaSlogan)}</div>` : ''}
-    </div>` : ''}
+    <div style="margin-bottom:16px;display:flex;align-items:center;gap:16px;padding:12px;border:1px solid #e2e8f0;border-radius:6px;background:#fafafa;">
+      ${logoData ? `<img src="${logoData}" style="max-height:80px;max-width:200px;object-fit:contain;" />` : `<div style="font-size:12px;color:#94a3b8;font-style:italic;">(Logo configurable desde la pestaña LISTAS)</div>`}
+      <div style="font-family:var(--font-heading);font-size:13px;color:#334155;white-space:pre-wrap;line-height:1.5;">${escapeHtml(empresaSlogan || 'Integración de sistemas Automatizados\nProgramación de PLC, HMI\nServicio de Diseño y Armado Tableros\nPólizas de Mantenimiento')}</div>
+    </div>
 
     <div class="prese-section">
-
-      <div class="prese-section-title"><i class="fas fa-file-alt" style="margin-right:8px;"></i>DESCRIPCI├ôN DE LA SOLUCI├ôN</div>
-
+      <div class="prese-section-title"><i class="fas fa-file-alt" style="margin-right:8px;"></i>DESCRIPCIÓN DE LA SOLUCIÓN</div>
       <div style="padding:12px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 6px 6px;">
-
         <textarea class="punto-textarea" style="min-height:80px;width:100%;" 
-
-          onblur="saveDescripcionSolucion(this.value)">${escapeHtml(pd.descripcion_solucion || '')}</textarea>
-
+          oninput="saveDescripcionSolucion(this.value)"
+          onchange="saveDescripcionSolucion(this.value)">${escapeHtml(pd.descripcion_solucion || '')}</textarea>
       </div>
-
     </div>
 
     <div class="prese-section">
@@ -534,13 +533,12 @@ function renderPrese(container) {
 
 
 async function saveDescripcionSolucion(val) {
-
   if (!projectData) return;
-
   projectData.descripcion_solucion = val;
-
-  await saveProjectToAPI();
-
+  const descEl = document.getElementById('field-descripcion');
+  if (descEl) descEl.value = val;
+  unsavedChanges = true;
+  debouncedSaveProject();
 }
 
 
@@ -1885,27 +1883,16 @@ async function renderListasTab(container) {
 
             <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">LOGO DE LA EMPRESA</label>
 
-            <div id="logo-preview-container" style="border:2px dashed #cbd5e1;border-radius:8px;padding:16px;text-align:center;min-height:120px;display:flex;align-items:center;justify-content:center;flex-direction:column;cursor:pointer;transition:border-color 0.2s;" onmouseover="this.style.borderColor='#3b82f6'" onmouseout="this.style.borderColor='#cbd5e1'">
-
+            <div id="logo-preview-container" onclick="if (!event.target.closest('button')) document.getElementById('logo-file-input')?.click();" style="border:2px dashed #cbd5e1;border-radius:8px;padding:16px;text-align:center;min-height:120px;display:flex;align-items:center;justify-content:center;flex-direction:column;cursor:pointer;transition:border-color 0.2s;" onmouseover="this.style.borderColor='#3b82f6'" onmouseout="this.style.borderColor='#cbd5e1'">
               ${logoData 
-
                 ? `<img src="${logoData}" style="max-height:100px;max-width:220px;object-fit:contain;margin-bottom:8px;" />
-
                    <button class="btn btn-ghost btn-sm" onclick="removeLogo()" style="color:#ef4444;font-size:11px;"><i class="fas fa-trash"></i> Quitar logo</button>`
-
                 : `<i class="fas fa-cloud-upload-alt" style="font-size:32px;color:#94a3b8;margin-bottom:8px;"></i>
-
                    <span style="font-size:12px;color:#94a3b8;">Click para subir logo</span>
-
                    <span style="font-size:10px;color:#cbd5e1;margin-top:4px;">PNG, JPG (max 2MB)</span>`
-
               }
-
             </div>
-
             <input type="file" id="logo-file-input" accept="image/png,image/jpeg,image/jpg" style="display:none;" onchange="handleLogoUpload(event)">
-
-            <script>document.getElementById('logo-preview-container')?.addEventListener('click', function(e) { if (!e.target.closest('button')) document.getElementById('logo-file-input')?.click(); });</script>
 
           </div>
 
@@ -1914,8 +1901,8 @@ async function renderListasTab(container) {
             <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">TEXTO AL LADO DEL LOGO</label>
 
             <textarea id="listas-empresa-slogan" class="punto-textarea" rows="3" style="width:100%;"
-
-              onblur="saveEmpresaSlogan(this.value)" placeholder="Ej: Automatizaci├│n, Integraci├│n de sistemas, etc.">${escapeHtml(empresaSlogan)}</textarea>
+              oninput="projectData.empresa_slogan=this.value; unsavedChanges=true; debouncedSaveProject();"
+              onblur="saveEmpresaSlogan(this.value)" placeholder="Ej: Integración de sistemas Automatizados...">${escapeHtml(empresaSlogan)}</textarea>
 
             <p style="font-size:10px;color:#94a3b8;margin-top:4px;">Este texto aparecer├í junto al logo en la presentaci├│n.</p>
 
@@ -1995,42 +1982,36 @@ async function handleLogoUpload(event) {
 
   }
 
-  const reader = new FileReader();
-
   reader.onload = async function(e) {
-
     const base64 = e.target.result;
-
     projectData.logo_data = base64;
-
+    const previewContainer = document.getElementById('logo-preview-container');
+    if (previewContainer) {
+      previewContainer.innerHTML = `
+        <img src="${base64}" style="max-height:100px;max-width:220px;object-fit:contain;margin-bottom:8px;" />
+        <button class="btn btn-ghost btn-sm" onclick="removeLogo()" style="color:#ef4444;font-size:11px;"><i class="fas fa-trash"></i> Quitar logo</button>
+      `;
+    }
     await saveProjectToAPI();
-
-    if (currentTab === 'LISTAS') switchTab('LISTAS');
-
-    showToast('Logo actualizado', 'success');
-
+    showToast('Logo actualizado exitosamente', 'success');
   };
-
   reader.readAsDataURL(file);
-
 }
 
-
-
 function removeLogo() {
-
   if (!confirm('¿Quitar el logo de la presentación?')) return;
-
   projectData.logo_data = '';
-
+  const previewContainer = document.getElementById('logo-preview-container');
+  if (previewContainer) {
+    previewContainer.innerHTML = `
+      <i class="fas fa-cloud-upload-alt" style="font-size:32px;color:#94a3b8;margin-bottom:8px;"></i>
+      <span style="font-size:12px;color:#94a3b8;">Click para subir logo</span>
+      <span style="font-size:10px;color:#cbd5e1;margin-top:4px;">PNG, JPG (max 2MB)</span>
+    `;
+  }
   saveProjectToAPI().then(() => {
-
-    if (currentTab === 'LISTAS') switchTab('LISTAS');
-
     showToast('Logo eliminado', 'success');
-
   });
-
 }
 
 
@@ -2298,27 +2279,29 @@ function handleNumericInput(input) {
 
 
 function handleCellChange(input) {
-
   const row = input.closest('tr');
-
   if (!row) return;
 
   const tipo = row.dataset.tipo;
-
   const partidaId = row.dataset.partidaId;
-
   const field = input.dataset.field;
-
   const value = input.value;
 
-
+  if (field === 'descripcion') {
+    const hasDesc = value.trim().length > 0;
+    const priceInput = row.querySelector('[data-field="precio_lista"]');
+    const qtyInput = row.querySelector('[data-field="cantidad"]');
+    if (priceInput) priceInput.disabled = !hasDesc;
+    if (qtyInput) qtyInput.disabled = !hasDesc;
+    if (!hasDesc) {
+      if (priceInput) priceInput.value = '';
+      recalculateRow(row, tipo);
+    }
+  }
 
   if (field === 'moneda') recalculateRow(row, tipo);
-
   debouncedSavePartida(partidaId, field, value, tipo);
-
   unsavedChanges = true;
-
 }
 
 
@@ -2523,133 +2506,195 @@ function calculateSubtotalMN() {
 
 
 function updateTotals() {
-
   const subtotal = calculateSubtotalMN();
-
-  const iva     = subtotal * 0.16;
-
+  const tc = tipoCambio() || 20;
+  const pctIva = projectData?.porcentaje_iva !== undefined ? parseFloat(projectData.porcentaje_iva) : 16;
+  const iva = subtotal * (pctIva / 100);
   const totalMN = subtotal + iva;
-
-  const totalUSD = totalMN / tipoCambio();
-
-
+  const totalUSD = totalMN / tc;
 
   const setEl = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
 
   setEl('total-subtotal', formatCurrency(subtotal));
-
   setEl('total-iva',      formatCurrency(iva));
-
   setEl('total-mn',       formatCurrency(totalMN));
-
   setEl('total-usd',      formatCurrency(totalUSD));
-
   setEl('total-letras',   numberToWords(totalMN));
 
+  const subtotalStr = subtotal > 0 ? formatCurrency(subtotal).replace('$', '').trim() : '-';
+  const ivaStr = iva > 0 ? formatCurrency(iva).replace('$', '').trim() : '-';
+  const totalMnStr = totalMN > 0 ? formatCurrency(totalMN).replace('$', '').trim() : '-';
+  const totalUsdStr = totalUSD > 0 ? formatCurrency(totalUSD).replace('$', '').trim() : '-';
 
+  setEl('cot-subtotal', subtotal > 0 ? `$ ${subtotalStr}` : '$ -');
+  setEl('cot-iva', ivaStr);
+  setEl('cot-total-mn', totalMN > 0 ? `$ ${totalMnStr}` : '-');
+  setEl('cot-total-usd', totalUSD > 0 ? `$ ${totalUsdStr}` : '-');
+
+  let letras = subtotal > 0 ? numberToWords(totalMN).toUpperCase() : '';
+  if (projectData && projectData.moneda === 'USD') {
+    letras = numberToWords(totalUSD).toUpperCase().replace("PESOS", "DOLARES").replace("M.N.", "USD");
+  }
+  setEl('cot-letras', letras);
 
   setEl('prese-subtotal', formatCurrency(subtotal));
-
   setEl('prese-iva',      formatCurrency(iva));
-
   setEl('prese-total-mn', formatCurrency(totalMN));
-
   setEl('prese-total-usd', formatCurrency(totalUSD));
-
   setEl('prese-total-letras', numberToWords(totalMN));
 
-
-
   if (projectData) {
-
     projectData.subtotal_mn = subtotal;
-
     projectData.iva         = iva;
-
     projectData.total_mn    = totalMN;
-
     projectData.total_usd   = totalUSD;
-
   }
-
 }
 
 
 
 async function addPartida(seccionId, tipo) {
+  const sec = projectData.secciones?.find(s => s.id?.toString() === seccionId?.toString());
+  const tempId = 'temp_' + Date.now();
+  const newPartida = {
+    id: tempId,
+    seccion_id: seccionId,
+    numero_partida: (sec?.partidas?.length || 0) + 1,
+    descripcion: '',
+    marca: '',
+    modelo: '',
+    cantidad: 1,
+    precio_lista: 0,
+    moneda: 'MN',
+    porcentaje_mgn: 0,
+    horas_mo: 0,
+    dias_trabajo: 0,
+    costo_hora_usd: 0,
+    subtotal: 0,
+    total_mn: 0,
+    total_usd: 0
+  };
+
+  if (sec) {
+    if (!sec.partidas) sec.partidas = [];
+    sec.partidas.push(newPartida);
+  }
+
+  recalculateSectionTotals();
+  updateTotals();
+  switchTab(currentTab);
+  showToast('Partida agregada', 'success');
 
   try {
-
     const result = await apiCall('/api/legacy/partidas?action=create', 'POST', { seccion_id: seccionId, tipo });
-
     const partida = result.data || result.partida;
-
-    if (partida) {
-
-      const sec = projectData.secciones?.find(s => s.id?.toString() === seccionId?.toString());
-
-      if (sec) { if (!sec.partidas) sec.partidas = []; sec.partidas.push(partida); }
-
-      switchTab(currentTab);
-
-      showToast('Partida agregada', 'success');
-
+    if (partida && partida.id) {
+      newPartida.id = partida.id;
     }
-
-  } catch(e) { showToast(e.message||'Error al agregar partida', 'error'); }
-
+  } catch(e) {
+    showToast(e.message || 'Error al agregar partida en servidor', 'error');
+  }
 }
 
 
 
 async function deletePartida(id, tipo, seccionId) {
+  if (!confirm('¿Eliminar esta partida?')) return;
 
-  if (!confirm('┬┐Eliminar esta partida?')) return;
+  if (projectData?.secciones) {
+    for (const sec of projectData.secciones) {
+      if (sec.partidas) sec.partidas = sec.partidas.filter(p => p.id != id);
+    }
+  }
+  recalculateSectionTotals();
+  updateTotals();
+
+  if (currentTab === 'COTIZACION') {
+    renderCotizacionTable(document.getElementById('tab-content'));
+  } else {
+    switchTab(currentTab);
+  }
+  showToast('Partida eliminada', 'success');
 
   try {
-
-    await apiCall('/api/legacy/partidas?action=delete', 'POST', { id, tipo });
-
-    if (projectData?.secciones) {
-
-      for (const sec of projectData.secciones) {
-
-        if (sec.partidas) sec.partidas = sec.partidas.filter(p => p.id !== id);
-
-      }
-
-    }
-
-    recalculateSectionTotals();
-
-    updateTotals();
-
-    switchTab(currentTab);
-
-    showToast('Partida eliminada', 'success');
-
-  } catch(e) { showToast(e.message||'Error', 'error'); }
-
+    await apiCall('/api/partidas/delete', 'POST', { id, tipo });
+  } catch(e) {
+    showToast(e.message || 'Error al eliminar en servidor', 'error');
+  }
 }
 
 
 
 async function savePartidaToAPI(id, field, value, tipo) {
-
-  try { await apiCall('/api/legacy/partidas?action=update', 'POST', { id, tipo, [field]: value }); }
-
-  catch(e) { console.error('Error saving partida:', e); }
-
+  try {
+    let partida = null;
+    if (projectData && projectData.secciones) {
+       for (const sec of projectData.secciones) {
+           if (sec.partidas) {
+               const found = sec.partidas.find(p => p.id == id);
+               if (found) { partida = found; break; }
+           }
+       }
+    }
+    if (!partida) return;
+    
+    const payload = {
+        id: partida.id,
+        tipo: tipo,
+        tipo_cambio: tipoCambio(),
+        descripcion: partida.descripcion || '',
+        marca: partida.marca || '',
+        modelo: partida.modelo || '',
+        cantidad: partida.cantidad || 0,
+        precio_lista: partida.precio_lista || 0,
+        moneda: partida.moneda || 'MN',
+        porcentaje_mgn: partida.porcentaje_mgn || 0,
+        horas_mo: partida.horas_mo || 0,
+        dias_trabajo: partida.dias_trabajo || 0,
+        costo_hora_usd: partida.costo_hora_usd || 0
+    };
+    
+    // Apply the changed field explicitly
+    if (field) {
+        payload[field] = value;
+        // Also update local state so future saves have it
+        partida[field] = value;
+    }
+    
+    await apiCall('/api/partidas/update', 'POST', payload);
+  } catch(e) { 
+    console.error('Error saving partida:', e); 
+  }
 }
 
 
 
 async function saveInsumoToAPI(id, field, value) {
+  try {
+    let insumo = null;
+    if (projectData && projectData.secciones) {
+       for (const sec of projectData.secciones) {
+           if (sec.insumos_especiales) {
+               const found = sec.insumos_especiales.find(i => i.id == id);
+               if (found) { insumo = found; break; }
+           }
+       }
+    }
+    if (!insumo) return;
 
-  try { await apiCall('/api/legacy/insumos_especiales?action=update', 'POST', { id, [field]: value }); }
+    const payload = {
+        id: insumo.id,
+        descripcion: insumo.descripcion || '',
+        costo_mxn: insumo.costo_mxn || 0,
+        factor_ventas: insumo.factor_ventas || 0,
+        subtotal: insumo.subtotal || 0,
+        [field]: value // apply the new value
+    };
 
-  catch(e) { console.error(e); }
-
+    await apiCall('/api/insumos_especiales/update', 'POST', payload);
+  } catch(e) { 
+    console.error('Error saving insumo:', e); 
+  }
 }
 
 
@@ -2747,42 +2792,45 @@ function saveProjectName(name) {
 }
 
 async function saveProjectToAPI() {
-
   if (!projectData) return;
 
+  const descField = document.getElementById('field-descripcion');
+  if (descField && descField.value && !projectData.descripcion_solucion) {
+    projectData.descripcion_solucion = descField.value;
+  }
+
   const data = {
-
-    id: projectData.id,
-
-    nombre_proyecto:   projectData.nombre_proyecto || '',
-    atencion:          document.getElementById('field-atencion')?.value || '',
-
-    telefono_cliente:  document.getElementById('field-telefono')?.value || '',
-
-    empresa_cliente:   document.getElementById('field-empresa')?.value || '',
-
-    email_cliente:     document.getElementById('field-email')?.value || '',
-
-    tipo_cambio_usd:   tipoCambio(),
-
-    referencia:        document.getElementById('field-referencia')?.value || '',
-
-    descripcion_solucion: document.getElementById('field-descripcion')?.value || '',
-
-    carpeta_link:      projectData.carpeta_link || '',
-
-    logo_data:         projectData.logo_data || '',
-
-    empresa_slogan:    projectData.empresa_slogan || '',
-
-    dias_vigencia:     projectData.dias_vigencia || 30
-
+    id:                  projectData.id,
+    nombre_proyecto:     projectData.nombre_proyecto || '',
+    atencion:            projectData.atencion || document.getElementById('field-atencion')?.value || '',
+    telefono_cliente:    projectData.telefono_cliente || document.getElementById('field-telefono')?.value || '',
+    empresa_cliente:     projectData.empresa_cliente || document.getElementById('field-empresa')?.value || '',
+    email_cliente:       projectData.email_cliente || document.getElementById('field-email')?.value || '',
+    numero_proyecto:     projectData.numero_proyecto || '',
+    fecha_creacion:      projectData.fecha_creacion || '',
+    fecha_vencimiento:   projectData.fecha_vencimiento || '',
+    tipo_cambio_usd:     tipoCambio(),
+    referencia:          projectData.referencia || document.getElementById('field-referencia')?.value || '',
+    descripcion_solucion: projectData.descripcion_solucion !== undefined ? projectData.descripcion_solucion : (descField?.value || ''),
+    carpeta_link:        projectData.carpeta_link || '',
+    logo_data:           projectData.logo_data || '',
+    empresa_slogan:      projectData.empresa_slogan || '',
+    dias_vigencia:       projectData.dias_vigencia || 30,
+    tiempo_entrega:      projectData.tiempo_entrega || '',
+    condiciones_pago:    projectData.condiciones_pago || '',
+    nota_aclaracion:     projectData.nota_aclaracion || '',
+    nota_bullet_1:       projectData.nota_bullet_1 || '',
+    nota_bullet_2:       projectData.nota_bullet_2 || '',
+    nota_bullet_3:       projectData.nota_bullet_3 || ''
   };
 
-  try { await apiCall('/api/legacy/proyectos?action=update', 'POST', data); unsavedChanges = false; }
-
-  catch(e) { showToast('Error al guardar proyecto', 'error'); console.error(e); }
-
+  try { 
+    await apiCall('/api/proyectos/update', 'POST', data); 
+    unsavedChanges = false; 
+  } catch(e) { 
+    showToast('Error al guardar proyecto', 'error'); 
+    console.error(e); 
+  }
 }
 
 
@@ -2798,25 +2846,23 @@ function convertToUSD() {
 
 
 async function applyUSDConversion() {
-
   const newTC = parseFloat(document.getElementById('usd-tipo-cambio').value) || 20;
-
   document.getElementById('field-tipo-cambio').value = newTC;
+  if (projectData) projectData.tipo_cambio_usd = newTC;
 
   recalculateAllSections();
-
   updateTotals();
-
   recalcAllGastos();
 
-  switchTab(currentTab);
+  if (currentTab === 'COTIZACION') {
+    renderCotizacionTable(document.getElementById('tab-content'));
+  } else {
+    switchTab(currentTab);
+  }
 
   debouncedSaveProject();
-
   closeModal('modal-usd');
-
   showToast(`Tipo de cambio actualizado a $${newTC.toFixed(2)}`, 'success');
-
 }
 
 
@@ -2860,8 +2906,46 @@ function escapeHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function getNotasBullets() {
+  if (!projectData) return [];
+  if (!projectData.notas_bullets || !Array.isArray(projectData.notas_bullets)) {
+    projectData.notas_bullets = [
+      projectData.nota_bullet_1 || 'Tiempo de Entrega: Los días de entrega serán considerados a partir de la recepción de su orden de compra. Este tiempo de entrega es SALVO PREVIA VENTA.',
+      projectData.nota_bullet_2 || 'Si esta cotización es en pesos y el tipo de cambio sufre una variación mayor al 2%, esta cotización pierde su validez.',
+      projectData.nota_bullet_3 || 'Vigencia: 30 días para cotizaciones en Pesos y Dólares.'
+    ];
+  }
+  return projectData.notas_bullets;
+}
+
+function addCustomNota() {
+  const bullets = getNotasBullets();
+  bullets.push('Nueva nota adicional...');
+  unsavedChanges = true;
+  debouncedSaveProject();
+  renderCotizacionTable(document.getElementById('tab-content'));
+}
+
+function removeCustomNota(idx) {
+  const bullets = getNotasBullets();
+  bullets.splice(idx, 1);
+  unsavedChanges = true;
+  debouncedSaveProject();
+  renderCotizacionTable(document.getElementById('tab-content'));
+}
+
+function updateCustomNota(idx, val) {
+  const bullets = getNotasBullets();
+  bullets[idx] = val;
+  unsavedChanges = true;
+  debouncedSaveProject();
+}
+
 function renderCotizacionTable(container) {
-  const seccion = projectData.secciones.find(s => s.codigo === 'E_CONTROL') || projectData.secciones[0];
+  if (!container) container = document.getElementById('tab-content');
+  if (!container) return;
+
+  const seccion = (projectData?.secciones || []).find(s => s.codigo === 'E_CONTROL') || projectData?.secciones?.[0];
   if (!seccion) {
     container.innerHTML = '<div class="alert alert-warning">No se encontró sección para cargar las partidas.</div>';
     return;
@@ -2869,79 +2953,197 @@ function renderCotizacionTable(container) {
 
   const partidas = seccion.partidas || [];
   const tc = tipoCambio();
+  const pctIva = projectData?.porcentaje_iva !== undefined ? parseFloat(projectData.porcentaje_iva) : 16;
 
   let rowsHtml = '';
   partidas.forEach((p, idx) => {
     const qty = parseFloat(p.cantidad) || 0;
     const precio = parseFloat(p.precio_lista) || 0;
     const subtotal = qty * precio;
+    const hasDesc = (p.descripcion || '').trim().length > 0;
+    const disabledAttr = hasDesc ? '' : 'disabled';
 
     rowsHtml += `
       <tr data-partida-id="${p.id}" data-tipo="equipo" data-seccion-id="${seccion.id}">
-        <td><span class="excel-display" style="text-align:center;">${p.numero_partida || idx+1}</span></td>
-        <td><input class="excel-input" type="text" value="${escapeAttr(p.descripcion||'')}" data-field="descripcion" onchange="handleCellChange(this)" tabindex="0"></td>
-        <td><input class="excel-input numeric" type="number" value="${precio||''}" data-field="precio_lista" oninput="handleNumericInput(this)" step="0.01" tabindex="0"></td>
-        <td><input class="excel-input numeric" type="number" value="${qty||''}" data-field="cantidad" oninput="handleNumericInput(this)" step="1" tabindex="0"></td>
-        <td><span class="excel-display total-val" data-display="subtotal">${formatCurrency(subtotal)}</span></td>
+        <td style="text-align:center;"><span class="excel-display" style="text-align:center;font-weight:600;">${p.numero_partida || idx+1}</span></td>
+        <td><input class="excel-input" type="text" value="${escapeAttr(p.descripcion||'')}" data-field="descripcion" oninput="handleCellChange(this)" onchange="handleCellChange(this)" tabindex="0"></td>
+        <td><input class="excel-input numeric" type="number" style="text-align:right;" value="${precio||''}" data-field="precio_lista" oninput="handleNumericInput(this)" step="0.01" tabindex="0" ${disabledAttr}></td>
+        <td><input class="excel-input numeric" type="number" style="text-align:center;" value="${qty||''}" data-field="cantidad" oninput="handleNumericInput(this)" step="1" tabindex="0" ${disabledAttr}></td>
+        <td style="text-align:right;"><span class="excel-display total-val" data-field="subtotal" style="text-align:right;font-weight:600;display:block;">${subtotal ? formatCurrency(subtotal) : '-'}</span></td>
         <input type="hidden" data-field="porcentaje_mgn" value="0">
         <input type="hidden" data-field="moneda" value="${p.moneda || 'MN'}">
         <td style="text-align:center;">
-          <button class="btn-icon text-danger" onclick="deletePartidaRow(this)" title="Eliminar Partida"><i class="fas fa-trash-alt"></i></button>
+          <button class="btn-icon text-danger" onclick="deletePartida(${p.id}, 'equipo', '${seccion.id}')" title="Eliminar Partida"><i class="fas fa-trash-alt"></i></button>
         </td>
       </tr>
     `;
   });
 
+  const subtotalSum = partidas.reduce((acc, p) => acc + ((parseFloat(p.cantidad)||0) * (parseFloat(p.precio_lista)||0)), 0);
+  const ivaSum = subtotalSum * (pctIva / 100);
+  const totalSum = subtotalSum + ivaSum;
+  const totalUsdSum = totalSum / (tc || 20);
+
+  const subtotalStr = subtotalSum > 0 ? formatCurrency(subtotalSum).replace('$', '').trim() : '-';
+  const ivaStr = ivaSum > 0 ? formatCurrency(ivaSum).replace('$', '').trim() : '-';
+  const totalMnStr = totalSum > 0 ? formatCurrency(totalSum).replace('$', '').trim() : '-';
+  const totalUsdStr = totalUsdSum > 0 ? formatCurrency(totalUsdSum).replace('$', '').trim() : '-';
+  const letrasStr = subtotalSum > 0 ? numberToWords(totalSum).toUpperCase() : '';
+
+  const defaultSlogans = "Integración de sistemas Automatizados\nProgramación de PLC, HMI\nServicio de Diseño y Armado Tableros\nPólizas de Mantenimiento";
+
   container.innerHTML = `
-    <div class="excel-container">
+    <div class="excel-container" style="background:#ffffff; padding:20px; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1); border:1px solid #e2e8f0; margin:0;">
+      
+      <!-- Top Header matching Image 2 -->
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; font-family:var(--font-body);">
+        <div style="flex:1; max-width:65%;">
+          <div style="display:flex; gap:15px; align-items:center; margin-bottom:15px;">
+            <img src="/static/img/logo.png" style="height:75px; object-fit:contain;" alt="DEMATIQ">
+            <textarea class="excel-input-inline" style="font-size:11px; font-weight:500; color:#334155; line-height:1.4; width:260px; height:75px; resize:vertical; border:none; background:transparent;" oninput="projectData.empresa_slogan=this.value; unsavedChanges=true; debouncedSaveProject();">${escapeAttr(projectData.empresa_slogan || defaultSlogans)}</textarea>
+          </div>
+          <div style="font-size:12px; color:#334155; line-height:1.8;">
+            <div><strong>Atención:</strong> <input class="excel-input-inline" style="width:70%;" value="${escapeAttr(projectData.atencion || '')}" oninput="projectData.atencion=this.value; unsavedChanges=true; debouncedSaveProject();"></div>
+            <div><strong>TEL:</strong> <input class="excel-input-inline" style="width:130px;" value="${escapeAttr(projectData.telefono_cliente || '')}" oninput="projectData.telefono_cliente=this.value; unsavedChanges=true; debouncedSaveProject();"> &nbsp;&nbsp; <strong>Empresa:</strong> <input class="excel-input-inline" style="width:200px;" value="${escapeAttr(projectData.empresa_cliente || '')}" oninput="projectData.empresa_cliente=this.value; unsavedChanges=true; debouncedSaveProject();"></div>
+            <div><span style="color:#0284c7; text-decoration:underline; font-weight:600;">E-mail</span>: <input class="excel-input-inline" style="width:75%;" value="${escapeAttr(projectData.email_cliente || '')}" oninput="projectData.email_cliente=this.value; unsavedChanges=true; debouncedSaveProject();"></div>
+          </div>
+        </div>
+
+        <div style="width:340px; text-align:right; font-size:12px; color:#334155;">
+          <div style="color:#0284c7; font-weight:bold; margin-bottom:6px;">
+            Atención: <input class="excel-input-inline" style="color:#0284c7; font-weight:bold; width:150px; text-align:right;" value="${escapeAttr(projectData.vendedor_config?.vendedor || 'Jose Moreno Rangel')}" oninput="if(!projectData.vendedor_config) projectData.vendedor_config={}; projectData.vendedor_config.vendedor=this.value; unsavedChanges=true; debouncedSaveProject();"> 
+            tel: <input class="excel-input-inline" style="color:#0284c7; font-weight:bold; width:100px; text-align:right;" value="${escapeAttr(projectData.vendedor_config?.vendedor_telefono || '442 7214891')}" oninput="if(!projectData.vendedor_config) projectData.vendedor_config={}; projectData.vendedor_config.vendedor_telefono=this.value; unsavedChanges=true; debouncedSaveProject();">
+          </div>
+          <div style="background:#1b4f72; color:#fff; font-weight:bold; font-size:14px; text-align:center; padding:6px; margin-bottom:8px; border-radius:3px; letter-spacing:1px;">COTIZACION</div>
+          <table style="width:100%; font-size:12px; text-align:left; border-collapse:collapse; margin-bottom:8px;">
+            <tr><td style="font-weight:bold; padding:2px 0;">COTIZACION No.</td><td style="text-align:right; font-weight:bold; padding:2px 0;"><input class="excel-input-inline" style="text-align:right; font-weight:bold; width:130px;" value="${escapeAttr(projectData.numero_proyecto || '')}" oninput="projectData.numero_proyecto=this.value; unsavedChanges=true; debouncedSaveProject();"></td></tr>
+            <tr><td style="font-weight:bold; padding:2px 0;">MONEDA</td><td style="text-align:right; padding:2px 0;"><select class="excel-input-inline" style="font-weight:bold; font-size:11px; width:110px; text-align:right;" onchange="projectData.moneda=this.value; updateTotals(); unsavedChanges=true; debouncedSaveProject();"><option value="MN" ${projectData.moneda !== 'USD' ? 'selected' : ''}>PESOS (MN)</option><option value="USD" ${projectData.moneda === 'USD' ? 'selected' : ''}>DÓLARES (USD)</option></select></td></tr>
+            <tr><td style="font-weight:bold; padding:2px 0;">FECHA</td><td style="text-align:right; padding:2px 0;"><input type="date" id="field-fecha-inline" class="excel-input-inline" style="font-size:11px;" value="${projectData.fecha_creacion ? projectData.fecha_creacion.split('T')[0] : ''}" onchange="autoCalcVencimiento(); unsavedChanges=true; debouncedSaveProject();"></td></tr>
+            <tr><td style="font-weight:bold; padding:2px 0;">DÍAS DE VIGENCIA</td><td style="text-align:right; padding:2px 0;"><input type="number" id="field-dias-vigencia-inline" class="excel-input-inline" style="text-align:right; width:60px;" value="${projectData.dias_vigencia || 30}" oninput="autoCalcVencimiento(); unsavedChanges=true; debouncedSaveProject();"></td></tr>
+            <tr><td style="font-weight:bold; padding:2px 0;">VENCIMIENTO</td><td style="text-align:right; padding:2px 0;"><input type="date" id="field-vencimiento-inline" class="excel-input-inline" style="font-size:11px;" value="${projectData.fecha_vencimiento ? projectData.fecha_vencimiento.split('T')[0] : ''}" onchange="projectData.fecha_vencimiento=this.value; unsavedChanges=true; debouncedSaveProject();"></td></tr>
+          </table>
+          <div style="color:#1b4f72; font-weight:bold; font-size:11px; text-transform:uppercase;"><input class="excel-input-inline" style="text-align:right; font-weight:bold; color:#1b4f72; width:100%;" value="${escapeAttr(projectData.referencia || '')}" oninput="projectData.referencia=this.value; unsavedChanges=true; debouncedSaveProject();"></div>
+        </div>
+      </div>
+
+      <!-- Main Table -->
       <table class="excel-table">
         <thead>
           <tr>
-            <th style="width: 50px;">Partida</th>
-            <th>Descripción</th>
-            <th style="width: 120px;">Precio</th>
-            <th style="width: 80px;">Cantidad</th>
-            <th style="width: 120px;">Sub Total</th>
-            <th style="width: 60px;">Acciones</th>
+            <th style="width: 60px;">Partida</th>
+            <th class="align-left">Descripción</th>
+            <th style="width: 140px;">Precio</th>
+            <th style="width: 90px;">Cantidad</th>
+            <th style="width: 140px;">Sub Total</th>
+            <th style="width: 70px;">Acciones</th>
           </tr>
         </thead>
         <tbody id="cotizacion-tbody">
           ${rowsHtml}
         </tbody>
       </table>
+
       <div style="margin-top: 15px;">
         <button class="btn btn-success" onclick="addCotizacionPartida('${seccion.id}')"><i class="fas fa-plus"></i> Agregar Partida</button>
       </div>
+
+      <!-- Delivery time banner -->
+      <div style="background:#e2e8f0; color:#1e293b; font-weight:bold; padding:6px 12px; margin-top:20px; font-size:12px; border-radius:4px; text-transform:uppercase;">
+        TIEMPO DE ENTREGA <input class="excel-input-inline" style="font-weight:bold; width:220px;" value="${escapeAttr(projectData.tiempo_entrega || '8- DIAS HABILES')}" oninput="projectData.tiempo_entrega=this.value; unsavedChanges=true; debouncedSaveProject();">
+      </div>
+
+      <!-- Totals Block with BOTH Total MN and Total USD & Dynamic IVA % -->
+      <div style="display:flex; justify-content:flex-end; margin-top:15px; margin-bottom:20px;">
+        <table style="width:280px; font-size:13px; text-align:right;">
+          <tr>
+            <td style="padding:4px; font-weight:600; color:#475569;">SUB TOTAL</td>
+            <td style="padding:4px; font-weight:bold; color:#1e293b;" id="cot-subtotal">${subtotalSum > 0 ? `$ ${subtotalStr}` : '$ -'}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px; font-weight:600; color:#475569;">
+              IVA (<input class="excel-input-inline" type="number" style="width:45px; text-align:center; font-weight:bold;" value="${pctIva}" oninput="projectData.porcentaje_iva=parseFloat(this.value)||0; updateTotals(); unsavedChanges=true; debouncedSaveProject();">%)
+            </td>
+            <td style="padding:4px; font-weight:bold; color:#1e293b;" id="cot-iva">${ivaStr}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px; font-weight:bold; color:#0f172a;">TOTAL MN</td>
+            <td style="padding:4px; font-weight:bold; color:#0f172a;" id="cot-total-mn">${totalSum > 0 ? `$ ${totalMnStr}` : '-'}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px; font-weight:bold; color:#0284c7;">TOTAL USD</td>
+            <td style="padding:4px; font-weight:bold; color:#0284c7;" id="cot-total-usd">${totalUsdSum > 0 ? `$ ${totalUsdStr}` : '-'}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Total in Words & Notes -->
+      <div style="text-align:center; font-weight:bold; font-size:13px; color:#1e293b; margin-bottom:8px; text-transform:uppercase;" id="cot-letras">${letrasStr}</div>
+      <div style="text-align:center; font-weight:bold; font-size:11px; color:#1e293b; margin-bottom:20px;">TERMINOS Y CONDICIONES: <input class="excel-input-inline" style="font-weight:bold; width:300px; text-align:center;" value="${escapeAttr(projectData.condiciones_pago || 'Condiciones de Pago : 90 DIAS')}" oninput="projectData.condiciones_pago=this.value; unsavedChanges=true; debouncedSaveProject();"></div>
+
+      <!-- Footer Policy Bullet Points & Clarification text -->
+      <div style="font-size:11px; color:#334155; line-height:1.7; border-top:1px solid #e2e8f0; padding-top:15px;">
+        <p style="margin:0 0 8px 0;">
+          <input class="excel-input-inline" style="width:100%; font-size:11px;" value="${escapeAttr(projectData.texto_aclaracion || 'Para cualquier aclaración con respecto a esta cotización o para colocar su orden, favor de comunicarse al correo integraqro07@outlook.com')}" oninput="projectData.texto_aclaracion=this.value; unsavedChanges=true; debouncedSaveProject();">
+        </p>
+
+        <div id="cot-bullets-container">
+          ${getNotasBullets().map((bullet, idx) => `
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+              <span style="font-weight:bold;">•</span>
+              <input class="excel-input-inline" style="flex:1; font-size:11px;" value="${escapeAttr(bullet)}" oninput="updateCustomNota(${idx}, this.value)">
+              <button class="btn-icon text-danger" onclick="removeCustomNota(${idx})" title="Eliminar nota" style="font-size:11px; padding:2px 4px;"><i class="fas fa-trash-alt"></i></button>
+            </div>
+          `).join('')}
+        </div>
+
+        <div style="margin-top:8px; margin-bottom:8px;">
+          <button class="btn btn-sm btn-outline-primary" onclick="addCustomNota()" style="font-size:11px; padding:3px 8px;"><i class="fas fa-plus"></i> Agregar Nota</button>
+        </div>
+
+        <p style="margin:6px 0 0 0; color:#64748b;">Nota : <input class="excel-input-inline" style="width:90%;" value="${escapeAttr(projectData.nota_aclaracion || 'precios en Pesos Mexicanos MN ,precios sujetos a cambio sin previo aviso')}" oninput="projectData.nota_aclaracion=this.value; unsavedChanges=true; debouncedSaveProject();"></p>
+      </div>
+
     </div>
   `;
 }
 
 async function addCotizacionPartida(seccionId) {
+  const seccion = (projectData?.secciones || []).find(s => s.id == seccionId || s.codigo === 'E_CONTROL') || projectData?.secciones?.[0];
+  const tempId = 'temp_' + Date.now();
+  const newPartida = {
+    id: tempId,
+    seccion_id: seccionId,
+    numero_partida: (seccion?.partidas?.length || 0) + 1,
+    descripcion: '',
+    precio_lista: 0,
+    cantidad: 1,
+    moneda: 'MN',
+    porcentaje_mgn: 0,
+    subtotal: 0,
+    total_mn: 0,
+    total_usd: 0
+  };
+
+  if (seccion) {
+    if (!seccion.partidas) seccion.partidas = [];
+    seccion.partidas.push(newPartida);
+  }
+
+  recalculateSectionTotals();
+  updateTotals();
+  renderCotizacionTable(document.getElementById('tab-content'));
+  showToast('Partida agregada', 'success');
+
   try {
-    showLoading();
     const res = await apiCall('/api/partidas/create', 'POST', {
       seccion_id: seccionId,
-      numero_partida: '',
-      descripcion: '',
-      marca: '',
-      modelo: '',
-      cantidad: 1,
-      precio_lista: 0,
-      moneda: 'MN',
-      porcentaje_mgn: 0
+      tipo: 'equipo'
     });
-    if (res.success || res.ok) {
-      const seccion = projectData.secciones.find(s => s.id == seccionId);
-      if (seccion) {
-        if (!seccion.partidas) seccion.partidas = [];
-        seccion.partidas.push(res.partida || res.data);
-      }
-      switchTab(currentTab);
+    if (res && res.id) {
+      newPartida.id = res.id;
     }
   } catch (err) {
-    showToast('Error al agregar partida: ' + err.message, 'error');
-  } finally {
-    hideLoading();
+    showToast('Error al agregar en servidor: ' + err.message, 'error');
   }
 }
 

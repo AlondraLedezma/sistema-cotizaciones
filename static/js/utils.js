@@ -188,7 +188,10 @@ async function apiCall(url, method = 'GET', data = null) {
   }
   const response = await fetch(url, options);
   const result = await response.json();
-  if (!result.success) {
+  if (result.error) {
+    throw new Error(result.error);
+  }
+  if (result.success === false) {
     throw new Error(result.error || 'Error en la solicitud');
   }
   return result;

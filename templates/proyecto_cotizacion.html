@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DEMATIQ - Editor de Proyecto | Sistema de Cotizaciones</title>
   <meta name="description" content="Editor de cotización Excel-like - DEMATIQ Automatización">
-  <link rel="stylesheet" href="/static/css/cotizacion.css">
+  <link rel="stylesheet" href="/static/css/cotizacion.css?v=10">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
@@ -25,7 +25,7 @@
         <button class="btn btn-warning" id="btn-carpeta" onclick="openFolderLink()" title="Abrir carpeta del proyecto" style="{% if proyecto.tipo_proyecto == 'cotizacion' %}display:none !important;{% endif %}"><i class="fas fa-folder-open"></i> Carpeta</button>
       </div>
     </div>
-    <div class="proyecto-header card" style="margin-bottom:12px;">
+    <div class="proyecto-header card" style="margin-bottom:12px; {% if proyecto.tipo_proyecto == 'cotizacion' %}display:none !important;{% endif %}">
       <div class="header-toggle" onclick="toggleHeader()">
         <h3><i class="fas fa-info-circle" style="color:var(--accent);margin-right:8px;"></i>Información del Proyecto</h3>
         <i class="fas fa-chevron-up" id="header-chevron"></i>
@@ -130,9 +130,9 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
-  <script src="/static/js/utils.js?v=3"></script>
+  <script src="/static/js/utils.js?v=22"></script>
   <script src="/static/js/auth.js"></script>
-  <script src="/static/js/proyecto_cotizacion_v3.js?v=5"></script>
-  <script src="/static/js/pdf.js?v=3"></script>
+  <script src="/static/js/proyecto_cotizacion_v3.js?v=22"></script>
+  <script src="/static/js/pdf.js?v=22"></script>
 </body>
 </html>

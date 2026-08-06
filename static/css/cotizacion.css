@@ -212,27 +212,32 @@ body {
 .excel-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
-  min-width: 600px;
+  font-size: 13px;
+  min-width: 650px;
+  border: 1px solid #cbd5e1;
 }
 .excel-table th {
-  background: #f8fafc;
-  color: var(--text-muted);
+  background: #1b4f72;
+  color: #ffffff;
   font-weight: 700;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
-  padding: 10px 12px;
-  border-bottom: 2px solid var(--border);
-  text-align: left;
+  padding: 10px 14px;
+  border: 1px solid #154360;
+  text-align: center;
   white-space: nowrap;
+}
+.excel-table th.align-left {
+  text-align: left;
 }
 .excel-table td {
   padding: 8px 10px;
-  border-bottom: 1px solid #f1f5f9;
+  border: 1px solid #e2e8f0;
   vertical-align: middle;
 }
-.excel-table tr:hover td { background: #f0f4ff; }
+.excel-table tr:nth-child(even) td { background: #fafafa; }
+.excel-table tr:hover td { background: #f0f7ff; }
 .excel-table .total-row td {
   background: var(--primary-dark);
   color: #fff;
@@ -259,6 +264,27 @@ body {
   box-shadow: 0 0 0 3px rgba(33,150,243,0.15);
 }
 .excel-input.numeric { text-align: right; }
+.excel-input-inline {
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+  padding: 3px 6px;
+  font-size: inherit;
+  font-family: inherit;
+  color: inherit;
+  font-weight: inherit;
+  outline: none;
+  transition: all 0.2s;
+  border-radius: 4px;
+}
+.excel-input-inline:hover {
+  border-color: #94a3b8;
+  background: #ffffff;
+}
+.excel-input-inline:focus {
+  border-color: #0284c7;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+}
 .excel-display {
   display: inline-block;
   padding: 5px 8px;

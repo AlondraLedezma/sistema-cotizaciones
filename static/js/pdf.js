@@ -28,28 +28,36 @@ async function generatePDF() {
       return false;
     }
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.setTextColor(26, 58, 92);
-    doc.text('DEMATIQ', margin, y);
-    y += 6;
-
-    doc.setFontSize(10);
-    doc.text('AUTOMATIZACIÓN', margin, y);
-    y += 3;
+    try {
+      if (projectData.logo_data) {
+        doc.addImage(projectData.logo_data, 'PNG', margin, 10, 42, 20);
+      } else {
+        const logoImg = await loadImageAsBase64('/static/img/logo.png');
+        if (logoImg) doc.addImage(logoImg, 'PNG', margin, 10, 42, 20);
+      }
+    } catch(e) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.setTextColor(26, 58, 92);
+      doc.text('DEMATIQ', margin, y);
+    }
 
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(80, 80, 80);
-    doc.text('Integración de sistemas Automatizados', 70, 15);
-    doc.text('Programación de PLC, HMI', 70, 19);
-    doc.text('Servicio de Diseño y Armado Tableros', 70, 23);
-    doc.text('Pólizas de Mantenimiento', 70, 27);
+    const rawSlogans = projectData.empresa_slogan || "Integracion de sistemas Automatizados\nProgramacion de PLC, HMI\nServicio de Diseño y Armado Tableros\nPolizas de Mantenimiento";
+    const sloganLines = rawSlogans.split('\n');
+    let sy = 13;
+    sloganLines.forEach(line => {
+      doc.text(line, 65, sy);
+      sy += 3.5;
+    });
 
     doc.setTextColor(0, 100, 180);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
-    doc.text('Ventas: Jose Moreno Rangel', 130, 15);
+    const vendedor = projectData.vendedor_config?.vendedor || 'Jose Moreno Rangel';
+    doc.text(`Ventas: ${vendedor}`, 130, 15);
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
@@ -409,12 +417,35 @@ async function generateCotizacionPDF() {
       return false;
     }
 
+    // Load and add logo (Larger logo)
+    try {
+      const logoImg = await loadImageAsBase64('/static/img/logo.png');
+      if (logoImg) {
+        doc.addImage(logoImg, 'PNG', margin, 10, 48, 22);
+      }
+    } catch(e) {
+      console.warn('Could not load logo:', e);
+    }
+
+    // Slogans text next to logo (Larger font, no border box)
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(70, 70, 70);
+    const rawSlogans = projectData.empresa_slogan || "Integracion de sistemas Automatizados\nProgramacion de PLC, HMI\nServicio de Diseño y Armado Tableros\nPolizas de Mantenimiento";
+    const sloganLines = rawSlogans.split('\n');
+    let sy = 13;
+    sloganLines.forEach(line => {
+      doc.text(line, margin + 52, sy);
+      sy += 3.8;
+    });
+
     // Header Right
     const vendedor = projectData.vendedor_config?.vendedor || 'Jose Moreno Rangel';
+    const vendTel = projectData.vendedor_config?.vendedor_telefono || '442 7214891';
     doc.setTextColor(0, 100, 180);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(`Ventas: ${vendedor}`, pageWidth - margin, y, { align: 'right' });
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.text(`Atención: ${vendedor} tel: ${vendTel}`, pageWidth - margin, y, { align: 'right' });
     y += 5;
 
     doc.setFillColor(26, 58, 92);
@@ -452,36 +483,43 @@ async function generateCotizacionPDF() {
     doc.text(refLines, pageWidth - margin, y, { align: 'right' });
     y += refLines.length * 4;
 
-    // Header Left
+    // Header Left (placed below logo at y=36)
+    let leftY = 36;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(40, 40, 40);
-    doc.text("Atencion: ", margin, 24);
+    doc.text("Atención: ", margin, leftY);
     doc.setFont('helvetica', 'normal');
-    doc.text(projectData.atencion || '', margin + 16, 24);
+    doc.text(projectData.atencion || '', margin + 16, leftY);
+    leftY += 5;
 
     doc.setFont('helvetica', 'bold');
-    doc.text("TEL: ", margin, 29);
+    doc.text("TEL: ", margin, leftY);
     doc.setFont('helvetica', 'normal');
-    doc.text(`52 ${projectData.telefono_cliente || ''}`, margin + 8, 29);
+    doc.text(`52 ${projectData.telefono_cliente || ''}`, margin + 8, leftY);
 
     doc.setFont('helvetica', 'bold');
-    doc.text("Empresa: ", margin + 45, 29);
+    doc.text("Empresa: ", margin + 45, leftY);
     doc.setFont('helvetica', 'normal');
-    doc.text(projectData.empresa_cliente || '', margin + 61, 29);
+    doc.text(projectData.empresa_cliente || '', margin + 61, leftY);
+    leftY += 5;
 
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 100, 180);
-    doc.text("E-mail", margin, 34);
+    doc.text("E-mail", margin, leftY);
     doc.setDrawColor(0, 100, 180);
     doc.setLineWidth(0.3);
-    doc.line(margin, 35, margin + 10, 35);
+    doc.line(margin, leftY + 1, margin + 10, leftY + 1);
+    leftY += 6;
 
+    const emailText = projectData.email_cliente || '';
     doc.setFont('helvetica', 'normal');
-    doc.text(projectData.email_cliente || '', margin, 40);
-    doc.line(margin, 41, margin + doc.getTextWidth(projectData.email_cliente || ''), 41);
+    doc.text(emailText, margin, leftY);
+    if (emailText) {
+      doc.line(margin, leftY + 1, margin + Math.min(doc.getTextWidth(emailText), contentWidth/2), leftY + 1);
+    }
 
-    y = Math.max(y, 48) + 4;
+    y = Math.max(y, 52) + 4;
 
     // Build flat partidas list
     const tableBody = [];
@@ -494,21 +532,22 @@ async function generateCotizacionPDF() {
         if (sec.partidas) {
           sec.partidas.forEach(p => {
             const qty = parseFloat(p.cantidad) || 1;
-            const total_mn = parseFloat(p.total_mn) || 0;
+            const precio_lista = parseFloat(p.precio_lista) || 0;
+            const total_mn = parseFloat(p.total_mn) || (qty * precio_lista);
             const total_usd = parseFloat(p.total_usd) || 0;
             let t = total_mn;
             if (projectData.moneda === 'USD') {
               t = total_usd;
             }
-            const precio_unit = t / qty;
+            const precio_unit = precio_lista || (qty ? t / qty : 0);
             subtotal += t;
 
             tableBody.push([
               pda++,
               p.descripcion || '',
-              formatCurrency(precio_unit),
+              precio_unit > 0 ? formatCurrency(precio_unit) : '',
               qty,
-              formatCurrency(t)
+              t > 0 ? formatCurrency(t) : '-'
             ]);
           });
         }
@@ -552,74 +591,89 @@ async function generateCotizacionPDF() {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(40, 40, 40);
-    doc.text("TIEMPO DE ENTREGA 8- DIAS HABILES", margin + 3, y + 5);
+    const tiempoEntregaText = (projectData.tiempo_entrega || '8- DIAS HABILES').toUpperCase();
+    doc.text(`TIEMPO DE ENTREGA ${tiempoEntregaText}`, margin + 3, y + 5);
     y += 12;
 
-    // Totals Block
-    checkPageBreak(25);
-    const iva = subtotal * 0.16;
-    const total = subtotal + iva;
+    // Totals Block with dynamic IVA % and BOTH Total MN & Total USD
+    checkPageBreak(30);
+    const pctIva = projectData.porcentaje_iva !== undefined ? parseFloat(projectData.porcentaje_iva) : 16;
+    const iva = subtotal * (pctIva / 100);
+    const totalMN = subtotal + iva;
+    const totalUSD = totalMN / (parseFloat(projectData.tipo_cambio) || 20);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    doc.text("SUB TOTAL", pageWidth - margin - 50, y, { align: 'right' });
+    doc.setTextColor(40, 40, 40);
+
+    doc.text("SUB TOTAL", pageWidth - margin - 55, y, { align: 'right' });
     doc.text("$", pageWidth - margin - 35, y);
-    doc.text(formatCurrency(subtotal).replace('$', '').trim(), pageWidth - margin, y, { align: 'right' });
+    doc.text(subtotal > 0 ? formatCurrency(subtotal).replace('$', '').trim() : '-', pageWidth - margin, y, { align: 'right' });
     y += 5;
 
-    doc.text("IVA (16%)", pageWidth - margin - 50, y, { align: 'right' });
-    doc.text(formatCurrency(iva).replace('$', '').trim(), pageWidth - margin, y, { align: 'right' });
-    y += 6;
+    doc.text(`IVA (${pctIva}%)`, pageWidth - margin - 55, y, { align: 'right' });
+    doc.text(iva > 0 ? formatCurrency(iva).replace('$', '').trim() : '-', pageWidth - margin, y, { align: 'right' });
+    y += 5;
 
     doc.setFont('helvetica', 'bold');
-    doc.text("TOTAL", pageWidth - margin - 50, y, { align: 'right' });
-    doc.text(formatCurrency(total).replace('$', '').trim(), pageWidth - margin, y, { align: 'right' });
+    doc.text("TOTAL MN", pageWidth - margin - 55, y, { align: 'right' });
+    doc.text(totalMN > 0 ? formatCurrency(totalMN).replace('$', '').trim() : '-', pageWidth - margin, y, { align: 'right' });
+    y += 5;
+
+    doc.setTextColor(0, 100, 180);
+    doc.text("TOTAL USD", pageWidth - margin - 55, y, { align: 'right' });
+    doc.text(totalUSD > 0 ? formatCurrency(totalUSD).replace('$', '').trim() : '-', pageWidth - margin, y, { align: 'right' });
     y += 8;
 
     // Total in words
     checkPageBreak(15);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
-    const suffix = (projectData.moneda === 'USD') ? 'USD' : 'MN';
-    let letras = numberToWords(total).toUpperCase();
+    doc.setTextColor(40, 40, 40);
+    let letras = numberToWords(totalMN).toUpperCase();
     if (projectData.moneda === 'USD') {
       letras = letras.replace("PESOS", "DOLARES").replace("M.N.", "USD");
     }
-    doc.text(`${letras} 00/100 ${suffix}`, pageWidth / 2, y, { align: 'center' });
+    doc.text(letras, pageWidth / 2, y, { align: 'center' });
     y += 6;
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(80, 80, 80);
-    doc.text(`Nota : precios en ${projectData.moneda === 'USD' ? 'Dolares USD' : 'Pesos Mexicanos MN'} ,precios sujetos a cambio sin previo aviso`, pageWidth / 2, y, { align: 'center' });
-    y += 5;
-
-    const condPago = projectData.condiciones_pago || '90 DIAS';
+    const condPago = projectData.condiciones_pago || 'Condiciones de Pago : 90 DIAS';
     doc.setFont('helvetica', 'bold');
-    doc.text(`TERMINOS Y CONDICIONES: Condiciones de Pago : ${condPago}`, pageWidth / 2, y, { align: 'center' });
-    y += 8;
-
-    // Final note and standard texts
-    doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(40, 40, 40);
-    const aclaraText = "Para cualquier aclaración con respecto a esta cotización o para colocar su orden, favor de comunicarse al correo integraqro07@outlook.com";
+    doc.text(`TERMINOS Y CONDICIONES: ${condPago}`, pageWidth / 2, y, { align: 'center' });
+    y += 8;
+
+    // Clarification text & Bullet points
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(40, 40, 40);
+    const aclaraText = projectData.texto_aclaracion || "Para cualquier aclaración con respecto a esta cotización o para colocar su orden, favor de comunicarse al correo integraqro07@outlook.com";
     const aclaraLines = doc.splitTextToSize(aclaraText, contentWidth);
     
     checkPageBreak(aclaraLines.length * 4 + 30);
     doc.text(aclaraLines, margin, y);
-    y += aclaraLines.length * 4 + 2;
+    y += aclaraLines.length * 4 + 3;
 
-    doc.text("• Tiempo de Entrega: Los días de entrega serán considerados a partir de la recepción de su orden de compra. Este tiempo de entrega es SALVO PREVIA VENTA.", margin, y, { maxWidth: contentWidth });
-    y += 8;
-    doc.text("• Si esta cotización es en pesos y el tipo de cambio sufre una variación mayor al 2%, esta cotización pierde su validez.", margin, y, { maxWidth: contentWidth });
-    y += 8;
-    doc.text("• Vigencia: 30 días para cotizaciones en Pesos y Dólares.", margin, y, { maxWidth: contentWidth });
-    y += 8;
+    // Dynamic Bullets
+    const bulletsList = (projectData.notas_bullets && projectData.notas_bullets.length > 0) ? projectData.notas_bullets : [
+      'Tiempo de Entrega: Los días de entrega serán considerados a partir de la recepción de su orden de compra. Este tiempo de entrega es SALVO PREVIA VENTA.',
+      'Si esta cotización es en pesos y el tipo de cambio sufre una variación mayor al 2%, esta cotización pierde su validez.',
+      'Vigencia: 30 días para cotizaciones en Pesos y Dólares.'
+    ];
 
-    doc.setFont('helvetica', 'bold');
-    const vendTel = projectData.vendedor_config?.vendedor_telefono || '442 7214891';
-    doc.text(`Atencion: ${vendedor} tel: ${vendTel}`, margin, y);
+    bulletsList.forEach(b => {
+      const bText = `• ${b}`;
+      const bLines = doc.splitTextToSize(bText, contentWidth);
+      checkPageBreak(bLines.length * 3.8 + 2);
+      doc.text(bLines, margin, y);
+      y += bLines.length * 3.8 + 2;
+    });
+
+    const notaAclaracion = projectData.nota_aclaracion || 'precios en Pesos Mexicanos MN ,precios sujetos a cambio sin previo aviso';
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Nota : ${notaAclaracion}`, margin, y, { maxWidth: contentWidth });
+    y += doc.splitTextToSize(`Nota : ${notaAclaracion}`, contentWidth).length * 3.8 + 6;
 
     const filename = `Cotizacion_${projectData.numero_proyecto || 'SN'}.pdf`;
     doc.save(filename);
@@ -634,3 +688,22 @@ async function generateCotizacionPDF() {
   }
 }
 
+function loadImageAsBase64(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = function() {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      } catch(e) {
+        resolve(null);
+      }
+    };
+    img.onerror = function() { resolve(null); };
+    img.src = url;
+  });
+}

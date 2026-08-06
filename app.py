@@ -260,6 +260,17 @@ def api_delete_proyecto():
     ex("DELETE FROM proyectos WHERE id=%s", (pid,))
     return jsonify(ok=True)
 
+def ensure_project_columns():
+    try: ex("ALTER TABLE proyectos ADD COLUMN logo_data LONGTEXT")
+    except Exception: pass
+    try: ex("ALTER TABLE proyectos ADD COLUMN empresa_slogan TEXT")
+    except Exception: pass
+
+try:
+    ensure_project_columns()
+except Exception as _e:
+    pass
+
 @app.route("/api/proyectos/update", methods=["POST"])
 @login_required
 def api_update_proyecto():
@@ -278,7 +289,7 @@ def api_update_proyecto():
           atencion=%s,referencia=%s,descripcion_solucion=%s,
           fecha_creacion=%s,fecha_vencimiento=%s,tipo_cambio_usd=%s,
           carpeta_link=%s,tiempo_entrega=%s,condiciones_pago=%s,
-          porcentaje_iva=%s,dias_vigencia=%s WHERE id=%s""",
+          porcentaje_iva=%s,dias_vigencia=%s,logo_data=%s,empresa_slogan=%s WHERE id=%s""",
        (d.get("nombre_proyecto"), d.get("empresa_cliente"),
         d.get("contacto_cliente"), d.get("telefono_cliente"),
         d.get("email_cliente"), d.get("atencion"), d.get("referencia"),
@@ -286,7 +297,7 @@ def api_update_proyecto():
         d.get("fecha_vencimiento"), d.get("tipo_cambio_usd") or 20,
         d.get("carpeta_link"), d.get("tiempo_entrega"), d.get("condiciones_pago"),
         d.get("porcentaje_iva") if d.get("porcentaje_iva") is not None else curr_iva,
-        d.get("dias_vigencia"), pid))
+        d.get("dias_vigencia"), d.get("logo_data"), d.get("empresa_slogan"), pid))
     tc_new = float(d.get("tipo_cambio_usd") or 20)
     recalc_project_currency_conversions(pid, tc_new)
     return jsonify(ok=True)
@@ -392,7 +403,7 @@ def api_create_partida():
     else:
         new_id = ex("INSERT INTO partidas_equipo (seccion_id,numero_partida,descripcion,marca,modelo,cantidad,precio_lista,moneda,porcentaje_mgn,subtotal,total_mn,total_usd,orden) VALUES (%s,%s,'','','',1,0,'MN',0,0,0,0,%s)",
                     (sid, n, n))
-    return jsonify(id=new_id)
+    return jsonify(id=new_id, success=True)
 
 @app.route("/api/partidas/update", methods=["POST"])
 @login_required
@@ -1647,6 +1658,11 @@ def _build_pdf_cotizacion_simple(proyecto, secciones, condiciones, moneda, pdf):
     GRAY = (100, 116, 139)
 
     pdf.add_page()
+    
+    import os
+    logo_path = os.path.join("static", "img", "logo.png")
+    if os.path.exists(logo_path):
+        pdf.image(logo_path, x=10, y=8, h=14)
     
     # Header Derecha
     vendedor = proyecto.get("vendedor_config", {}).get("vendedor", "Jose Moreno Rangel")
