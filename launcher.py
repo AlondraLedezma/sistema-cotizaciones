@@ -17,11 +17,29 @@ def esperar_servidor(host="127.0.0.1", port=5000, timeout=15):
             time.sleep(0.15)
     return False
 
+def liberar_puerto(port=5000):
+    import subprocess
+    try:
+        # En Windows, buscar y terminar cualquier proceso escuchando en el puerto 5000
+        out = subprocess.check_output(f"netstat -ano | findstr :{port}", shell=True).decode()
+        pids = set()
+        for line in out.strip().split("\n"):
+            parts = line.strip().split()
+            if len(parts) >= 5 and "LISTENING" in parts[3]:
+                pids.add(parts[-1])
+            elif len(parts) >= 5 and "LISTENING" in parts[4]:
+                pids.add(parts[-1])
+        for pid in pids:
+            subprocess.call(f"taskkill /F /PID {pid}", shell=True)
+    except Exception:
+        pass
+
 def iniciar_flask():
     from app import app
     app.run(host="127.0.0.1", port=5000, debug=False, use_reloader=False)
 
 if __name__ == "__main__":
+    liberar_puerto(5000)
     hilo = threading.Thread(target=iniciar_flask, daemon=True)
     hilo.start()
 

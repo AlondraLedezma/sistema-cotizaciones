@@ -23,12 +23,17 @@ def favicon():
     return send_from_directory(os.path.join(app.root_path, "static"),
                                "favicon.ico", mimetype="image/x-icon")
 
-DB = dict(host="localhost", user="root", password="root",
+DB = dict(host="localhost", user="root", password="",
           database="cotizaciones_dematiq", charset="utf8mb4",
           cursorclass=pymysql.cursors.DictCursor, autocommit=True)
 
 def get_db():
-    return pymysql.connect(**DB)
+    try:
+        return pymysql.connect(**DB)
+    except Exception:
+        alt_db = DB.copy()
+        alt_db["password"] = "root" if DB["password"] == "" else ""
+        return pymysql.connect(**alt_db)
 
 def q(sql, params=(), fetch="all"):
     conn = get_db()
@@ -1426,9 +1431,21 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None, sec
     from utils.numero_a_letras import numero_a_letras
     import os
 
+    def fit_text(pdf, text, max_width):
+        if not text:
+            return ""
+        text = str(text)
+        if pdf.get_string_width(text) <= max_width - 1.5:
+            return text
+        while len(text) > 0 and pdf.get_string_width(text + "...") > max_width - 1.5:
+            text = text[:-1]
+        return text + "..." if text else ""
+
     # Load partidas for all sections
     for s in secciones:
-        if s["tipo"] == "mano_obra":
+        if s["codigo"] == "E_MECANICO":
+            s["partidas"] = q("SELECT * FROM partidas_mecanico WHERE proyecto_id=%s ORDER BY orden, id", (proyecto["id"],))
+        elif s["tipo"] == "mano_obra":
             s["partidas"] = q("SELECT * FROM partidas_mano_obra WHERE seccion_id=%s ORDER BY orden, id", (s["id"],))
         else:
             s["partidas"] = q("SELECT * FROM partidas_equipo WHERE seccion_id=%s ORDER BY orden, id", (s["id"],))
@@ -1740,15 +1757,15 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None, sec
                     # Column headers (Sum of widths = 186)
                     pdf.set_fill_color(241, 245, 249)
                     pdf.set_text_color(*DARK)
-                    pdf.set_font("Helvetica", "B", 8)
-                    widths = [12, 56, 14, 10, 16, 16, 12, 25, 25]
-                    headers = ["PDA", "INGENIERÍA Y DESARROLLO", "HORAS/MO", "DÍAS", "C/HORA", "SUBTOTAL", "% MGN", "TOT USD", "TOT MN"]
+                    pdf.set_font("Helvetica", "B", 7)
+                    widths = [8, 62, 14, 10, 15, 15, 12, 25, 25]
+                    headers = ["PDA", "INGENIERÍA Y DESARROLLO", "HORAS/MO", "DÍAS", "C/HORA USD", "SUBTOTAL", "% MGN", "TOT USD", "TOT MN"]
                     for w, h in zip(widths, headers):
                         pdf.cell(w, 6, h, border=1, align="C", fill=True)
                     pdf.ln()
                     
                     # Row data
-                    pdf.set_font("Helvetica", "", 8)
+                    pdf.set_font("Helvetica", "", 7.5)
                     for p in sec.get("partidas", []):
                         sub = (float(p.get("horas_mo") or 0) * float(p.get("dias_trabajo") or 0) * float(p.get("costo_hora_usd") or 0))
                         mgn = float(p.get("porcentaje_mgn") or 0)
@@ -1756,7 +1773,7 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None, sec
                         total_mn = total_usd * tc
                         
                         pdf.cell(widths[0], 5, str(p.get("numero_partida") or ""), border=1, align="C")
-                        pdf.cell(widths[1], 5, str(p.get("descripcion") or ""), border=1)
+                        pdf.cell(widths[1], 5, fit_text(pdf, p.get("descripcion") or "", widths[1]), border=1)
                         pdf.cell(widths[2], 5, f"{float(p.get('horas_mo') or 0):g}", border=1, align="C")
                         pdf.cell(widths[3], 5, f"{float(p.get('dias_trabajo') or 0):g}", border=1, align="C")
                         pdf.cell(widths[4], 5, f"$ {float(p.get('costo_hora_usd') or 0):,.2f}", border=1, align="R")
@@ -1771,19 +1788,60 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None, sec
                     pdf.cell(widths[-2], 5, f"$ {float(sec.get('subtotal_usd') or 0):,.2f}", border=1, align="R")
                     pdf.cell(widths[-1], 5, f"$ {float(sec.get('subtotal_mn') or 0):,.2f}", border=1, align="R")
                     pdf.ln(5)
+                elif sec["codigo"] == "E_MECANICO":
+                    # Custom table for E_MECANICO (Equipo Mecánico)
+                    pdf.set_fill_color(241, 245, 249)
+                    pdf.set_text_color(*DARK)
+                    pdf.set_font("Helvetica", "B", 6)
+                    widths = [6, 38, 18, 18, 13, 13, 7, 8, 14, 9, 21, 21]
+                    headers = ["PDA", "DESCRIPCIÓN PIEZA", "MATERIAL", "MANO DE OBRA", "C. MAT", "C. MO", "QTY", "MON.", "SUBTOTAL", "% MGN", "TOT MN", "TOT USD"]
+                    for w, h in zip(widths, headers):
+                        pdf.cell(w, 6, h, border=1, align="C", fill=True)
+                    pdf.ln()
+                    
+                    pdf.set_font("Helvetica", "", 7)
+                    for p in sec.get("partidas", []):
+                        qty = float(p.get("cantidad") or 0)
+                        c_mat = float(p.get("costo_material") or 0)
+                        c_mo = float(p.get("costo_mano_obra") or 0)
+                        sub = (c_mat + c_mo) * qty
+                        mgn = float(p.get("porcentaje_mgn") or 0)
+                        mon = p.get("moneda") or "MN"
+                        tot_mn = float(p.get("total_mn") or 0)
+                        tot_usd = float(p.get("total_usd") or 0)
+                        
+                        pdf.cell(widths[0], 5, str(p.get("numero_partida") or ""), border=1, align="C")
+                        pdf.cell(widths[1], 5, fit_text(pdf, p.get("descripcion_pieza") or "", widths[1]), border=1)
+                        pdf.cell(widths[2], 5, fit_text(pdf, p.get("material") or "", widths[2]), border=1)
+                        pdf.cell(widths[3], 5, fit_text(pdf, p.get("mano_obra") or "", widths[3]), border=1)
+                        pdf.cell(widths[4], 5, f"$ {c_mat:,.2f}", border=1, align="R")
+                        pdf.cell(widths[5], 5, f"$ {c_mo:,.2f}", border=1, align="R")
+                        pdf.cell(widths[6], 5, f"{qty:g}", border=1, align="C")
+                        pdf.cell(widths[7], 5, mon, border=1, align="C")
+                        pdf.cell(widths[8], 5, f"$ {sub:,.2f}", border=1, align="R")
+                        pdf.cell(widths[9], 5, f"{mgn:g}%", border=1, align="C")
+                        pdf.cell(widths[10], 5, f"$ {tot_mn:,.2f}", border=1, align="R")
+                        pdf.cell(widths[11], 5, f"$ {tot_usd:,.2f}", border=1, align="R")
+                        pdf.ln()
+                    # Section totals row
+                    pdf.set_font("Helvetica", "B", 8)
+                    pdf.cell(sum(widths[:-2]), 5, "TOTAL SECCIÓN", border=1, align="R")
+                    pdf.cell(widths[-2], 5, f"$ {float(sec.get('subtotal_mn') or 0):,.2f}", border=1, align="R")
+                    pdf.cell(widths[-1], 5, f"$ {float(sec.get('subtotal_usd') or 0):,.2f}", border=1, align="R")
+                    pdf.ln(5)
                 else:
                     # Column headers (Sum of widths = 186)
                     pdf.set_fill_color(241, 245, 249)
                     pdf.set_text_color(*DARK)
-                    pdf.set_font("Helvetica", "B", 8)
-                    widths = [10, 54, 18, 18, 10, 16, 10, 16, 10, 17, 17]
+                    pdf.set_font("Helvetica", "B", 7)
+                    widths = [8, 48, 16, 16, 8, 14, 8, 15, 9, 22, 22]
                     headers = ["PDA", "DESCRIPCIÓN", "MARCA", "MODELO", "QTY", "PRECIO", "MON.", "SUBTOTAL", "% MGN", "TOT MN", "TOT USD"]
                     for w, h in zip(widths, headers):
                         pdf.cell(w, 6, h, border=1, align="C", fill=True)
                     pdf.ln()
                     
                     # Row data
-                    pdf.set_font("Helvetica", "", 8)
+                    pdf.set_font("Helvetica", "", 7.5)
                     for p in sec.get("partidas", []):
                         qty = float(p.get("cantidad") or 0)
                         price = float(p.get("precio_lista") or 0)
@@ -1794,9 +1852,9 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None, sec
                         tot_usd = float(p.get("total_usd") or 0)
                         
                         pdf.cell(widths[0], 5, str(p.get("numero_partida") or ""), border=1, align="C")
-                        pdf.cell(widths[1], 5, str(p.get("descripcion") or ""), border=1)
-                        pdf.cell(widths[2], 5, str(p.get("marca") or ""), border=1)
-                        pdf.cell(widths[3], 5, str(p.get("modelo") or ""), border=1)
+                        pdf.cell(widths[1], 5, fit_text(pdf, p.get("descripcion") or "", widths[1]), border=1)
+                        pdf.cell(widths[2], 5, fit_text(pdf, p.get("marca") or "", widths[2]), border=1)
+                        pdf.cell(widths[3], 5, fit_text(pdf, p.get("modelo") or "", widths[3]), border=1)
                         pdf.cell(widths[4], 5, f"{qty:g}", border=1, align="C")
                         pdf.cell(widths[5], 5, f"$ {price:,.2f}", border=1, align="R")
                         pdf.cell(widths[6], 5, mon, border=1, align="C")
