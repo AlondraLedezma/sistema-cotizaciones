@@ -103,11 +103,7 @@
     </div>
   </div>
 
-<<<<<<< HEAD
-  <div class="bg-white border-top px-4 py-2 d-flex flex-wrap align-items-center gap-4 text-muted{% if proyecto.tipo_proyecto in ['mecanico', 'cotizacion'] %} d-none{% endif %}" style="font-size:12px;">
-=======
   <div class="bg-white border-top px-4 py-2 d-flex flex-wrap align-items-center gap-4 text-muted {% if proyecto.tipo_proyecto in ['mecanico', 'cotizacion'] %}d-none{% endif %}" style="font-size:12px;">
->>>>>>> a98e3d0a13fdd29c5634ea45500a3cfc30ca0ae9
     <span>No. <strong class="text-primary" id="sb-num">{{ proyecto.numero_proyecto }}</strong></span>
     <span>Total MN: <strong class="text-dark" id="sb-mn">$0.00</strong></span>
     <span>Total USD: <strong class="text-primary" id="sb-usd">$0.00</strong></span>
@@ -183,6 +179,7 @@ function recalcAllProjectDataTC() {
         if (elTusd) elTusd.textContent = fmt(p.total_usd);
         if (elTmn) elTmn.textContent = fmt(p.total_mn);
       });
+
       sec.subtotal_usd = secUSD;
       sec.subtotal_mn = secMN;
 
@@ -195,46 +192,17 @@ function recalcAllProjectDataTC() {
       if (fUSD) fUSD.textContent = fmt(secUSD);
       if (fMN) fMN.textContent = fmt(secMN);
 
-    } else if (sec.tipo === 'equipo' || sec.tipo === 'maquinaria') {
-      let secUSD = 0, secMN = 0;
-      (sec.partidas || []).forEach(p => {
-        const qty = parseFloat(p.cantidad || 0), pr = parseFloat(p.precio_lista || 0),
-              m = parseFloat(p.porcentaje_mgn || 0), mon = p.moneda || 'MN';
-        const sub = qty * pr;
-        if (mon === 'USD') {
-          p.total_usd = sub * (1 + m / 100);
-          p.total_mn = p.total_usd * tc;
-        } else {
-          p.total_mn = sub * (1 + m / 100);
-          p.total_usd = tc ? p.total_mn / tc : 0;
-        }
-        secUSD += p.total_usd;
-        secMN += p.total_mn;
-
-        const elTusd = document.getElementById(`eq-tusd-${p.id}`);
-        const elTmn = document.getElementById(`eq-tmn-${p.id}`);
-        if (elTusd) elTusd.textContent = fmt(p.total_usd);
-        if (elTmn) elTmn.textContent = fmt(p.total_mn);
-      });
-      sec.subtotal_usd = secUSD;
-      sec.subtotal_mn = secMN;
-
-      const hUSD = document.getElementById(`sec-header-usd-${sec.id}`);
-      const hMN = document.getElementById(`sec-header-mn-${sec.id}`);
-      const fUSD = document.getElementById(`sec-footer-usd-${sec.id}`);
-      const fMN = document.getElementById(`sec-footer-mn-${sec.id}`);
-      if (hUSD) hUSD.textContent = fmt(secUSD);
-      if (hMN) hMN.textContent = fmt(secMN);
-      if (fUSD) fUSD.textContent = fmt(secUSD);
-      if (fMN) fMN.textContent = fmt(secMN);
     } else if (sec.codigo === 'E_MECANICO' || sec.tipo === 'e_mecanico') {
+
       let secUSD = 0, secMN = 0;
+
       (sec.partidas || []).forEach(p => {
         const qty = parseFloat(p.cantidad || 0);
         const c_mat = parseFloat(p.costo_material || 0);
         const c_mo = parseFloat(p.costo_mano_obra || 0);
         const m = parseFloat(p.porcentaje_mgn || 0);
         const mon = p.moneda || 'MN';
+
         const sub = (c_mat + c_mo) * qty;
 
         if (mon === 'USD') {
@@ -244,6 +212,7 @@ function recalcAllProjectDataTC() {
           p.total_mn = sub * (1 + m / 100);
           p.total_usd = tc ? p.total_mn / tc : 0;
         }
+
         secUSD += p.total_usd;
         secMN += p.total_mn;
 
@@ -252,6 +221,7 @@ function recalcAllProjectDataTC() {
         if (elTusd) elTusd.textContent = fmt(p.total_usd);
         if (elTmn) elTmn.textContent = fmt(p.total_mn);
       });
+
       sec.subtotal_usd = secUSD;
       sec.subtotal_mn = secMN;
 
@@ -259,6 +229,47 @@ function recalcAllProjectDataTC() {
       const hMN = document.getElementById(`sec-header-mn-${sec.id}`);
       const fUSD = document.getElementById(`sec-footer-usd-${sec.id}`);
       const fMN = document.getElementById(`sec-footer-mn-${sec.id}`);
+
+      if (hUSD) hUSD.textContent = fmt(secUSD);
+      if (hMN) hMN.textContent = fmt(secMN);
+      if (fUSD) fUSD.textContent = fmt(secUSD);
+      if (fMN) fMN.textContent = fmt(secMN);
+
+    } else if (sec.tipo === 'equipo' || sec.tipo === 'maquinaria') {
+
+      let secUSD = 0, secMN = 0;
+
+      (sec.partidas || []).forEach(p => {
+        const qty = parseFloat(p.cantidad || 0), pr = parseFloat(p.precio_lista || 0),
+              m = parseFloat(p.porcentaje_mgn || 0), mon = p.moneda || 'MN';
+
+        const sub = qty * pr;
+
+        if (mon === 'USD') {
+          p.total_usd = sub * (1 + m / 100);
+          p.total_mn = p.total_usd * tc;
+        } else {
+          p.total_mn = sub * (1 + m / 100);
+          p.total_usd = tc ? p.total_mn / tc : 0;
+        }
+
+        secUSD += p.total_usd;
+        secMN += p.total_mn;
+
+        const elTusd = document.getElementById(`eq-tusd-${p.id}`);
+        const elTmn = document.getElementById(`eq-tmn-${p.id}`);
+        if (elTusd) elTusd.textContent = fmt(p.total_usd);
+        if (elTmn) elTmn.textContent = fmt(p.total_mn);
+      });
+
+      sec.subtotal_usd = secUSD;
+      sec.subtotal_mn = secMN;
+
+      const hUSD = document.getElementById(`sec-header-usd-${sec.id}`);
+      const hMN = document.getElementById(`sec-header-mn-${sec.id}`);
+      const fUSD = document.getElementById(`sec-footer-usd-${sec.id}`);
+      const fMN = document.getElementById(`sec-footer-mn-${sec.id}`);
+
       if (hUSD) hUSD.textContent = fmt(secUSD);
       if (hMN) hMN.textContent = fmt(secMN);
       if (fUSD) fUSD.textContent = fmt(secUSD);
@@ -335,16 +346,27 @@ function renderTabs() {
 
 async function loadProject() {
   try {
+
     const r = await api(`/api/proyecto/${PID}`);
+
     projectData = r;
+
+    // <<< FALTA ESTO
+    recalcAllProjectDataTC();
+
     updateStatusBar();
     renderTabs();
     switchTab(currentTab);
+
   } catch(e) {
+
     const r2 = await api(`/api/proyecto/${PID}`).catch(async()=> await api(`/api/proyecto/${PID}`).catch(async()=>{
+
       const res = await fetch(`/api/proyecto/${PID}`);
       return res.json();
+
     }));
+
   }
 }
 
@@ -353,6 +375,7 @@ async function _load() {
   if (!r.ok) {
     const r2 = await fetch(`/api/proyecto/${PID}`);
     projectData = await r2.json();
+    
   } else {
     projectData = await r.json();
   }
@@ -404,16 +427,43 @@ function switchTab(code) {
 
 
 function updateStatusBar() {
+
   const p = projectData?.proyecto || {};
-  const pct_iva = p.porcentaje_iva !== undefined ? parseFloat(p.porcentaje_iva) : 16.00;
-  const secciones = (projectData?.secciones)||[];
-  let tmn=0,tusd=0;
-  secciones.forEach(s=>{ tmn+=parseFloat(s.subtotal_mn||0); tusd+=parseFloat(s.subtotal_usd||0); });
-  const iva=tmn*(pct_iva/100.0);
-  document.getElementById('sb-mn').textContent=fmt(tmn);
-  document.getElementById('sb-usd').textContent=fmt(tusd);
-  document.getElementById('sb-iva').textContent=fmt(iva);
-  document.getElementById('sb-total').textContent=fmt(tmn+iva);
+  const pct_iva = parseFloat(p.porcentaje_iva ?? 16);
+
+  let totalMN = 0;
+  let totalUSD = 0;
+
+  (projectData.secciones || []).forEach(sec => {
+
+    let secMN = 0;
+    let secUSD = 0;
+
+    (sec.partidas || []).forEach(partida => {
+
+      secMN += parseFloat(partida.total_mn || 0);
+      secUSD += parseFloat(partida.total_usd || 0);
+
+    });
+
+    // INSUMOS sigue usando sus subtotales
+    if (sec.codigo === "INSUMOS") {
+      secMN = parseFloat(sec.subtotal_mn || 0);
+      secUSD = parseFloat(sec.subtotal_usd || 0);
+    }
+
+    totalMN += secMN;
+    totalUSD += secUSD;
+
+  });
+
+  const iva = totalMN * pct_iva / 100;
+
+  document.getElementById("sb-mn").textContent = fmt(totalMN);
+  document.getElementById("sb-usd").textContent = fmt(totalUSD);
+  document.getElementById("sb-iva").textContent = fmt(iva);
+  document.getElementById("sb-total").textContent = fmt(totalMN + iva);
+
 }
 
 function fmtCurrency(val) {
@@ -493,16 +543,36 @@ function renderReporte(c) {
   // Filter out obsolete non-section codes like PRESE, REPORTE, CONDICIONES, LISTAS, IO, I/O
   const secs = (projectData.secciones||[]).filter(s => !['PRESE','REPORTE','CONDICIONES','LISTAS','IO','I/O'].includes(s.codigo));
   
-  let tmn = 0, tusd = 0;
-  secs.forEach(s => {
-    let s_mn = parseFloat(s.subtotal_mn||0);
-    let s_usd = parseFloat(s.subtotal_usd||0);
-    if (s.codigo === 'INSUMOS' || (s_usd === 0 && s_mn > 0)) {
-      s_usd = s_mn / tc;
-      s.subtotal_usd = s_usd;
-    }
-    tmn += s_mn;
-    tusd += s_usd;
+  let tmn = 0;
+  let tusd = 0;
+
+  secs.forEach(sec => {
+
+      let secMN = 0;
+      let secUSD = 0;
+
+      if (sec.codigo === "INSUMOS") {
+
+          secMN = parseFloat(sec.subtotal_mn || 0);
+          secUSD = parseFloat(sec.subtotal_usd || 0);
+
+      } else {
+
+          (sec.partidas || []).forEach(partida => {
+
+              secMN += parseFloat(partida.total_mn || 0);
+              secUSD += parseFloat(partida.total_usd || 0);
+
+          });
+
+          sec.subtotal_mn = secMN;
+          sec.subtotal_usd = secUSD;
+
+      }
+
+      tmn += secMN;
+      tusd += secUSD;
+
   });
 
   const pct_iva = p.porcentaje_iva !== undefined ? parseFloat(p.porcentaje_iva) : 16.00;
@@ -2023,14 +2093,35 @@ async function addPartida(seccionId, tipo) {
 
 
 async function deletePartida(pid, tipo, seccionId) {
-  if(!await askConfirm('¿Eliminar esta partida?')) return;
+  if (!await askConfirm('¿Eliminar esta partida?')) return;
+
   try {
+
     await flushPendingSave();
-    await api('/api/partidas/delete','POST',{id:pid,tipo,tipo_cambio:getTC()});
+
+    if (tipo === 'e_mecanico') {
+
+      await api('/api/partidas_mecanico/delete', 'POST', {
+        id: pid
+      });
+
+    } else {
+
+      await api('/api/partidas/delete', 'POST', {
+        id: pid,
+        tipo,
+        tipo_cambio: getTC()
+      });
+
+    }
+
     await reloadSections();
     switchTab(currentTab);
-    showToast('Partida eliminada','success');
-  } catch(e){showToast(e.message,'error');}
+    showToast('Partida eliminada', 'success');
+
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
 }
 
 async function deleteInsumosRow(id, tbl) {

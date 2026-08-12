@@ -380,6 +380,7 @@ def api_seleccionar_carpeta():
 @login_required
 def api_get_proyecto(pid):
     _update_insumos_total(pid)
+    _recalc_mecanico_totals(pid)
     proyecto = q("SELECT * FROM proyectos WHERE id=%s", (pid,), fetch="one")
     if not proyecto:
         return jsonify(error="No encontrado"), 404
