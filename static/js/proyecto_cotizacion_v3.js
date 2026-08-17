@@ -81,11 +81,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     'field-fecha','field-vencimiento','field-tipo-cambio','field-referencia','field-descripcion','field-carpeta','field-dias-vigencia'];
 
   headerFields.forEach(fid => {
-
     const el = document.getElementById(fid);
-
-    if (el) el.addEventListener('input', () => { unsavedChanges = true; debouncedSaveProject(); });
-
+    if (el) el.addEventListener('input', (e) => { 
+        if (fid === 'field-atencion') projectData.atencion = e.target.value;
+        if (fid === 'field-telefono') projectData.telefono_cliente = e.target.value;
+        if (fid === 'field-empresa') projectData.empresa_cliente = e.target.value;
+        if (fid === 'field-email') projectData.email_cliente = e.target.value;
+        if (fid === 'field-referencia') projectData.referencia = e.target.value;
+        if (fid === 'field-descripcion') projectData.descripcion_solucion = e.target.value;
+        if (fid === 'field-numero') projectData.numero_proyecto = e.target.value;
+        unsavedChanges = true; 
+        debouncedSaveProject(); 
+    });
   });
 
 
@@ -308,8 +315,7 @@ function renderTabs() {
   let visibleTabs = TABS;
   if (projectData && projectData.tipo_proyecto === 'cotizacion') {
     visibleTabs = [
-      { code: 'COTIZACION', label: 'COTIZACIÓN', color: '#16a34a', icon: 'fa-file-invoice-dollar' },
-      { code: 'CONDICIONES', label: 'CONDICIONES', color: '#546e7a', icon: 'fa-handshake' }
+      { code: 'COTIZACION', label: 'COTIZACIÓN', color: '#16a34a', icon: 'fa-file-invoice-dollar' }
     ];
   }
 
@@ -391,7 +397,8 @@ function switchTab(tabCode) {
 
 
 function renderPrese(container) {
-
+  if (!container) container = document.getElementById('tab-content');
+  if (!container) return;
   const pd = projectData || {};
 
   const subtotal = calculateSubtotalMN();
@@ -636,8 +643,8 @@ async function savePuntoToAPI(id, contenido) {
 
 
 async function deletePunto(id, tipo, prefix) {
-
-  if (!confirm('┬┐Eliminar este punto?')) return;
+  const isConfirmed = await askConfirm('¿Eliminar este punto?');
+  if (!isConfirmed) return;
 
   try {
 
@@ -656,12 +663,11 @@ async function deletePunto(id, tipo, prefix) {
 
 
 function renderReporte(container) {
-
-  if (!projectData) return;
+  if (!container) container = document.getElementById('tab-content');
+  if (!container || !projectData) return;
 
   const tc = tipoCambio();
-
-  const secciones = projectData.secciones || [];
+  const secciones = (projectData.secciones || []).filter(s => !['PRESE','REPORTE','CONDICIONES','LISTAS','IO','I/O'].includes(s.codigo));
 
 
 
@@ -1354,8 +1360,8 @@ async function saveSubSeccion(id, titulo) {
 
 
 async function deleteSubSeccion(id, seccionId) {
-
-  if (!confirm('┬┐Eliminar esta sub-secci├│n y todas sus partidas?')) return;
+  const isConfirmed = await askConfirm('¿Eliminar esta sub-sección y todas sus partidas?');
+  if (!isConfirmed) return;
 
   try {
 
@@ -1842,8 +1848,8 @@ async function addGastoEspecial(seccionId, tipo) {
 
 
 async function deleteGasto(id, seccionId) {
-
-  if (!confirm('┬┐Eliminar este gasto?')) return;
+  const isConfirmed = await askConfirm('¿Eliminar este gasto?');
+  if (!isConfirmed) return;
 
   try {
 
@@ -1995,12 +2001,16 @@ async function handleLogoUpload(event) {
     }
     await saveProjectToAPI();
     showToast('Logo actualizado exitosamente', 'success');
+    if (typeof currentTab !== 'undefined' && currentTab === 'COTIZACION') {
+      renderCotizacionTable(document.getElementById('tab-content'));
+    }
   };
   reader.readAsDataURL(file);
 }
 
-function removeLogo() {
-  if (!confirm('¿Quitar el logo de la presentación?')) return;
+async function removeLogo() {
+  const isConfirmed = await askConfirm('¿Quitar el logo de la presentación?');
+  if (!isConfirmed) return;
   projectData.logo_data = '';
   const previewContainer = document.getElementById('logo-preview-container');
   if (previewContainer) {
@@ -2162,8 +2172,8 @@ async function addIORow(seccionId) {
 
 
 async function deleteIORow(id, seccionId) {
-
-  if (!confirm('┬┐Eliminar esta fila?')) return;
+  const isConfirmed = await askConfirm('¿Eliminar esta fila?');
+  if (!isConfirmed) return;
 
   try {
 
@@ -2180,7 +2190,8 @@ async function deleteIORow(id, seccionId) {
 
 
 function renderCondiciones(container) {
-
+  if (!container) container = document.getElementById('tab-content');
+  if (!container) return;
   const condiciones = projectData.condiciones || [];
 
   const subtotal = calculateSubtotalMN();
@@ -2509,7 +2520,13 @@ function calculateSubtotalMN() {
 function updateTotals() {
   const subtotal = calculateSubtotalMN();
   const tc = tipoCambio() || 20;
-  const pctIva = projectData?.porcentaje_iva !== undefined ? parseFloat(projectData.porcentaje_iva) : 16;
+  
+  let pctIva = 16;
+  if (projectData && projectData.porcentaje_iva !== undefined && projectData.porcentaje_iva !== '') {
+    pctIva = parseFloat(projectData.porcentaje_iva);
+    if (isNaN(pctIva)) pctIva = 0;
+  }
+  
   const iva = subtotal * (pctIva / 100);
   const totalMN = subtotal + iva;
   const totalUSD = totalMN / tc;
@@ -2600,7 +2617,8 @@ async function addPartida(seccionId, tipo) {
 
 
 async function deletePartida(id, tipo, seccionId) {
-  if (!confirm('¿Eliminar esta partida?')) return;
+  const isConfirmed = await askConfirm('¿Eliminar esta partida?');
+  if (!isConfirmed) return;
 
   if (projectData?.secciones) {
     for (const sec of projectData.secciones) {
@@ -2753,8 +2771,8 @@ async function addCondicion() {
 
 
 async function deleteCondicion(id) {
-
-  if (!confirm('┬┐Eliminar esta condici├│n?')) return;
+  const isConfirmed = await askConfirm('¿Eliminar esta condición?');
+  if (!isConfirmed) return;
 
   try {
 
@@ -2797,27 +2815,31 @@ async function saveProjectToAPI() {
 
   const data = {
     id:                  projectData.id,
-    nombre_proyecto:     projectData.nombre_proyecto || '',
-    atencion:            projectData.atencion || document.getElementById('field-atencion')?.value || '',
-    telefono_cliente:    projectData.telefono_cliente || document.getElementById('field-telefono')?.value || '',
-    empresa_cliente:     projectData.empresa_cliente || document.getElementById('field-empresa')?.value || '',
-    email_cliente:       projectData.email_cliente || document.getElementById('field-email')?.value || '',
-    numero_proyecto:     projectData.numero_proyecto || '',
-    fecha_creacion:      projectData.fecha_creacion || '',
-    fecha_vencimiento:   projectData.fecha_vencimiento || '',
+    nombre_proyecto:     projectData.nombre_proyecto != null ? projectData.nombre_proyecto : '',
+    atencion:            projectData.atencion != null ? projectData.atencion : (document.getElementById('field-atencion')?.value || ''),
+    telefono_cliente:    projectData.telefono_cliente != null ? projectData.telefono_cliente : (document.getElementById('field-telefono')?.value || ''),
+    empresa_cliente:     projectData.empresa_cliente != null ? projectData.empresa_cliente : (document.getElementById('field-empresa')?.value || ''),
+    email_cliente:       projectData.email_cliente != null ? projectData.email_cliente : (document.getElementById('field-email')?.value || ''),
+    numero_proyecto:     projectData.numero_proyecto != null ? projectData.numero_proyecto : '',
+    fecha_creacion:      projectData.fecha_creacion != null ? projectData.fecha_creacion : '',
+    fecha_vencimiento:   projectData.fecha_vencimiento != null ? projectData.fecha_vencimiento : '',
     tipo_cambio_usd:     tipoCambio(),
-    referencia:          projectData.referencia || document.getElementById('field-referencia')?.value || '',
+    referencia:          projectData.referencia != null ? projectData.referencia : (document.getElementById('field-referencia')?.value || ''),
     descripcion_solucion: projectData.descripcion_solucion != null ? projectData.descripcion_solucion : '',
-    carpeta_link:        projectData.carpeta_link || '',
-    logo_data:           projectData.logo_data || '',
-    empresa_slogan:      projectData.empresa_slogan || '',
+    carpeta_link:        projectData.carpeta_link != null ? projectData.carpeta_link : '',
+    logo_data:           projectData.logo_data != null ? projectData.logo_data : '',
+    empresa_slogan:      projectData.empresa_slogan != null ? projectData.empresa_slogan : '',
     dias_vigencia:       projectData.dias_vigencia || 30,
     tiempo_entrega:      projectData.tiempo_entrega || '',
     condiciones_pago:    projectData.condiciones_pago || '',
     nota_aclaracion:     projectData.nota_aclaracion || '',
-    nota_bullet_1:       projectData.nota_bullet_1 || '',
-    nota_bullet_2:       projectData.nota_bullet_2 || '',
-    nota_bullet_3:       projectData.nota_bullet_3 || ''
+    nota_bullet_1:       projectData.notas_bullets?.[0] != null ? projectData.notas_bullets[0] : (projectData.nota_bullet_1 || ''),
+    nota_bullet_2:       projectData.notas_bullets?.[1] != null ? projectData.notas_bullets[1] : (projectData.nota_bullet_2 || ''),
+    nota_bullet_3:       projectData.notas_bullets?.[2] != null ? projectData.notas_bullets[2] : (projectData.nota_bullet_3 || ''),
+    nota_bullet_4:       projectData.notas_bullets?.[3] != null ? projectData.notas_bullets[3] : (projectData.nota_bullet_4 || ''),
+    nota_bullet_5:       projectData.notas_bullets?.[4] != null ? projectData.notas_bullets[4] : (projectData.nota_bullet_5 || ''),
+    notas_json:          JSON.stringify(projectData.notas_bullets || []),
+    porcentaje_iva:      projectData.porcentaje_iva !== undefined ? projectData.porcentaje_iva : 16
   };
 
   try { 
@@ -2863,9 +2885,11 @@ async function applyUSDConversion() {
 
 
 
-function goBack() {
-
-  if (unsavedChanges && !confirm('Hay cambios sin guardar. ┬┐Deseas salir?')) return;
+async function goBack() {
+  if (unsavedChanges) {
+    const isConfirmed = await askConfirm('Hay cambios sin guardar. ¿Deseas salir?');
+    if (!isConfirmed) return;
+  }
 
   window.location.href = '/dashboard';
 
@@ -2905,18 +2929,26 @@ function escapeHtml(str) {
 function getNotasBullets() {
   if (!projectData) return [];
   if (!projectData.notas_bullets || !Array.isArray(projectData.notas_bullets)) {
-    projectData.notas_bullets = [
-      projectData.nota_bullet_1 || 'Tiempo de Entrega: Los días de entrega serán considerados a partir de la recepción de su orden de compra. Este tiempo de entrega es SALVO PREVIA VENTA.',
-      projectData.nota_bullet_2 || 'Si esta cotización es en pesos y el tipo de cambio sufre una variación mayor al 2%, esta cotización pierde su validez.',
-      projectData.nota_bullet_3 || 'Vigencia: 30 días para cotizaciones en Pesos y Dólares.'
-    ];
+    projectData.notas_bullets = [];
+    if (projectData.notas_json) {
+      try {
+        projectData.notas_bullets = JSON.parse(projectData.notas_json);
+      } catch(e) {}
+    }
+    if (projectData.notas_bullets.length === 0) {
+      projectData.notas_bullets.push(projectData.nota_bullet_1 != null ? projectData.nota_bullet_1 : 'Tiempo de Entrega: Los días de entrega serán considerados a partir de la recepción de su orden de compra. Este tiempo de entrega es SALVO PREVIA VENTA.');
+      projectData.notas_bullets.push(projectData.nota_bullet_2 != null ? projectData.nota_bullet_2 : 'Si esta cotización es en pesos y el tipo de cambio sufre una variación mayor al 2%, esta cotización pierde su validez.');
+      projectData.notas_bullets.push(projectData.nota_bullet_3 != null ? projectData.nota_bullet_3 : 'Vigencia: 30 días para cotizaciones en Pesos y Dólares.');
+      if (projectData.nota_bullet_4) projectData.notas_bullets.push(projectData.nota_bullet_4);
+      if (projectData.nota_bullet_5) projectData.notas_bullets.push(projectData.nota_bullet_5);
+    }
   }
   return projectData.notas_bullets;
 }
 
 function addCustomNota() {
   const bullets = getNotasBullets();
-  bullets.push('Nueva nota adicional...');
+  bullets.push('');
   unsavedChanges = true;
   debouncedSaveProject();
   renderCotizacionTable(document.getElementById('tab-content'));
@@ -2949,7 +2981,11 @@ function renderCotizacionTable(container) {
 
   const partidas = seccion.partidas || [];
   const tc = tipoCambio();
-  const pctIva = projectData?.porcentaje_iva !== undefined ? parseFloat(projectData.porcentaje_iva) : 16;
+  let pctIva = 16;
+  if (projectData && projectData.porcentaje_iva !== undefined && projectData.porcentaje_iva !== '') {
+    pctIva = parseFloat(projectData.porcentaje_iva);
+    if (isNaN(pctIva)) pctIva = 0;
+  }
 
   let rowsHtml = '';
   partidas.forEach((p, idx) => {
@@ -2995,8 +3031,11 @@ function renderCotizacionTable(container) {
       <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; font-family:var(--font-body);">
         <div style="flex:1; max-width:65%;">
           <div style="display:flex; gap:15px; align-items:center; margin-bottom:15px;">
-            <img src="${projectData.logo_data || '/static/img/logo.png'}" style="height:75px; object-fit:contain;" alt="DEMATIQ">
-            <div style="font-size:11px; font-weight:500; color:#334155; line-height:1.4; width:260px; white-space:pre-wrap;">${escapeHtml(projectData.empresa_slogan || defaultSlogans)}</div>
+            <input type="file" id="cot-logo-file-input" accept="image/png,image/jpeg,image/jpg" style="display:none;" onclick="event.stopPropagation();" onchange="handleLogoUpload(event)">
+            <div style="position:relative; display:inline-block; cursor:pointer;" onclick="document.getElementById('cot-logo-file-input').click();" title="Haz clic para cambiar logo">
+              <img src="${projectData.logo_data || '/static/img/logo.png'}" style="height:75px; object-fit:contain;" alt="DEMATIQ">
+            </div>
+            <textarea class="excel-input-inline" style="font-size:11px; font-weight:500; color:#334155; line-height:1.4; width:260px; height:75px; resize:vertical;" oninput="projectData.empresa_slogan=this.value; unsavedChanges=true; debouncedSaveProject();" placeholder="Slogan / Datos de empresa...">${escapeHtml(projectData.empresa_slogan || defaultSlogans)}</textarea>
           </div>
           <div style="font-size:12px; color:#334155; line-height:1.8;">
             <div><strong>Atención:</strong> <input class="excel-input-inline" style="width:70%;" value="${escapeAttr(projectData.atencion || '')}" oninput="projectData.atencion=this.value; unsavedChanges=true; debouncedSaveProject();"></div>
@@ -3057,7 +3096,7 @@ function renderCotizacionTable(container) {
           </tr>
           <tr>
             <td style="padding:4px; font-weight:600; color:#475569;">
-              IVA (<input class="excel-input-inline" type="number" style="width:45px; text-align:center; font-weight:bold;" value="${pctIva}" oninput="projectData.porcentaje_iva=parseFloat(this.value)||0; updateTotals(); unsavedChanges=true; debouncedSaveProject();">%)
+              IVA (<input class="excel-input-inline" type="number" style="width:45px; text-align:center; font-weight:bold;" value="${pctIva}" oninput="projectData.porcentaje_iva=this.value; updateTotals(); unsavedChanges=true; debouncedSaveProject();">%)
             </td>
             <td style="padding:4px; font-weight:bold; color:#1e293b;" id="cot-iva">${ivaStr}</td>
           </tr>
@@ -3137,6 +3176,9 @@ async function addCotizacionPartida(seccionId) {
     });
     if (res && res.id) {
       newPartida.id = res.id;
+      if (currentTab === 'COTIZACION') {
+        renderCotizacionTable(document.getElementById('tab-content'));
+      }
     }
   } catch (err) {
     showToast('Error al agregar en servidor: ' + err.message, 'error');

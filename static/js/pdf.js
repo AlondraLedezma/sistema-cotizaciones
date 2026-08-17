@@ -47,6 +47,7 @@ async function confirmGeneratePDF() {
 
   try {
     showLoading();
+    await new Promise(r => setTimeout(r, 100));
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'letter');
@@ -407,7 +408,23 @@ async function confirmGeneratePDF() {
     }
 
     const filename = 'Cotizacion_' + (projectData.numero_proyecto || 'SN') + '.pdf';
-    doc.save(filename);
+    
+    if (window.pywebview) {
+        const b64 = doc.output('datauristring');
+        hideLoading(); // Hide spinner before native dialog opens
+        try {
+            const res = await apiCall('/api/pdf/save_base64', 'POST', { pdf_data: b64, filename: filename, default_dir: projectData?.carpeta_link || '' });
+            if (res.canceled) {
+                return;
+            }
+        } catch (e) {
+            console.error('Error saving via backend:', e);
+            doc.save(filename); // fallback
+        }
+    } else {
+        hideLoading();
+        doc.save(filename);
+    }
 
     hideLoading();
     showToast('PDF generado exitosamente', 'success');
@@ -423,6 +440,7 @@ async function confirmGeneratePDF() {
 async function generateCotizacionPDF() {
   try {
     showLoading();
+    await new Promise(r => setTimeout(r, 100));
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'letter');
@@ -700,7 +718,23 @@ async function generateCotizacionPDF() {
     y += doc.splitTextToSize(`Nota : ${notaAclaracion}`, contentWidth).length * 3.8 + 6;
 
     const filename = `Cotizacion_${projectData.numero_proyecto || 'SN'}.pdf`;
-    doc.save(filename);
+    
+    if (window.pywebview) {
+        const b64 = doc.output('datauristring');
+        hideLoading(); // Hide spinner before native dialog opens
+        try {
+            const res = await apiCall('/api/pdf/save_base64', 'POST', { pdf_data: b64, filename: filename, default_dir: projectData?.carpeta_link || '' });
+            if (res.canceled) {
+                return;
+            }
+        } catch (e) {
+            console.error('Error saving via backend:', e);
+            doc.save(filename); // fallback
+        }
+    } else {
+        hideLoading();
+        doc.save(filename);
+    }
 
     hideLoading();
     showToast('PDF generado exitosamente', 'success');

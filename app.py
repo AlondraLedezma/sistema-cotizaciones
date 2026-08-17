@@ -192,13 +192,21 @@ def api_stats():
 @login_required
 def api_proyectos():
     search = request.args.get("q", "")
+    select_cols = """id, numero_proyecto, nombre_proyecto, empresa_cliente, contacto_cliente, 
+                     telefono_cliente, email_cliente, atencion, referencia, referencia_id, 
+                     descripcion_solucion, fecha_creacion, fecha_vencimiento, tipo_cambio_usd, 
+                     subtotal_mn, iva, total_mn, total_usd, total_letras, carpeta_link, 
+                     usuario_id, clave_eliminacion, created_at, updated_at, tipo_proyecto, 
+                     tiempo_entrega, condiciones_pago, porcentaje_iva, factor_insumos, 
+                     empresa_slogan, dias_vigencia, nota_bullet_1, nota_bullet_2, 
+                     nota_bullet_3, nota_bullet_4, nota_bullet_5, nota_aclaracion"""
     if search:
-        rows = q("""SELECT * FROM proyectos WHERE nombre_proyecto LIKE %s
-                    OR empresa_cliente LIKE %s OR numero_proyecto LIKE %s
-                    ORDER BY created_at DESC""",
+        rows = q(f"SELECT {select_cols} FROM proyectos WHERE nombre_proyecto LIKE %s "
+                 f"OR empresa_cliente LIKE %s OR numero_proyecto LIKE %s "
+                 f"ORDER BY created_at DESC",
                  (f"%{search}%", f"%{search}%", f"%{search}%"))
     else:
-        rows = q("SELECT * FROM proyectos ORDER BY created_at DESC")
+        rows = q(f"SELECT {select_cols} FROM proyectos ORDER BY created_at DESC")
     return jsonify(data=list(rows))
 
 @app.route("/api/proyectos/create", methods=["POST"])
@@ -354,7 +362,10 @@ def api_update_proyecto():
           atencion=%s,referencia=%s,descripcion_solucion=%s,
           fecha_creacion=%s,fecha_vencimiento=%s,tipo_cambio_usd=%s,
           carpeta_link=%s,tiempo_entrega=%s,condiciones_pago=%s,
-          porcentaje_iva=%s,dias_vigencia=%s,logo_data=%s,empresa_slogan=%s WHERE id=%s""",
+          porcentaje_iva=%s,dias_vigencia=%s,logo_data=%s,empresa_slogan=%s,
+          nota_bullet_1=%s,nota_bullet_2=%s,nota_bullet_3=%s,
+          nota_bullet_4=%s,nota_bullet_5=%s,nota_aclaracion=%s,
+          notas_json=%s WHERE id=%s""",
        (d.get("nombre_proyecto"), d.get("empresa_cliente"),
         d.get("contacto_cliente"), d.get("telefono_cliente"),
         d.get("email_cliente"), d.get("atencion"), d.get("referencia"),
@@ -362,7 +373,10 @@ def api_update_proyecto():
         d.get("fecha_vencimiento"), d.get("tipo_cambio_usd") or 20,
         d.get("carpeta_link"), d.get("tiempo_entrega"), d.get("condiciones_pago"),
         d.get("porcentaje_iva") if d.get("porcentaje_iva") is not None else curr_iva,
-        d.get("dias_vigencia"), d.get("logo_data"), d.get("empresa_slogan"), pid))
+        d.get("dias_vigencia"), d.get("logo_data"), d.get("empresa_slogan"),
+        d.get("nota_bullet_1"), d.get("nota_bullet_2"), d.get("nota_bullet_3"),
+        d.get("nota_bullet_4"), d.get("nota_bullet_5"), d.get("nota_aclaracion"),
+        d.get("notas_json"), pid))
     tc_new = float(d.get("tipo_cambio_usd") or 20)
     recalc_project_currency_conversions(pid, tc_new)
 
@@ -674,6 +688,53 @@ def api_update_cuenta():
            (hash_pw(d["new_password"]), session["user_id"]))
     return jsonify(ok=True)
 
+@app.route("/api/pdf/save_base64", methods=["POST"])
+@login_required
+def api_pdf_save_base64():
+    d = request.json or {}
+    b64data = d.get("pdf_data")
+    filename = d.get("filename", "documento.pdf")
+    if not b64data:
+        return jsonify(ok=False, error="No pdf data provided")
+    
+    try:
+        import os
+        import base64
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        
+        initial_dir = d.get("default_dir", "")
+        kwargs = {
+            "parent": root,
+            "title": "Guardar PDF",
+            "initialfile": filename,
+            "defaultextension": ".pdf",
+            "filetypes": [("Archivos PDF", "*.pdf")]
+        }
+        if initial_dir and os.path.isdir(initial_dir):
+            kwargs["initialdir"] = initial_dir
+            
+        filepath = filedialog.asksaveasfilename(**kwargs)
+        root.destroy()
+        
+        if not filepath:
+            return jsonify(ok=False, canceled=True)
+            
+        # Optional: remove data:application/pdf;base64, prefix if present
+        if "," in b64data:
+            b64data = b64data.split(",")[1]
+            
+        pdf_bytes = base64.b64decode(b64data)
+        with open(filepath, "wb") as f:
+            f.write(pdf_bytes)
+            
+        return jsonify(ok=True, path=filepath)
+    except Exception as e:
+        return jsonify(ok=False, error=str(e)), 500
+
 @app.route("/api/proyecto/<int:pid>/pdf")
 @login_required
 def api_pdf(pid):
@@ -787,7 +848,13 @@ def api_delete_lista():
     return jsonify(ok=True)
 
 # ─── INSUMOS HELPERS ────────────────────────────────────────────────────────────
+_insumos_tables_ensured = False
+
 def _ensure_insumos_tables():
+    global _insumos_tables_ensured
+    if _insumos_tables_ensured:
+        return
+    _insumos_tables_ensured = True
     try:
         ex("ALTER TABLE `listas_predefinidas` ADD COLUMN `factor` float DEFAULT 1.2")
     except Exception: pass
@@ -1667,208 +1734,57 @@ def _build_pdf(proyecto, secciones, condiciones, moneda="MN", subtemas=None, sec
                     pdf.ln(2)
                 pdf.ln(1)
 
-        # Render Selected Seccions (Tables of Partidas)
+        # Render Selected Seccions Summary (Replaces detailed tables)
         tc = float(proyecto.get("tipo_cambio_usd") or 20)
+        
+        # Check if there's any active section to display
+        active_sections_to_show = []
         for sec in secciones:
             if sec["codigo"] in ("PRESE", "REPORTE", "CONDICIONES", "LISTAS"):
                 continue
             if f"sec_{sec['id']}" in secciones_activas:
+                active_sections_to_show.append(sec)
+                
+        if active_sections_to_show:
+            # Prevent table from splitting across pages
+            row_h = 9
+            required_height = row_h + (len(active_sections_to_show) * row_h)
+            if pdf.get_y() + required_height > 265:
+                pdf.add_page()
+            else:
                 ensure_page()
+            
+            # Draw Summary Table Header
+            pdf.set_fill_color(248, 250, 252) # Very light gray for header
+            pdf.set_text_color(*DARK)
+            pdf.set_font("Helvetica", "B", 8.5)
+            pdf.set_draw_color(226, 232, 240) # Light border
+            
+            pdf.cell(106, row_h, "  SECCIÓN", align="L", fill=True, border="T B")
+            pdf.cell(40, row_h, "TOTAL MN", align="R", fill=True, border="T B")
+            pdf.cell(40, row_h, "TOTAL USD", align="R", fill=True, border="T B")
+            pdf.ln()
+            
+            # Draw Rows
+            for idx, sec in enumerate(active_sections_to_show):
+                pdf.set_font("Helvetica", "B", 8)
+                pdf.set_text_color(30, 58, 138) # BLUE dot
+                pdf.cell(5, row_h, chr(149), align="R", border="B") 
                 
-                # Section Title Banner (exactly 186mm wide to match the tables)
-                pdf.set_fill_color(*BLUE)
-                pdf.set_text_color(255, 255, 255)
-                pdf.set_font("Helvetica", "B", 9.5)
-                pdf.cell(186, 7, f"  {sec['titulo'].upper()}", ln=True, fill=True)
-                pdf.ln(2)
+                pdf.set_text_color(*DARK)
+                pdf.cell(101, row_h, f"  {sec['titulo'].upper()}", align="L", border="B")
                 
-                if sec["codigo"] == "INSUMOS":
-                    # Custom summary table for Insumos
-                    pid = proyecto["id"]
-                    cd_rows = q("SELECT personas, viajes_cd, autobus, taxis, autocasetas, gasolina, renta_auto, dias FROM insumos_viaticos_cd WHERE proyecto_id=%s", (pid,))
-                    en_rows = q("SELECT personas, dias, alimentos, hotel, transporte, renta_coche, gasolina, dias_auto, meses, renta_casa FROM insumos_viaticos_en_cd WHERE proyecto_id=%s", (pid,))
-                    tr_rows = q("SELECT costo, no_veces FROM insumos_transporte WHERE proyecto_id=%s", (pid,))
-                    ga_rows = q("SELECT costo FROM insumos_gastos_admin WHERE proyecto_id=%s", (pid,))
-                    imss_rows = q("SELECT personas, costo_dia, dias FROM insumos_imss WHERE proyecto_id=%s", (pid,))
-                    
-                    lf = q("SELECT valor, factor FROM listas_predefinidas WHERE seccion_codigo='INSUMOS'")
-                    fm = {r["valor"]: float(r.get("factor") or 1.2) for r in lf}
-                    f_cd   = fm.get("FACTOR VIATICOS A CD", 1.2)
-                    f_af   = fm.get("FACTOR AUTO FORANEO", 1.2)
-                    f_en   = fm.get("FACTOR VIATICOS EN CD", 1.2)
-                    f_al   = fm.get("FACTOR AUTO LOCAL", 1.2)
-                    f_ho   = fm.get("FACTOR HOSPEDAJE", 1.2)
-                    f_tr   = fm.get("FACTOR TRANSPORTE", 1.2)
-                    f_ga   = fm.get("FACTOR GASTOS ADMIN", 1.2)
-                    f_imss = fm.get("FACTOR IMSS", 1.2)
-
-                    sum_cd1 = sum((float(r.get("personas") or 0) * float(r.get("viajes_cd") or 0) * (float(r.get("autobus") or 0) + float(r.get("taxis") or 0))) for r in cd_rows)
-                    sum_cd2 = sum(((float(r.get("renta_auto") or 0) + float(r.get("autocasetas") or 0) + float(r.get("gasolina") or 0)) * float(r.get("dias") or 0)) for r in cd_rows)
-                    
-                    sum_en1 = sum((float(r.get("personas") or 0) * float(r.get("dias") or 0) * (float(r.get("alimentos") or 0) + float(r.get("hotel") or 0) + float(r.get("transporte") or 0))) for r in en_rows)
-                    sum_auto = sum(((float(r.get("renta_coche") or 0) + float(r.get("gasolina") or 0)) * float(r.get("dias_auto") or 0)) for r in en_rows)
-                    sum_casa = sum((float(r.get("renta_casa") or 0) * float(r.get("meses") or 0)) for r in en_rows)
-
-                    sum_tr = sum((float(r.get("costo") or 0) * float(r.get("no_veces") or 0)) for r in tr_rows)
-                    sum_ga = sum(float(r.get("costo") or 0) for r in ga_rows)
-                    sum_imss = sum((float(r.get("personas") or 0) * float(r.get("costo_dia") or 0) * float(r.get("dias") or 0)) for r in imss_rows)
-
-                    v_cd = (sum_cd1 * f_cd) + (sum_cd2 * f_af)
-                    v_for = (sum_en1 * f_en) + (sum_auto * f_al) + (sum_casa * f_ho)
-                    trans = sum_tr * f_tr
-                    g_adm = sum_ga * f_ga
-                    s_social = sum_imss * f_imss
-                    
-                    # Columns
-                    pdf.set_fill_color(241, 245, 249)
-                    pdf.set_text_color(*DARK)
-                    pdf.set_font("Helvetica", "B", 8)
-                    widths = [106, 40, 40]
-                    headers = ["CONCEPTO DE INSUMOS", "TOTAL M.N.", "TOTAL USD"]
-                    for w, h in zip(widths, headers):
-                        pdf.cell(w, 6, h, border=1, align="C", fill=True)
-                    pdf.ln()
-                    
-                    pdf.set_font("Helvetica", "", 8)
-                    concepts = [
-                        ("VIÁTICOS TRABAJOS A CIUDAD", v_cd),
-                        ("VIÁTICOS INDUSTRIALES LOCALES/FORÁNEOS", v_for),
-                        ("TRANSPORTACIÓN ESPECIAL Y FLETES", trans),
-                        ("GASTOS ADMINISTRATIVOS Y OTROS", g_adm),
-                        ("SEGURO SOCIAL (IMSS)", s_social)
-                    ]
-                    
-                    for name, val_mn in concepts:
-                        val_usd = val_mn / tc if tc else 0
-                        pdf.cell(widths[0], 5, name, border=1, align="L")
-                        pdf.cell(widths[1], 5, f"$ {val_mn:,.2f}", border=1, align="R")
-                        pdf.cell(widths[2], 5, f"$ {val_usd:,.2f}", border=1, align="R")
-                        pdf.ln()
-                        
-                    # Total Section row
-                    pdf.set_font("Helvetica", "B", 8)
-                    total_insumos_mn = sum(val for _, val in concepts)
-                    total_insumos_usd = total_insumos_mn / tc if tc else 0
-                    pdf.cell(widths[0], 5, "TOTAL DE INSUMOS", border=1, align="R")
-                    pdf.cell(widths[1], 5, f"$ {total_insumos_mn:,.2f}", border=1, align="R")
-                    pdf.cell(widths[2], 5, f"$ {total_insumos_usd:,.2f}", border=1, align="R")
-                    pdf.ln(5)
-                elif sec["tipo"] == "mano_obra":
-                    # Column headers (Sum of widths = 186)
-                    pdf.set_fill_color(241, 245, 249)
-                    pdf.set_text_color(*DARK)
-                    pdf.set_font("Helvetica", "B", 7)
-                    widths = [8, 62, 14, 10, 15, 15, 12, 25, 25]
-                    headers = ["PDA", "INGENIERÍA Y DESARROLLO", "HORAS/MO", "DÍAS", "C/HORA USD", "SUBTOTAL", "% MGN", "TOT USD", "TOT MN"]
-                    for w, h in zip(widths, headers):
-                        pdf.cell(w, 6, h, border=1, align="C", fill=True)
-                    pdf.ln()
-                    
-                    # Row data
-                    pdf.set_font("Helvetica", "", 7.5)
-                    for p in sec.get("partidas", []):
-                        sub = (float(p.get("horas_mo") or 0) * float(p.get("dias_trabajo") or 0) * float(p.get("costo_hora_usd") or 0))
-                        mgn = float(p.get("porcentaje_mgn") or 0)
-                        total_usd = sub * (1 + mgn/100.0)
-                        total_mn = total_usd * tc
-                        
-                        pdf.cell(widths[0], 5, str(p.get("numero_partida") or ""), border=1, align="C")
-                        pdf.cell(widths[1], 5, fit_text(pdf, p.get("descripcion") or "", widths[1]), border=1)
-                        pdf.cell(widths[2], 5, f"{float(p.get('horas_mo') or 0):g}", border=1, align="C")
-                        pdf.cell(widths[3], 5, f"{float(p.get('dias_trabajo') or 0):g}", border=1, align="C")
-                        pdf.cell(widths[4], 5, f"$ {float(p.get('costo_hora_usd') or 0):,.2f}", border=1, align="R")
-                        pdf.cell(widths[5], 5, f"$ {sub:,.2f}", border=1, align="R")
-                        pdf.cell(widths[6], 5, f"{mgn:g}%", border=1, align="C")
-                        pdf.cell(widths[7], 5, f"$ {total_usd:,.2f}", border=1, align="R")
-                        pdf.cell(widths[8], 5, f"$ {total_mn:,.2f}", border=1, align="R")
-                        pdf.ln()
-                    # Section totals row
-                    pdf.set_font("Helvetica", "B", 8)
-                    pdf.cell(sum(widths[:-2]), 5, "TOTAL SECCIÓN", border=1, align="R")
-                    pdf.cell(widths[-2], 5, f"$ {float(sec.get('subtotal_usd') or 0):,.2f}", border=1, align="R")
-                    pdf.cell(widths[-1], 5, f"$ {float(sec.get('subtotal_mn') or 0):,.2f}", border=1, align="R")
-                    pdf.ln(5)
-                elif sec["codigo"] == "E_MECANICO":
-                    # Custom table for E_MECANICO (Equipo Mecánico)
-                    pdf.set_fill_color(241, 245, 249)
-                    pdf.set_text_color(*DARK)
-                    pdf.set_font("Helvetica", "B", 6)
-                    widths = [6, 38, 18, 18, 13, 13, 7, 8, 14, 9, 21, 21]
-                    headers = ["PDA", "DESCRIPCIÓN PIEZA", "MATERIAL", "MANO DE OBRA", "C. MAT", "C. MO", "QTY", "MON.", "SUBTOTAL", "% MGN", "TOT MN", "TOT USD"]
-                    for w, h in zip(widths, headers):
-                        pdf.cell(w, 6, h, border=1, align="C", fill=True)
-                    pdf.ln()
-                    
-                    pdf.set_font("Helvetica", "", 7)
-                    for p in sec.get("partidas", []):
-                        qty = float(p.get("cantidad") or 0)
-                        c_mat = float(p.get("costo_material") or 0)
-                        c_mo = float(p.get("costo_mano_obra") or 0)
-                        sub = (c_mat + c_mo) * qty
-                        mgn = float(p.get("porcentaje_mgn") or 0)
-                        mon = p.get("moneda") or "MN"
-                        tot_mn = float(p.get("total_mn") or 0)
-                        tot_usd = float(p.get("total_usd") or 0)
-                        
-                        pdf.cell(widths[0], 5, str(p.get("numero_partida") or ""), border=1, align="C")
-                        pdf.cell(widths[1], 5, fit_text(pdf, p.get("descripcion_pieza") or "", widths[1]), border=1)
-                        pdf.cell(widths[2], 5, fit_text(pdf, p.get("material") or "", widths[2]), border=1)
-                        pdf.cell(widths[3], 5, fit_text(pdf, p.get("mano_obra") or "", widths[3]), border=1)
-                        pdf.cell(widths[4], 5, f"$ {c_mat:,.2f}", border=1, align="R")
-                        pdf.cell(widths[5], 5, f"$ {c_mo:,.2f}", border=1, align="R")
-                        pdf.cell(widths[6], 5, f"{qty:g}", border=1, align="C")
-                        pdf.cell(widths[7], 5, mon, border=1, align="C")
-                        pdf.cell(widths[8], 5, f"$ {sub:,.2f}", border=1, align="R")
-                        pdf.cell(widths[9], 5, f"{mgn:g}%", border=1, align="C")
-                        pdf.cell(widths[10], 5, f"$ {tot_mn:,.2f}", border=1, align="R")
-                        pdf.cell(widths[11], 5, f"$ {tot_usd:,.2f}", border=1, align="R")
-                        pdf.ln()
-                    # Section totals row
-                    pdf.set_font("Helvetica", "B", 8)
-                    pdf.cell(sum(widths[:-2]), 5, "TOTAL SECCIÓN", border=1, align="R")
-                    pdf.cell(widths[-2], 5, f"$ {float(sec.get('subtotal_mn') or 0):,.2f}", border=1, align="R")
-                    pdf.cell(widths[-1], 5, f"$ {float(sec.get('subtotal_usd') or 0):,.2f}", border=1, align="R")
-                    pdf.ln(5)
-                else:
-                    # Column headers (Sum of widths = 186)
-                    pdf.set_fill_color(241, 245, 249)
-                    pdf.set_text_color(*DARK)
-                    pdf.set_font("Helvetica", "B", 7)
-                    widths = [8, 48, 16, 16, 8, 14, 8, 15, 9, 22, 22]
-                    headers = ["PDA", "DESCRIPCIÓN", "MARCA", "MODELO", "QTY", "PRECIO", "MON.", "SUBTOTAL", "% MGN", "TOT MN", "TOT USD"]
-                    for w, h in zip(widths, headers):
-                        pdf.cell(w, 6, h, border=1, align="C", fill=True)
-                    pdf.ln()
-                    
-                    # Row data
-                    pdf.set_font("Helvetica", "", 7.5)
-                    for p in sec.get("partidas", []):
-                        qty = float(p.get("cantidad") or 0)
-                        price = float(p.get("precio_lista") or 0)
-                        sub = qty * price
-                        mgn = float(p.get("porcentaje_mgn") or 0)
-                        mon = p.get("moneda") or "MN"
-                        tot_mn = float(p.get("total_mn") or 0)
-                        tot_usd = float(p.get("total_usd") or 0)
-                        
-                        pdf.cell(widths[0], 5, str(p.get("numero_partida") or ""), border=1, align="C")
-                        pdf.cell(widths[1], 5, fit_text(pdf, p.get("descripcion") or "", widths[1]), border=1)
-                        pdf.cell(widths[2], 5, fit_text(pdf, p.get("marca") or "", widths[2]), border=1)
-                        pdf.cell(widths[3], 5, fit_text(pdf, p.get("modelo") or "", widths[3]), border=1)
-                        pdf.cell(widths[4], 5, f"{qty:g}", border=1, align="C")
-                        pdf.cell(widths[5], 5, f"$ {price:,.2f}", border=1, align="R")
-                        pdf.cell(widths[6], 5, mon, border=1, align="C")
-                        pdf.cell(widths[7], 5, f"$ {sub:,.2f}", border=1, align="R")
-                        pdf.cell(widths[8], 5, f"{mgn:g}%", border=1, align="C")
-                        pdf.cell(widths[9], 5, f"$ {tot_mn:,.2f}", border=1, align="R")
-                        pdf.cell(widths[10], 5, f"$ {tot_usd:,.2f}", border=1, align="R")
-                        pdf.ln()
-                    # Section totals row
-                    pdf.set_font("Helvetica", "B", 8)
-                    pdf.cell(sum(widths[:-2]), 5, "TOTAL SECCIÓN", border=1, align="R")
-                    pdf.cell(widths[-2], 5, f"$ {float(sec.get('subtotal_mn') or 0):,.2f}", border=1, align="R")
-                    pdf.cell(widths[-1], 5, f"$ {float(sec.get('subtotal_usd') or 0):,.2f}", border=1, align="R")
-                    pdf.ln(5)
+                tot_mn = float(sec.get("subtotal_mn") or 0)
+                tot_usd = float(sec.get("subtotal_usd") or 0)
+                
+                pdf.cell(40, row_h, f"${tot_mn:,.2f}", align="R", border="B")
+                
+                pdf.set_text_color(37, 99, 235) # Blue text for USD
+                pdf.cell(40, row_h, f"${tot_usd:,.2f}  ", align="R", border="B")
+                pdf.ln()
+                
+            pdf.set_text_color(*DARK)
+            pdf.ln(6)
 
         # Calculate totals from ALL sections of the project
         subtotal_mn = 0

@@ -237,6 +237,47 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+function askConfirm(message, title = 'Confirmar Acción') {
+  return new Promise((resolve) => {
+    let overlay = document.getElementById('confirm-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'confirm-overlay';
+      overlay.className = 'modal-overlay';
+      overlay.innerHTML = `
+        <div class="modal" style="max-width: 400px; text-align: center;">
+          <h2 class="modal-title" id="confirm-title" style="justify-content: center;"><i class="fas fa-question-circle" style="color:var(--primary); margin-right:8px;"></i><span>Confirmar</span></h2>
+          <p class="modal-subtitle" id="confirm-msg" style="margin: 15px 0 25px 0; font-size: 15px;"></p>
+          <div class="modal-actions" style="justify-content: center; gap: 15px;">
+            <button class="btn btn-ghost" id="confirm-btn-cancel">Cancelar</button>
+            <button class="btn btn-primary" id="confirm-btn-ok">Aceptar</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+    }
+    
+    document.getElementById('confirm-title').querySelector('span').textContent = title;
+    document.getElementById('confirm-msg').textContent = message;
+    
+    const btnOk = document.getElementById('confirm-btn-ok');
+    const btnCancel = document.getElementById('confirm-btn-cancel');
+    
+    const cleanup = () => {
+      overlay.classList.remove('active');
+      document.body.style.overflow = '';
+      btnOk.onclick = null;
+      btnCancel.onclick = null;
+    };
+    
+    btnOk.onclick = () => { cleanup(); resolve(true); };
+    btnCancel.onclick = () => { cleanup(); resolve(false); };
+    
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  });
+}
+
 function animateCounter(element, target, duration = 1000, isCurrency = false) {
   const startTime = performance.now();
   const startValue = 0;
