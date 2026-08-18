@@ -260,13 +260,13 @@ async function confirmGeneratePDF() {
         y += 6;
 
         if (seccion.tipo === 'mano_obra') {
-          const tableBody = (seccion.partidas || []).map(p => {
+          const tableBody = (seccion.partidas || []).map((p, i) => {
             const subtotal = (parseFloat(p.horas_mo) || 0) * (parseFloat(p.dias_trabajo) || 0) * (parseFloat(p.costo_hora_usd) || 0);
             const mgn = parseFloat(p.porcentaje_mgn) || 0;
             const totalUSD = subtotal * (1 + mgn / 100);
             const totalMN = totalUSD * (parseFloat(projectData.tipo_cambio) || 20);
             return [
-              p.numero_partida || '', p.descripcion || '', p.horas_mo || '', p.dias_trabajo || '',
+              i + 1, p.descripcion || '', p.horas_mo || '', p.dias_trabajo || '',
               formatCurrency(p.costo_hora_usd), formatCurrency(subtotal),
               p.porcentaje_mgn ? p.porcentaje_mgn + '%' : '',
               formatCurrency(totalUSD), formatCurrency(totalMN)
@@ -290,7 +290,7 @@ async function confirmGeneratePDF() {
             alternateRowStyles: { fillColor: [240, 245, 250] }
           });
         } else {
-          const tableBody = (seccion.partidas || []).map(p => {
+          const tableBody = (seccion.partidas || []).map((p, i) => {
             const qty = parseFloat(p.cantidad) || 0;
             const precio = parseFloat(p.precio_lista) || 0;
             const subtotal = qty * precio;
@@ -301,7 +301,7 @@ async function confirmGeneratePDF() {
             if (moneda === 'USD') { totalUSD = subtotal * (1 + mgn / 100); totalMN = totalUSD * tc; }
             else { totalMN = subtotal * (1 + mgn / 100); totalUSD = totalMN / tc; }
             return [
-              p.numero_partida || '', p.descripcion || '', p.marca || '', p.modelo || '',
+              i + 1, p.descripcion || '', p.marca || '', p.modelo || '',
               p.cantidad || '', formatCurrency(p.precio_lista), moneda,
               formatCurrency(subtotal), p.porcentaje_mgn ? p.porcentaje_mgn + '%' : '',
               formatCurrency(totalMN), formatCurrency(totalUSD)

@@ -292,16 +292,18 @@ function autoCalcVencimiento() {
   projectData.fecha_creacion = fecha;
   projectData.dias_vigencia = dias;
 
-  if (fecha && dias >= 0) {
+  if (fecha && fecha !== '0000-00-00' && dias >= 0) {
     const cleanFecha = fecha.split(/[ T]/)[0];
     const fechaDate = new Date(cleanFecha + 'T00:00:00');
-    fechaDate.setDate(fechaDate.getDate() + dias);
-    const year = fechaDate.getFullYear();
-    const month = String(fechaDate.getMonth() + 1).padStart(2, '0');
-    const day = String(fechaDate.getDate()).padStart(2, '0');
-    const newVenc = `${year}-${month}-${day}`;
-    vencEl.value = newVenc;
-    projectData.fecha_vencimiento = newVenc;
+    if (!isNaN(fechaDate.getTime())) {
+      fechaDate.setDate(fechaDate.getDate() + dias);
+      const year = fechaDate.getFullYear();
+      const month = String(fechaDate.getMonth() + 1).padStart(2, '0');
+      const day = String(fechaDate.getDate()).padStart(2, '0');
+      const newVenc = `${year}-${month}-${day}`;
+      vencEl.value = newVenc;
+      projectData.fecha_vencimiento = newVenc;
+    }
   }
 }
 

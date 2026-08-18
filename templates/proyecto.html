@@ -1203,7 +1203,7 @@ function renderManoObra(c, sec) {
     const sub=h*d*co, tusd=sub*(1+m/100), tmn=tusd*getTC();
     tbody_rows += `
       <tr id="mo-row-${p.id}" class="table-row">
-        <td class="text-center text-muted" style="font-size:12px">${p.numero_partida||i+1}</td>
+        <td class="text-center text-muted" style="font-size:12px">${i + 1}</td>
         <td>${getDescField(p, sec)}</td>
         <td><input class="excel-input" type="number" value="${h||''}" oninput="recalcMO(${p.id},this)" data-field="horas_mo" style="width:80px" step="0.5"/></td>
         <td><input class="excel-input" type="number" value="${d||''}" oninput="recalcMO(${p.id},this)" data-field="dias_trabajo" style="width:70px" step="0.5"/></td>
@@ -1348,7 +1348,7 @@ function renderEquipo(c, sec) {
     totalMN+=tmn; totalUSD+=tusd;
     rows+=`
       <tr id="eq-row-${p.id}" class="table-row">
-        <td class="text-center text-muted" style="font-size:12px">${p.numero_partida||i+1}</td>
+        <td class="text-center text-muted" style="font-size:12px">${i + 1}</td>
         <td><input class="excel-input" value="${esc(p.descripcion||'')}" data-field="descripcion" onchange="saveEQ(${p.id})" style="min-width:160px"/></td>
         <td>${getMarcaField(p, sec)}</td>
         <td><input class="excel-input" value="${esc(p.modelo||'')}" data-field="modelo" onchange="saveEQ(${p.id})" style="width:80px"/></td>
@@ -1635,7 +1635,7 @@ function renderPrese(c) {
         <div class="col-4 ps-4">
           <div class="d-flex justify-content-between align-items-center mb-2" style="font-size:13px; font-weight:600; color:#475569;">
             <span style="min-width:120px;">COTIZACIÓN No.</span>
-            <input id="top-numero" class="quote-header-input fw-bold text-end border-0 bg-transparent" style="width:130px; border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(p.numero_proyecto||'')}" onchange="saveProjectField()"/>
+            <input id="prese-numero" class="quote-header-input fw-bold text-end border-0 bg-transparent" style="width:130px; border-bottom:1px dashed #ccc !important; outline:none;" value="${esc(p.numero_proyecto||'')}" onchange="saveProjectField({numero_proyecto:this.value})"/>
           </div>
           <div class="d-flex justify-content-between align-items-center mb-2" style="font-size:13px; font-weight:600; color:#475569;">
             <span style="min-width:120px;">FECHA</span>
@@ -1644,7 +1644,7 @@ function renderPrese(c) {
 
           <div class="d-flex justify-content-between align-items-center mb-2" style="font-size:13px; font-weight:600; color:#475569;">
             <span style="min-width:120px;">VENCIMIENTO</span>
-            <span id="f-vencimiento-display" class="text-end fw-semibold" style="width:130px;">${(() => { const f = p.fecha_creacion; const d = parseInt(p.dias_vigencia)||15; if(!f) return '---'; const cleanF = f.split(/[ T]/)[0]; const dt = new Date(cleanF+'T00:00:00'); dt.setDate(dt.getDate()+d); return dt.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'}); })()}</span>
+            <span id="f-vencimiento-display" class="text-end fw-semibold" style="width:130px;">${(() => { const f = p.fecha_creacion; const d = parseInt(p.dias_vigencia)||15; if(!f || f==='0000-00-00') return '---'; const cleanF = f.split(/[ T]/)[0]; const dt = new Date(cleanF+'T00:00:00'); dt.setDate(dt.getDate()+d); if(isNaN(dt.getTime())) return '---'; return dt.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'}); })()}</span>
             <input id="f-vencimiento" type="hidden" value="${p.fecha_vencimiento||''}"/>
           </div>
         </div>
@@ -2211,9 +2211,10 @@ async function saveProject() {
 }
 
 function calcVencimiento(fecha, dias) {
-  if (!fecha) return '';
+  if (!fecha || fecha === '0000-00-00') return '';
   const cleanF = fecha.split(/[ T]/)[0];
   const dt = new Date(cleanF + 'T00:00:00');
+  if (isNaN(dt.getTime())) return '';
   dt.setDate(dt.getDate() + (parseInt(dias) || 15));
   return dt.toISOString().split('T')[0];
 }
@@ -2226,10 +2227,14 @@ function onFechaOrVigenciaChange() {
   if (elVenc) elVenc.value = venc;
   const elDisplay = document.getElementById('f-vencimiento-display');
   if (elDisplay) {
-    if (venc) {
+    if (venc && venc !== '0000-00-00') {
       const cleanVenc = venc.split(/[ T]/)[0];
       const dt = new Date(cleanVenc + 'T00:00:00');
-      elDisplay.textContent = dt.toLocaleDateString('es-MX', {day:'2-digit', month:'2-digit', year:'numeric'});
+      if (isNaN(dt.getTime())) {
+        elDisplay.textContent = '---';
+      } else {
+        elDisplay.textContent = dt.toLocaleDateString('es-MX', {day:'2-digit', month:'2-digit', year:'numeric'});
+      }
     } else {
       elDisplay.textContent = '---';
     }
@@ -2247,7 +2252,7 @@ async function saveProjectField(extra={}) {
   };
 
   const nombre_val = getVal('f-nombre-proyecto', p.nombre_proyecto || '');
-  const num_val = getVal('top-numero', p.numero_proyecto || '');
+  const num_val = getVal('prese-numero', getVal('top-numero', p.numero_proyecto || ''));
   const empresa_val = getVal('f-empresa', p.empresa_cliente || '');
   const atencion_val = getVal('f-atencion', p.atencion || '');
   const tel_val = getVal('f-telefono', p.telefono_cliente || '');
@@ -2318,6 +2323,13 @@ async function saveProjectField(extra={}) {
     // Update top navbar span
     const elTopSpan = document.getElementById('top-nombre');
     if (elTopSpan) elTopSpan.textContent = nombre_val;
+    
+    // Sync quote numbers to avoid stale data overriding it later
+    const finalNum = projectData.proyecto.numero_proyecto;
+    const tn = document.getElementById('top-numero');
+    if (tn && tn.value !== finalNum) tn.value = finalNum;
+    const pn = document.getElementById('prese-numero');
+    if (pn && pn.value !== finalNum) pn.value = finalNum;
   }
 
   recalcAllProjectDataTC();
@@ -2834,7 +2846,7 @@ function renderEMecanico(c, sec) {
 
     rows += `
       <tr id="em-row-${p.id}" class="table-row">
-        <td class="text-center text-muted" style="font-size:12px">${p.numero_partida || i + 1}</td>
+        <td class="text-center text-muted" style="font-size:12px">${i + 1}</td>
 
         <td>
           <input class="excel-input text-start" type="text"

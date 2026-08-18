@@ -101,6 +101,7 @@ function formatCurrency(num, currency = 'MN') {
 function formatDate(dateStr) {
   if (!dateStr) return '';
   if (dateStr instanceof Date) {
+    if (isNaN(dateStr.getTime())) return '---';
     return dateStr.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
   let parsed = Date.parse(dateStr);
